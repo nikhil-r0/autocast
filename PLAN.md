@@ -9,6 +9,19 @@
 
 ---
 
+## Winning strategy (read this before anything else)
+
+1. **The idea is not the risk. Scope is.** If "works end to end" fails on Thursday, nothing else is scored. A thin pipeline that works beats a rich one that half works.
+2. **The centerpiece is the shoot loop plus stop-on-bug** ("broken app, Kane fails, no video rendered"). It is the strongest proof for both tie-breaks (Verified, then Closed loop). Open the demo video with it.
+3. **The review loop (Loop 3) is a bonus.** Build it only after the full pipeline works end to end. Judges are Kane engineers; an injected layout bug can look staged, so keep it honest and secondary.
+4. **Path B is the primary capture path** (Kane authors and verifies, Playwright replays and records). It removes the three biggest risks at once: soft footage, misaligned timings, and LLM thinking gaps. Kane's own video is the fallback, not the plan.
+5. **Hard gate: a real end-to-end MP4 by Tue 17 Nov night.** If not, cut down to the minimum (section 8) immediately.
+6. **Light install wins Craft.** Silent mode (no TTS key), a bundled sample app, and a pre-rendered output in the repo. Judges must be able to run it with only a Kane login.
+
+**Minimum that wins:** shoot loop with stop-on-bug, one Remotion template, narration or silent mode, one command. Everything else is extra.
+
+---
+
 ## 0. Do these first (30 minutes, today)
 
 - [ ] Register on the hackathon site and create or join a team (solo or up to 4).
@@ -35,8 +48,8 @@ Then four equally weighted dimensions (25% each):
 |---|---|---|
 | **Ships** | A real flow that runs end to end, not slides | `npm run demo -- "<prompt>"` produces an MP4 from a real app, with a bundled sample app so judges can run it |
 | **Verified** | Kane caught or confirmed something meaningful | (a) Kane proves the feature works before we render, (b) Kane catches visual layout bugs in our own rendered video |
-| **Closed loop** | Kane's result feeds back to the agent; tighter is better | Three loops (see section 6): shoot loop, lint loop, review loop. The review loop is shown live in the demo |
-| **Craft** | Would a developer install this tonight? | One command, clean README, genuinely good-looking output, usable on any web app |
+| **Closed loop** | Kane's result feeds back to the agent; tighter is better | Shoot loop: Kane failure is classified and the agent rewrites the objective or stops with a bug report. Lint loop and review loop (bonus) add more feedback (see section 6) |
+| **Craft** | Would a developer install this tonight? | One command, clean README, genuinely good-looking output, usable on any web app. Only hard requirement is a Kane login; TTS optional, sample app bundled |
 
 **Tie-breaks** go to Verified, then Closed loop. Put the most effort there.
 
@@ -123,12 +136,18 @@ Then answer these and write the answers in `docs/spike-findings.md`:
 
 ### Decision gate (end of Day 1)
 
-| Finding | Path chosen |
-|---|---|
-| Video exists and step timings align with it | **Path A:** use Kane's video directly, trim dead time with step timings or ffmpeg `freezedetect` |
-| Video exists but timings don't align | **Path A2:** detect static segments with ffmpeg `freezedetect` and align by matching click coordinates to frame changes |
-| Video missing or low quality, Playwright export works | **Path B (preferred if possible):** Kane authors and verifies the flow, then replay the generated Playwright script with `recordVideo` at controlled pace and our own timestamp log |
-| Neither works | **Path C:** build the video from per-step `screenshot.png` / `annotated.png` with Ken Burns style motion (less authentic, fully deterministic) |
+Try the paths in this order and take the first one that works:
+
+| Order | Condition | Path |
+|---|---|---|
+| 1 (primary) | Playwright export from `testmd run` works for the flow | **Path B:** Kane authors and verifies the flow, then replay the generated Playwright script with `recordVideo` at 1920x1080, `deviceScaleFactor: 2`, controlled pace, and our own timestamp log. Sharp footage, exact click timings, no thinking gaps |
+| 2 | Kane's video exists and step timings align with it | **Path A:** use Kane's video directly, trim dead time with step timings or ffmpeg `freezedetect` |
+| 3 | Kane's video exists but timings don't align | **Path A2:** detect static segments with ffmpeg `freezedetect` and align by matching click coordinates to frame changes |
+| 4 | Nothing else works | **Path C:** build the video from per-step `screenshot.png` / `annotated.png` with Ken Burns style motion (less authentic, fully deterministic) |
+
+On Path B, Kane still owns verification: the shoot loop must pass in Kane before the Playwright replay runs, and the replay must hit the same assertion. If the replay diverges from Kane's run, treat it as a failure, not a render.
+
+**Spend the first spike hour on Path B** (`testmd run` plus Playwright export). Only fall back to inspecting Kane's video if it fails.
 
 Everything downstream consumes the same `storyboard.json`, so the path only changes the capture adapter.
 
@@ -239,7 +258,9 @@ Field sources: `target`, `cursor.to`, and action timing come from `step.json` (o
 
 Before spending Kane runs, validate `storyboard.json` in code: schema, targets within source bounds, `scene_len >= audio_sec + 0.4`, no zoom above the cap, no scene shorter than 1.2 s, total length within a target range. Failures go straight back to the agent as structured errors.
 
-### Loop 3: Review loop (Kane verifies our own video)
+### Loop 3: Review loop (Kane verifies our own video) — BONUS
+
+**Build only after `npm run demo -- "<prompt>"` works end to end.** Loops 1 and 2 already clear all three required bars; this loop strengthens Closed loop but is not the centerpiece.
 
 Kane's vision catches what DOM checks cannot: overlap, clipping, wrong highlight, covered targets.
 
@@ -316,7 +337,7 @@ npx remotion render Demo out/demo.mp4 --codec=h264 --crf=16 --image-format=png
 
 - [ ] Section 0 checklist.
 - [ ] Sample app (`examples/invoice-app`) running locally, or pick ForgeRoom/ExportEase.
-- [ ] Spike (section 3), `docs/spike-findings.md`, decision gate.
+- [ ] Spike (section 3), starting with Path B (`testmd run` plus Playwright export), then `docs/spike-findings.md` and the decision gate.
 - [ ] `parsePack.ts` producing normalized steps from one real run.
 - [ ] Remotion project scaffolded with the Remotion skill installed.
 
@@ -337,13 +358,15 @@ npx remotion render Demo out/demo.mp4 --codec=h264 --crf=16 --image-format=png
 - [ ] Narration generation plus TTS adapter plus audio-first timing.
 - [ ] Loop 1 (classify, retry, stop-on-bug) and Loop 2 (lint).
 - [ ] `npm run demo -- "<prompt>"` works end to end on the sample app.
+- [ ] Stop-on-bug works: an env flag that breaks the sample app (e.g. `BROKEN=approve` hides the Approved seal) makes Kane fail and Autocast print a bug report with no render.
+- [ ] Commit a pre-rendered output to `examples/output/` (the safety net).
 - [ ] **Evening:** use Autocast to render a 30 to 45 s sample video for the launch posts.
 
-**Exit criterion:** one command, one prompt, one MP4, with narration.
+**Exit criterion (HARD GATE):** one command, one prompt, one MP4, with narration or silent mode. If this is not true by Tuesday night, skip Loop 3 entirely and spend Day 4 making the pipeline reliable and polished.
 
-### Day 4, Wed 18 Nov: Loop 3, polish, record, launch buzz
+### Day 4, Wed 18 Nov: Loop 3 (bonus), polish, record, launch buzz
 
-- [ ] Review page plus `kaneReview.ts` plus fix loop.
+- [ ] Only if the Day 3 gate passed: review page plus `kaneReview.ts` plus fix loop, on at least 3 sampled frames.
 - [ ] Add the **chaos flag** (section 9) so the loop can be demonstrated.
 - [ ] Title/outro cards, transitions, optional music.
 - [ ] README with a judge quick start, `.env.example`, and fallback output in `examples/output/`.
@@ -363,8 +386,9 @@ npx remotion render Demo out/demo.mp4 --codec=h264 --crf=16 --image-format=png
 |---|---|
 | End of Day 2 | Music, outro polish, 60 fps, motion blur |
 | End of Day 3 | Cursor ripple, multi-flow support, TTS provider other than one |
+| End of Day 3 (gate missed) | Loop 3 entirely, chaos flag, TTS (ship silent mode) |
 | End of Day 4 | Transitions beyond a fade, extra sample apps |
-| **Never cut** | Loop 1 stop-on-bug, Loop 3 on at least 3 sampled frames, narration (silent mode is the fallback), the fresh-clone test |
+| **Never cut** | Loop 1 with stop-on-bug, Loop 2 lint, one command end to end, pre-rendered output in the repo, the fresh-clone test |
 
 ---
 
@@ -373,12 +397,12 @@ npx remotion render Demo out/demo.mp4 --codec=h264 --crf=16 --image-format=png
 | Time | Content | Judging bar it serves |
 |---|---|---|
 | 0:00 to 0:20 | **Hook:** play 20 s of a finished Autocast output, no explanation | Craft |
-| 0:20 to 0:45 | Problem: demo videos are manual and go stale; agents write code but can't check or show their work | Context |
-| 0:45 to 1:30 | Type the prompt in Claude Code/Cursor; show the Kane run driving the real app; show pass | Ships, Verified |
-| 1:30 to 2:15 | Evidence to `storyboard.json` to narration clips to timeline; show the edit assembling | Ships |
-| 2:15 to 3:15 | **Closed loop:** Kane fails a review frame (sidebar overlap), the agent reads the failure, patches, Kane passes | Closed loop |
-| 3:15 to 3:45 | **Demos can't lie:** break the app on purpose, Kane's assertion fails, **no video is rendered**, a bug report is printed instead | Verified |
-| 3:45 to 4:15 | Architecture slide (one), install in one line, where the repo is | Craft |
+| 0:20 to 0:50 | **Demos can't lie:** same prompt, app broken on purpose, Kane's assertion fails, **no video is rendered**, a bug report with Kane's test URL is printed instead | Verified (tie-break 1) |
+| 0:50 to 1:10 | Problem: demo videos are manual and go stale; agents write code but can't check or show their work | Context |
+| 1:10 to 1:50 | Fix the app, type the prompt in Claude Code/Cursor; show the Kane run driving the real app; an objective retry if it happens; show pass | Ships, Closed loop |
+| 1:50 to 2:40 | Evidence to `storyboard.json` to narration clips to timeline; lint loop catching a bad scene; show the edit assembling | Ships, Closed loop |
+| 2:40 to 3:30 | **Bonus loop (if built):** Kane fails a review frame (injected sidebar overlap, stated as injected), the agent reads the failure, patches, Kane passes | Closed loop (tie-break 2) |
+| 3:30 to 4:00 | Architecture slide (one), install in one line, where the repo is | Craft |
 
 **Chaos flag:** add an env flag (e.g. `AUTOCAST_CHAOS=sidebar-overlap`) that deliberately breaks the layout so the review loop can be shown on demand. State clearly in the video and README that the bug is injected to demonstrate the loop. Do not present it as an organic bug.
 
@@ -418,14 +442,16 @@ Use Autocast to make the launch video (dogfooding is the best proof).
 
 | Risk | Likelihood | Mitigation |
 |---|---|---|
-| Evidence pack lacks video or timings don't align | High | Day 1 spike plus Paths A, A2, B, C |
-| Kane video is low resolution; zoom looks soft | High | Set window size to 1080p; cap zoom; Path B with device scale factor 2 |
-| LLM thinking time makes demos sluggish | High | Idle detection plus speed ramp, `freezedetect` fallback |
+| Too much scope for one person in 4.5 days | High | Minimum that wins (top of file); hard gate Tue night; Loop 3 is bonus |
+| Evidence pack lacks video or timings don't align | High | Path B is primary; Paths A, A2, C as fallbacks |
+| Kane video is low resolution; zoom looks soft | High | Path B with 1080p and device scale factor 2; cap zoom |
+| LLM thinking time makes demos sluggish | High | Path B replay has no thinking gaps; idle speed ramp and `freezedetect` for Path A |
+| Path B replay diverges from Kane's verified run | Medium | Replay must hit the same assertion; divergence is a failure, never a render |
 | Credits run out during loops | Medium | Measure cost per run on Day 1; sample frames; ask on Slack for extras before the deadline |
 | Render takes too long on final day | Medium | 5 s test on Day 2; benchmark concurrency; render final by Thu noon |
 | TTS key or quota missing for judges | Medium | Silent mode works without keys; ship pre-rendered output in `examples/output/` |
 | Judges can't run the target app | Medium | Bundle the sample app; document credentials; include a recorded Kane run as fallback |
-| Loop 3 feels contrived ("could be done without Kane") | Medium | Use visual objectives that DOM checks can't do (overlap, cropping, highlight position); show Kane's annotated screenshots |
+| Loop 3 feels contrived or staged to Kane-engineer judges | Medium | Keep it secondary to stop-on-bug; use visual objectives DOM checks can't do (overlap, cropping, highlight position); show Kane's annotated screenshots; say clearly the bug is injected |
 | Remotion render quirks (video tag, timeouts) | Medium | Use the current `@remotion/media` video tag; keep a short-render command for debugging |
 | Scope creep | High | Cut lines in section 8; no new features on Day 5 |
 
@@ -448,7 +474,7 @@ Use Autocast to make the launch video (dogfooding is the best proof).
 
 ## 14. Stretch ideas (only after everything above is done)
 
-- GitHub Action: on PR, run Autocast and post the demo video as a comment.
+- **First stretch, highest value:** GitHub Action: on PR, run Autocast and post the verified demo video as a comment (or the bug report if Kane fails). Turns the pitch into a dev workflow tool.
 - Multi-flow: one prompt generates a chapter-based video from several Kane runs (`testrun` with parallel execution).
 - Mobile: Kane also drives iOS simulator and Android emulator; produce a phone-framed demo.
 - Word-level captions and a language switch for narration.
