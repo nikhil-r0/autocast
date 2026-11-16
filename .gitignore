@@ -10,3 +10,4 @@ out/
 dist/
 public/raw-captures/
 public/*.mp4
+*.traineddata

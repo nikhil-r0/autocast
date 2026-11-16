@@ -90,6 +90,21 @@ export function lintStoryboard(storyboardOrPath?: Storyboard | string): LintResu
     if (secretCheckCap.redactedCount > 0 || secretCheckNar.redactedCount > 0) {
       errors.push(`${prefix} contains unredacted secrets or tokens (${[...secretCheckCap.detectedTypes, ...secretCheckNar.detectedTypes].join(', ')}).`);
     }
+
+    // 5. Banned unmeasured superlatives check
+    const BANNED_SUPERLATIVES = ['seamless', 'instant', 'effortless', 'enterprise-grade', 'streamline', 'visibility'];
+    const combinedText = `${s.caption} ${s.narration}`.toLowerCase();
+    for (const banned of BANNED_SUPERLATIVES) {
+      if (new RegExp(`\\b${banned}\\b`, 'i').test(combinedText)) {
+        errors.push(`${prefix} uses banned superlative "${banned}". Demos must only state verified facts.`);
+      }
+    }
+
+    // 6. Safe area check (target rect must not invade outer screen margin)
+    const margin = 20;
+    if (s.target.x < margin && s.target.w < width - margin * 2) {
+      errors.push(`${prefix} target rect too close to left canvas edge (< ${margin}px).`);
+    }
   }
 
   const valid = errors.length === 0;

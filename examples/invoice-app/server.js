@@ -57,6 +57,70 @@ const server = http.createServer((req, res) => {
 </html>`);
   }
 
+  // MP4 Video Review Endpoint with timestamp seeking (Loop 3)
+  if (pathname === '/review-video') {
+    const t = parsedUrl.searchParams.get('t') || '0';
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    return res.end(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Autocast MP4 Video QA - Time ${t}s</title>
+  <style>
+    body { margin: 0; background: #070b14; color: #f8fafc; font-family: -apple-system, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; }
+    .qa-header { width: 100%; max-width: 1400px; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; background: #0f172a; border-radius: 8px 8px 0 0; border: 1px solid rgba(255,255,255,0.1); box-sizing: border-box; }
+    .qa-badge { background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #60a5fa; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 700; }
+    .video-wrapper { width: 100%; max-width: 1400px; background: #000; border: 1px solid rgba(255,255,255,0.1); border-top: none; border-radius: 0 0 8px 8px; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.8); }
+    video { width: 100%; height: auto; display: block; }
+  </style>
+</head>
+<body>
+  <div class="qa-header">
+    <div>
+      <span class="qa-badge">LOOP 3 MP4 VIDEO QA</span>
+      <span style="margin-left: 12px; font-weight: 600;">Direct File Review at ${t}s</span>
+    </div>
+    <div style="font-size: 13px; color: #94a3b8;">Verifying rendered MP4 encoding, transitions, and audio sync</div>
+  </div>
+  <div class="video-wrapper">
+    <video id="mp4-player" controls autoplay muted src="/video-stream#t=${t}"></video>
+  </div>
+</body>
+</html>`);
+  }
+
+  if (pathname === '/video-stream') {
+    const videoPath = path.join(process.cwd(), 'out', 'demo.mp4');
+    if (!fs.existsSync(videoPath)) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      return res.end('Rendered video not found. Run render phase first.');
+    }
+    const stat = fs.statSync(videoPath);
+    const range = req.headers.range;
+    if (range) {
+      const parts = range.replace(/bytes=/, "").split("-");
+      const start = parseInt(parts[0], 10);
+      const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
+      const chunksize = (end - start) + 1;
+      const file = fs.createReadStream(videoPath, { start, end });
+      const head = {
+        'Content-Range': `bytes ${start}-${end}/${stat.size}`,
+        'Accept-Ranges': 'bytes',
+        'Content-Length': chunksize,
+        'Content-Type': 'video/mp4',
+      };
+      res.writeHead(206, head);
+      return file.pipe(res);
+    } else {
+      const head = {
+        'Content-Length': stat.size,
+        'Content-Type': 'video/mp4',
+      };
+      res.writeHead(200, head);
+      return fs.createReadStream(videoPath).pipe(res);
+    }
+  }
+
   if (pathname === '/review-image') {
     const frame = parsedUrl.searchParams.get('frame') || '100';
     const reviewDir = path.join(process.cwd(), 'out', 'review');

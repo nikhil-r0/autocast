@@ -2,18 +2,24 @@ import React from 'react';
 import { interpolate, OffthreadVideo, staticFile, useCurrentFrame } from 'remotion';
 import { CameraRig } from './CameraRig';
 import { Cursor } from './Cursor';
+import { Spotlight } from './Spotlight';
+import { StatChip } from './StatChip';
 import { Scene as SceneType } from '../../src/types';
 
 interface SceneProps {
   scene: SceneType;
   videoSrc: string;
   durationInFrames: number;
+  currentStep?: number;
+  totalSteps?: number;
 }
 
 export const Scene: React.FC<SceneProps> = ({
   scene,
   videoSrc,
   durationInFrames,
+  currentStep = 1,
+  totalSteps = 4,
 }) => {
   const frame = useCurrentFrame();
   const startSec = scene.segments[0]?.src_start || 0;
@@ -38,6 +44,14 @@ export const Scene: React.FC<SceneProps> = ({
         opacity: transitionOpacity,
       }}
     >
+      {/* Verified Stat Chip HUD */}
+      <StatChip
+        currentStep={currentStep}
+        totalSteps={totalSteps}
+        label="Kane Verified"
+        durationInFrames={durationInFrames}
+      />
+
       <CameraRig
         target={scene.target}
         zoom={scene.camera.zoom}
@@ -52,6 +66,13 @@ export const Scene: React.FC<SceneProps> = ({
             height: 1080,
             objectFit: 'contain',
           }}
+        />
+
+        {/* Focus Spotlight Ring around verified target */}
+        <Spotlight
+          target={scene.target}
+          active={scene.cursor.click}
+          durationInFrames={durationInFrames}
         />
 
         <Cursor

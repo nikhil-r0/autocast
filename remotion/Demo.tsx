@@ -113,6 +113,8 @@ export const Demo: React.FC<DemoProps> = ({ storyboard }) => {
                   scene={scene}
                   videoSrc={meta.source.video}
                   durationInFrames={sceneFrames}
+                  currentStep={idx + 1}
+                  totalSteps={scenes.length}
                 />
               </Series.Sequence>
             );
@@ -132,8 +134,8 @@ export const Demo: React.FC<DemoProps> = ({ storyboard }) => {
         title={meta.title}
       />
 
-      {/* Outro Overlay */}
-      {isOutroVisible && <Outro />}
+      {/* Outro Overlay: Verified End Card */}
+      {isOutroVisible && <Outro title={meta.title} />}
     </div>
   );
 };

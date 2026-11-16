@@ -76,11 +76,16 @@ The finished files are `out/demo.mp4` (with frame-0 thumbnail baked in), `out/po
 
 | Loop | What it checks | What happens on failure |
 | --- | --- | --- |
-| Shoot | The live product does what the prompt asked | Render is aborted. A defect report is printed. |
-| Lint | The storyboard is valid: schema, zoom bounds, pacing | Render is aborted before Remotion starts. |
-| Review | Rendered frames stay inside the frame and stay readable | Kane flags the visual defect. Fix the scene, then render. |
+| Shoot | Strict Kane run (`--mode action --bug-detection stop --final-validation on`) against frozen claims | Render is aborted. A structured defect report is printed. |
+| Lint | Storyboard validity: schema, zoom bounds, readability floor (>=0.3s/word), secret scrubber, banned superlatives | Render is aborted before Remotion starts. |
+| Review | Rendered frames & MP4 stream stay defect-free without edge clipping or text overlap | Kane flags the visual defect; autonomous repair (`fix.ts`) heals layout and re-audits. |
+| Pixel Safety | Post-render OCR scan on video pixels using Tesseract | Aborts if any API key or token pattern appears in rendered video pixels. |
 
-Shoot retries are capped at 3. Review iterations are capped at 4. Content lives in `storyboard.json`; the Remotion components stay generic.
+Shoot retries are capped at 3 with strictly frozen claims. Review iterations heal layout defects autonomously. All verified telemetry powers trailer-style overlays: Spotlight focus rings, StatChip HUDs, and the Verified End Card centerpiece.
+
+## Verified Catch Evidence
+
+Autocast AI's Loop 3 Visual QA caught an over-panning camera defect in its own rendered video, halted the pipeline, repaired the camera rig constraints, and Kane CLI independently verified the fix. See full before/after evidence in [docs/catches/frame-204-catch.md](docs/catches/frame-204-catch.md).
 
 ## Demos that can't lie
 

@@ -11,7 +11,9 @@ import { buildStoryboard } from './edit/storyboard.js';
 import { lintStoryboard } from './edit/lint.js';
 import { writeShareCopy } from './edit/shareCopy.js';
 import { executeReviewLoop } from './review/kaneReview.js';
+import { repairVisualDefects } from './review/fix.js';
 import { findHeroTimestamp, extractPosterFrame, bakePosterToFrame0 } from './edit/poster.js';
+import { scanVideoPixelsForSecrets } from './edit/ocrScan.js';
 
 import dns from 'dns';
 
@@ -104,7 +106,8 @@ async function main() {
     console.warn(`[Shoot Loop] Kane run did not pass (${classification.message}). Refining objective...`);
     objectivePlan = await generateKaneObjective(
       `${userPrompt} (Prior attempt failed: ${classification.message}. Ensure clear selectors and sequential steps.)`,
-      appUrl
+      appUrl,
+      objectivePlan.frozenClaims
     );
   }
 
@@ -142,6 +145,20 @@ async function main() {
     const reviewResult = await executeReviewLoop(storyboard, appUrl);
     if (!reviewResult.passed) {
       console.warn('\n[Loop 3 Review] Kane flagged visual QA warnings on rendered frames.');
+      const repair = repairVisualDefects(storyboard, reviewResult.reviews);
+      if (repair.repaired) {
+        console.log(`[Loop 3 Autonomous Repair] Applied ${repair.actionsTaken.length} layout fix(es):`);
+        repair.actionsTaken.forEach((act) => console.log(`  - ${act}`));
+        // Re-write updated storyboard
+        fs.writeFileSync(
+          path.join(process.cwd(), 'storyboard.json'),
+          JSON.stringify(repair.storyboard, null, 2)
+        );
+        fs.writeFileSync(
+          path.join(process.cwd(), 'public', 'storyboard.json'),
+          JSON.stringify(repair.storyboard, null, 2)
+        );
+      }
     } else {
       console.log('\n✓ Loop 3 Visual QA: Kane confirmed video layout, typography, and framing are defect-free.');
     }
@@ -196,6 +213,17 @@ async function main() {
     await bakePosterToFrame0(outputMp4, posterPath);
   } catch (err: any) {
     console.warn(`[Poster] Poster processing warning: ${err.message}`);
+  }
+
+  // 8. PIXEL SAFETY OCR AUDIT
+  console.log('\n--- PHASE 8: PIXEL-LEVEL SAFETY OCR AUDIT ---');
+  try {
+    const ocrResult = await scanVideoPixelsForSecrets(outputMp4);
+    if (!ocrResult.passed) {
+      console.error('[Pixel Safety OCR] ❌ Warning: Potential secret patterns detected in video pixels!');
+    }
+  } catch (ocrErr: any) {
+    console.warn(`[Pixel Safety OCR] OCR audit warning: ${ocrErr.message}`);
   }
 
   // Sync to examples/output for docs & sample delivery
