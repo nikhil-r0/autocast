@@ -1,126 +1,134 @@
-# Autocast AI: The Autonomous Demo Director
+<p align="center">
+  <img src="docs/cover.jpg" alt="Autocast AI — Demos that can't lie." width="820">
+</p>
 
-> **One plain-English prompt in. A narrated, zoomed, verified product demo video out.**  
-> Tagline: **Demos that can't lie.** No video is rendered unless Kane CLI proves the feature works, and no video ships unless Kane CLI proves the edit looks right.
+<h1 align="center">Autocast AI</h1>
 
----
+<p align="center">
+  <strong>The autonomous demo director.</strong><br>
+  One plain-English prompt in. A narrated, zoomed, verified product demo out.<br>
+  <em>Demos that can't lie.</em>
+</p>
 
-## ⚡ Quick Start (For Judges)
+Autocast turns a product flow into a finished demo video, and it refuses to ship one that the product cannot actually perform. Kane CLI proves the feature works before a frame is recorded. A second pass proves the edit looks right before the MP4 is written.
 
-### 1. Prerequisites
-- Node.js (v18+)
-- Kane CLI authenticated:
-  ```bash
-  kane-cli login
-  ```
+No video is rendered when the product fails. No video ships when the edit fails visual review.
 
-### 2. Install & Configure
+## What you get
+
+A single command produces a 1080p, 30fps H.264 demo:
+
+- A real browser walkthrough of the feature, captured at 1920×1080
+- Benefit-led narration and scene captions
+- Camera zooms, a synthesized cursor, and title and outro cards
+- A structured defect report, with screenshots, when the product is broken
+
+A bundled invoice-approval app is included so the pipeline runs without your own product. Point `TARGET_APP_URL` at any web app when you are ready.
+
+## Quick start
+
+**Requirements:** Node.js 18+, Kane CLI signed in (`kane-cli login`), and a Gemini API key if you want generated narration. Without a key, the pipeline falls back to silent captions.
+
 ```bash
 git clone https://github.com/nikhil-r0/autocast.git
 cd autocast
 npm install
 cp .env.example .env
-# Add your GEMINI_API_KEY in .env (or run in silent fallback mode)
+# Set GEMINI_API_KEY in .env
 ```
 
-### 3. Generate a Verified Demo Video
-Run the autonomous demo pipeline with one command:
 ```bash
 npm run demo -- "Create a demo of the invoice approval flow"
 ```
 
-The output MP4 video will be rendered into `out/demo.mp4`.  
-*(A pre-rendered sample is also available at `examples/output/sample-demo.mp4`)*.
+The finished file is `out/demo.mp4`. A pre-rendered sample is at `examples/output/sample-demo.mp4`.
 
----
+## How a demo is made
 
-## 🛡️ The Centerpiece: Demos Can't Lie (Stop-on-Bug)
+```
+"Create a demo of the invoice approval flow"
+                |
+                v
+       Director (Gemini)
+       objective + assertion
+                |
+     1. Shoot — Kane CLI, real Chrome
+        product defect?  -->  stop. print the report. no render.
+                |
+     2. Capture — Playwright replay at 1920×1080
+        exact clicks, no model pauses in the footage
+                |
+     3. Edit — narration, captions, zoom rects, cursor path
+        written to storyboard.json
+                |
+     4. Lint — schema, bounds, timing, frame fit
+                |
+     5. Review — Kane inspects rendered frames
+        clipping, cut-off type, overlapping text
+                |
+     6. Render — Remotion, H.264, 1080p, 30fps
+                |
+                v
+            out/demo.mp4
+```
 
-Autocast AI refuses to render misleading marketing videos. If an application defect is present, Kane CLI catches the failure, halts the render, and outputs a structured bug report with screenshots:
+| Loop | What it checks | What happens on failure |
+| --- | --- | --- |
+| Shoot | The live product does what the prompt asked | Render is aborted. A defect report is printed. |
+| Lint | The storyboard is valid: schema, zoom bounds, pacing | Render is aborted before Remotion starts. |
+| Review | Rendered frames stay inside the frame and stay readable | Kane flags the visual defect. Fix the scene, then render. |
+
+Shoot retries are capped at 3. Review iterations are capped at 4. Content lives in `storyboard.json`; the Remotion components stay generic.
+
+## Demos that can't lie
+
+If the approval seal is missing, Autocast does not invent one. Kane catches the failure, the pipeline exits, and nothing is rendered:
 
 ```bash
-# Test the stop-on-bug behavior:
 TARGET_APP_URL="http://localhost:8080/?broken=approve" npm run demo
 ```
 
-**Result:** Autocast detects the missing approval seal, halts execution, and renders **no video**, protecting developer trust.
+Pass `--skip-review` to run shoot, capture, lint, and render without the visual review loop.
 
----
+## Commands
 
-## 🏗️ Architecture: The Three Closed Loops
+| Command | Purpose |
+| --- | --- |
+| `npm run demo -- "<prompt>"` | Full pipeline: verify, capture, edit, review, render |
+| `npm run app` | Bundled invoice app on port 8080 |
+| `npm run preview` | Remotion Studio |
+| `npm run render` | Render the current storyboard to `out/demo.mp4` |
+| `npm run lint:storyboard` | Validate `storyboard.json` |
+| `npm run typecheck` | TypeScript check |
 
-Autocast AI implements the complete triad of automated verification:
+## Configuration
 
-```
- "Create a demo of the invoice approval flow"
-                    |
-                    v
-          +---------------------+
-          |   Director LLM      |   (Translates prompt to objective & assertion)
-          +---------------------+
-                    |
-        (1) LOOP 1: SHOOT LOOP (Kane CLI Application Verification)
-          kane-cli run "<objective>" --agent
-          Real Chrome, Vision-Driven, Automated Assertions
-                    |
-                    +--- Product Defect? ---> STOP-ON-BUG! Print defect report, NO RENDER.
-                    |
-        (2) CAPTURE: PATH B REPLAY
-          Playwright Replay & Record at 1920x1080
-          (Zero LLM thinking gaps, 30fps sharp footage, exact click coordinates)
-                    |
-        (3) EDIT: STORYBOARD SYNTHESIS
-          Gemini 3.5 Flash generates benefit-driven narration & scene captions
-          Synthesizes storyboard.json with camera zoom rects & cursor physics
-                    |
-        (4) LOOP 2: LINT LOOP
-          Fast code validation: Schema, zoom bounds, timing fit, boundary constraints
-                    |
-        (5) LOOP 3: VISUAL REVIEW LOOP (Kane CLI Remotion Verification)
-          kane-cli run "Open http://localhost:8080/review?frame=N and verify..."
-          Kane inspects rendered video frames for layout clipping, corner cutoffs, and typography overlap
-                    |
-        (6) RENDER: DETERMINISTIC REMOTION RENDER
-          npx remotion render Demo out/demo.mp4 (H.264, 1080p, 30fps, 31 seconds)
-```
+Copy `.env.example` to `.env`.
 
-### The 3 Loops at a Glance:
-1. **Loop 1 (Shoot Loop):** Kane verifies the real application feature. Demos can't lie: if the app is broken, render is halted.
-2. **Loop 2 (Lint Loop):** Deterministic validator checks storyboard schema, target bounds, and pacing.
-3. **Loop 3 (Review Loop):** Kane visually reviews rendered Remotion frames via `/review?frame=N`. Kane's multimodal computer vision catches visual defects that DOM checks cannot: element cropping, aspect ratio distortion, and text overlap.
+| Variable | Role |
+| --- | --- |
+| `GEMINI_API_KEY` | Objectives, narration, and captions. Optional; silent fallback when unset. |
+| `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` | Alternate model providers. |
+| `ELEVENLABS_API_KEY` | Optional voiceover. Blank stays silent. |
+| `TARGET_APP_URL` | App under test. Defaults to `http://localhost:8080`. |
+| `AUTOCAST_CHAOS` | Forces a layout defect so the review loop can be demonstrated. |
 
----
-
-## 📂 Project Structure
+## Layout
 
 ```
 autocast/
 ├── src/
-│   ├── cli.ts                   # Main CLI entrypoint
-│   ├── shoot/
-│   │   ├── kane.ts              # Kane CLI agent-mode runner & NDJSON parser
-│   │   ├── objective.ts         # Translates prompt to Kane objective via Gemini
-│   │   └── classify.ts          # Stop-on-bug classification
-│   ├── capture/
-│   │   └── replay.ts            # Path B Playwright 1080p recorder
-│   ├── edit/
-│   │   ├── narration.ts         # Benefit-first narration writer
-│   │   ├── storyboard.ts        # storyboard.json synthesis
-│   │   └── lint.ts              # Fast pre-render storyboard validator
-│   └── types.ts                 # Zod contracts & shared interfaces
-├── remotion/
-│   ├── Root.tsx                 # Composition registration
-│   ├── Demo.tsx                 # Video composition & calculateMetadata
-│   └── components/
-│       ├── BrowserFrame.tsx     # Window frame & address bar
-│       ├── CameraRig.tsx        # Spring-eased zoom & pan
-│       ├── Cursor.tsx           # Synthesized cursor path & click ripple
-│       ├── Sidebar.tsx          # Step list & animated caption
-│       ├── TitleCard.tsx        # Intro animation
-│       └── Outro.tsx            # Outro card
+│   ├── cli.ts                 # Pipeline entry
+│   ├── shoot/                 # Objective, Kane run, stop-on-bug
+│   ├── capture/replay.ts      # 1080p Playwright replay
+│   ├── edit/                  # Narration, storyboard, lint
+│   └── review/kaneReview.ts   # Frame-level visual QA
+├── remotion/                  # Composition, camera, cursor, cards
 ├── examples/
-│   ├── invoice-app/             # Bundled mock invoice approval app
-│   └── output/                  # Pre-rendered sample MP4 & storyboard
-└── docs/
-    └── spike-findings.md        # Day 1 spike verification findings
+│   ├── invoice-app/           # Sample product
+│   └── output/                # Sample MP4 and storyboard
+├── docs/                      # Cover and design notes
+└── storyboard.json            # The edit. Change this, not the components.
 ```
+
+Further reading: [shoot findings](docs/spike-findings.md) and [the review loop](docs/loop3-review.md).
