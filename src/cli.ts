@@ -166,7 +166,10 @@ async function main() {
             appDir: path.join(worktreeDir, 'examples/ledgerly'),
             port: 8080,
           });
-          await worktreeAdapter.start({ commit: repairResult.candidateCommit });
+          await worktreeAdapter.start({
+            commit: repairResult.candidateCommit,
+            env: { APP_BUG: process.env.APP_BUG || 'approve-noop' },
+          });
           await worktreeAdapter.resetSeedData();
 
           // Kane re-verification
