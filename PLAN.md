@@ -55,9 +55,9 @@ flowchart TD
         KaneVisualQA --> VisualCheck{"Visual Flaws Detected?"}
         
         VisualCheck -- "Passed (No Flaws)" --> RemotionRender["Phase 6: Full Remotion 1080p Video Render"]
-        VisualCheck -- "Flaws Detected" --> TargetedPatch["Targeted StoryboardPatch (Offending Scene Only, Max 2 Retries)"]
+        VisualCheck -- "Flaws Detected" --> TargetedPatch["StoryboardPatch on the failing scene only, one retry"]
         TargetedPatch --> PreviewStills
-        VisualCheck -- "Max Retries (2) Exceeded" --> VisualAbort["HARD STOP: Abort Render (0 Video Shipped)"]
+        VisualCheck -- "Retry spent, flaw remains" --> RemotionRender
     end
 
     subgraph LOOP3["LOOP 3: Release Safety Loop"]
@@ -352,20 +352,40 @@ export interface AuthoritativeTimeline {
    - Scene metadata, camera zoom level, and safe-area margin guides.
    - Checklist for Kane: "Verify no viewport clipping, verify right sidebar text does not collide with frame boundary."
 3. **Kane Review in Real Chrome**: Kane navigates to `http://localhost:8081/qa-gallery` in headless Chrome and evaluates visual invariants.
-4. **Targeted Storyboard Patch**: If Kane detects a visual flaw:
-   - Frame number is mapped to exact `sceneId` via `AuthoritativeTimeline`.
-   - Proposes structured `StoryboardPatch`:
-     ```typescript
-     export interface StoryboardPatch {
-       sceneId: string;
-       issue: 'clipping' | 'sidebar_overlap' | 'excessive_zoom';
-       adjustments: { zoom?: number; panX?: number; panY?: number; targetW?: number };
-       reason: string;
-     }
-     ```
-   - Only the offending scene is modified.
-   - Preview frame is re-rendered and re-reviewed by Kane (max 2 iterations).
-   - **Hard Stop**: If visual defects persist after 2 iterations, the pipeline halts immediately with exit code 1. Zero video is rendered.
+4. **Targeted Storyboard Patch**: If Kane detects a visual flaw, patch the storyboard once, then render either way. A flagged frame never blocks the MP4. The only hard stop for "no video" is Loop 1, when Kane confirms a product bug. Secret detection in Loop 3 still quarantines a render. The product on screen is Ledgerly. Do not point this loop at Autocast, Remotion Studio, or the gallery as the app under test.
+
+   Map the failed frame to `sceneId` through `AuthoritativeTimeline`. Classify Kane's summary before spending another model call:
+
+   - **Cropped or cut off** (`crop`, `cut off`, `outside`, `edge`): pull the target rect inward by 8% of its width and height, clamped to 1920×1080, and step `camera.zoom` down by 0.15, floor 1.2.
+   - **Overlap or covered text** (`overlap`, `covered`, `sidebar`): shorten `caption` to its first 8 words. Do not move the sidebar in React.
+   - **Cursor off the target** (`cursor`): set `cursor.to` to the center of the target rect.
+   - **Anything else:** one Gemini call that must return a `StoryboardPatch` of the allowed fields only. If the call fails or the JSON is not a patch, skip the edit.
+
+   ```typescript
+   export interface StoryboardPatch {
+     sceneId: string;
+     issue: 'clipping' | 'sidebar_overlap' | 'excessive_zoom' | 'cursor' | 'other';
+     adjustments: {
+       zoom?: number;
+       panX?: number;
+       panY?: number;
+       target?: { x: number; y: number; w: number; h: number };
+       cursorTo?: [number, number];
+       caption?: string;
+     };
+     reason: string;
+   }
+   ```
+
+   Allowed fields, and only on the failing scene: `target`, `camera.zoom`, `cursor.to`, `caption`, plus the pan already stored on the compiled scene. Forbidden: `narration`, `audio`, `segments`, `meta`, and every file under `remotion/`. The components stay generic.
+
+   Write the patch, then lint the storyboard. If lint fails, revert that scene and do not call Kane again. If lint passes, re-render and re-check **only the frames that failed**.
+
+   Cap: the first pass, plus one retry. Then render `out/demo.mp4` whether the second pass passed or not. Record the result on `visual_qa.status` as `passed` or `flagged`, with the patch and the frames that were re-checked. Print which frames passed, which field changed, and that the retry budget is spent.
+
+   Worst case for this loop is the preview set plus one retry of the failed frames only. Do not add frames to buy another look. Do not build a timeline editor, a recut, a music bed, or a free-form editor, and do not re-shoot Ledgerly from this loop.
+
+   To demonstrate it, inject one obvious storyboard fault (zoom past the safe cap, or a caption long enough to collide). In the demo video and the README, say the fault was injected. Do not present it as a bug the pipeline discovered on its own.
 
 ---
 
@@ -484,7 +504,7 @@ Supports local `npm link` and direct execution via `npx autocast` or `node dist/
 Mon Nov 16: FOUNDATION (P0)
   [x] Ledgerly SaaS target app built & baseline demo rendered (f3d9639)
   [ ] Implement KaneRunAdapter (--bug-detection stop, NDJSON stream, exit codes 0/1/2/3)
-  [ ] Implement strict Loop 3 Visual QA re-review & abort gate (0 MP4 rendered on defect)
+  [ ] Implement the one-retry storyboard edit: patch the failing scene, lint or revert, re-check failed frames once, then render either way
   [ ] Implement fail-closed OCR quarantine & secret redaction
   [ ] Create fixture tests for Kane result classifications
 
@@ -526,7 +546,7 @@ Thu Nov 19: SUBMISSION FREEZE & DEMO (P3)
 | `TEST-08` | `Lifecycle` | Server fails `/api/health` 200 OK after restart | Aborts with restart failure report. |
 | `TEST-09` | `Replay` | Replay final DOM/API state diverges from `OutcomeSpec` | Replay rejected for semantic non-equivalence. |
 | `TEST-10` | `Replay` | Action IR encounters unsupported action type | Replay aborts cleanly rather than silently skipping. |
-| `TEST-11` | `Visual QA` | Preview frame fails Kane visual QA twice | Loop 2 aborts pipeline; zero MP4 rendered. |
+| `TEST-11` | `Visual QA` | Preview frame fails Kane visual QA, the patch is linted, and the retry still fails | MP4 is still rendered. `visual_qa.status` is `flagged`. A lint failure reverts the scene and skips the second Kane run. |
 | `TEST-12` | `Safety OCR` | Injected fake API key (`sk_live_...`) in video frame | Video moved to `.quarantine/`; release halted. |
 | `TEST-13` | `Safety OCR` | `--skip-review` flag enabled | Outro card & manifest stamped `UNVERIFIED DRAFT`. |
 | `TEST-14` | `End-to-End` | Ledgerly `APP_BUG=approve-noop` injected | Verified catch pack generated, passing re-test, sealed `run-manifest.json`. |
