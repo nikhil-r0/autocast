@@ -25,7 +25,8 @@ export const BrowserFrame: React.FC<BrowserFrameProps> = ({
         height,
         borderRadius: 14,
         overflow: 'hidden',
-        boxShadow: '0 30px 90px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.12)',
+        boxShadow:
+          '0 0 0 10px #111827, 0 0 0 11px rgba(255, 255, 255, 0.08), 0 36px 80px rgba(0, 0, 0, 0.65)',
         display: 'flex',
         flexDirection: 'column',
         backgroundColor: '#0f172a',

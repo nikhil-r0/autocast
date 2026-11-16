@@ -9,6 +9,7 @@ import { replayAndRecord } from './capture/replay.js';
 import { generateNarration } from './edit/narration.js';
 import { buildStoryboard } from './edit/storyboard.js';
 import { lintStoryboard } from './edit/lint.js';
+import { writeShareCopy } from './edit/shareCopy.js';
 import { executeReviewLoop } from './review/kaneReview.js';
 
 import dns from 'dns';
@@ -155,6 +156,8 @@ async function main() {
   }
 
   const outputMp4 = path.join(outDir, 'demo.mp4');
+  const sharePath = writeShareCopy(outDir, storyboard.meta.title);
+  console.log(`Share copy: ${sharePath}`);
   console.log(`Rendering final video to: ${outputMp4}`);
 
   const renderArgs = [

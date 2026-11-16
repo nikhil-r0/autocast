@@ -41,7 +41,7 @@ cp .env.example .env
 npm run demo -- "Create a demo of the invoice approval flow"
 ```
 
-The finished file is `out/demo.mp4`. A pre-rendered sample is at `examples/output/sample-demo.mp4`.
+The finished file is `out/demo.mp4`, with a launch blurb beside it at `out/share-copy.txt`. A pre-rendered sample is at `examples/output/sample-demo.mp4`. The matching blurb is `examples/output/share-copy.txt`.
 
 ## How a demo is made
 

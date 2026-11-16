@@ -7,7 +7,7 @@
     "app": "node examples/invoice-app/server.js",
     "demo": "tsx src/cli.ts",
     "render": "remotion render Demo out/demo.mp4 --codec=h264",
-    "preview": "remotion preview remotion/Root.tsx",
+    "preview": "remotion preview remotion/index.ts",
     "lint:storyboard": "tsx src/edit/lint.ts",
     "build": "tsc",
     "typecheck": "tsc --noEmit"

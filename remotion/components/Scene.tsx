@@ -32,6 +32,7 @@ export const Scene: React.FC<SceneProps> = ({
         target={scene.target}
         zoom={scene.camera.zoom}
         durationInFrames={durationInFrames}
+        punch={scene.cursor.click}
       >
         <OffthreadVideo
           src={staticFile(videoSrc)}
