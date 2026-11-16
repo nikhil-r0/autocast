@@ -10,13 +10,13 @@ interface BrowserFrameProps {
 export const BrowserFrame: React.FC<BrowserFrameProps> = ({
   children,
   url = 'http://localhost:8080/invoices',
-  width = 1320,
-  height = 783,
+  width = 1450,
+  height = 854,
 }) => {
-  const navHeight = 40;
+  const navHeight = 38;
   const viewportWidth = width;
-  const viewportHeight = height - navHeight; // 743px for 783px height
-  const scale = width / 1920; // 0.6875 for width 1320
+  const viewportHeight = height - navHeight; // 816px for 854px height
+  const scale = width / 1920; // 0.755 for width 1450
 
   return (
     <div

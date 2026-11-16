@@ -16,6 +16,30 @@ test('computeFileSha256 computes valid 64-char hex string', () => {
   fs.rmSync(tempFile, { force: true });
 });
 
+test('TEST-13: --skip-review flag enabled -> manifest stamped UNVERIFIED DRAFT and visual_qa status is flagged', () => {
+  const tempManifest = path.resolve(process.cwd(), 'out', 'unverified-manifest.json');
+  fs.mkdirSync(path.dirname(tempManifest), { recursive: true });
+
+  const manifest = generateRunManifest({
+    outputPath: tempManifest,
+    status: 'unverified_draft',
+    applicationUrl: 'http://localhost:8080',
+    stateVerified: true,
+    visualQa: {
+      status: 'flagged',
+      attempts: 0,
+    },
+  });
+
+  assert.equal(manifest.status, 'unverified_draft');
+  assert.equal(manifest.visual_qa?.status, 'flagged');
+
+  const check = verifyRunManifest(tempManifest);
+  assert.equal(check.valid, true);
+
+  fs.rmSync(tempManifest, { force: true });
+});
+
 test('TEST-19: MP4 bytes modified after manifest generation -> SHA-256 verification detects tampering', () => {
   const tempVideo = path.resolve(process.cwd(), 'out', 'test-demo.mp4');
   const tempManifest = path.resolve(process.cwd(), 'out', 'test-manifest.json');

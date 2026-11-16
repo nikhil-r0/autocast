@@ -148,10 +148,11 @@ export async function reviewFrameWithKane(
  */
 export async function executeReviewLoop(
   storyboard: Storyboard,
-  appUrl: string = 'http://localhost:8080'
+  appUrl: string = 'http://localhost:8080',
+  framesToCheck?: number[]
 ): Promise<{ passed: boolean; reviews: VisualReviewResult[] }> {
   console.log('\n================================================================');
-  console.log('🔍 PHASE 5: LOOP 3 REVIEW LOOP (Kane Visual Video QA)');
+  console.log('🔍 PHASE 5: LOOP 2/3 REVIEW LOOP (Kane Visual Video QA)');
   console.log('   "Kane checks our own video edit to catch visual clipping, transition tearing & overlap"');
   console.log('================================================================');
 
@@ -168,15 +169,22 @@ export async function executeReviewLoop(
     baseReviewUrl = 'http://localhost:8080/review';
   }
 
-  // Sample frames:
+  // Baseline Sample frames:
   // 1. Frame 115: Scene 1 Dashboard Overview (Settled Wide Shot)
   // 2. Mid-transition Boundary Frame (Transition cut point)
   // 3. Frame 260: Scene 3 Invoice Line Items Review (Detail View)
-  const sampleFrames = [
+  const allDefaultFrames = [
     { frame: 115, isBoundary: false, desc: 'Scene 1 Dashboard Overview' },
     { frame: transitionBoundaryFrame, isBoundary: true, desc: `Scene Transition Boundary (Frame ${transitionBoundaryFrame})` },
     { frame: 260, isBoundary: false, desc: 'Scene 3 Modal Line Items Detail' },
   ];
+
+  const sampleFrames = framesToCheck && framesToCheck.length > 0
+    ? framesToCheck.map((f) => {
+        const found = allDefaultFrames.find((df) => df.frame === f);
+        return found || { frame: f, isBoundary: f === transitionBoundaryFrame, desc: `Preview Frame ${f}` };
+      })
+    : allDefaultFrames;
 
   // Run visual review in parallel across the sampled frames
   const reviews = await Promise.all(

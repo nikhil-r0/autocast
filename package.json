@@ -14,8 +14,8 @@
     "preview": "remotion preview remotion/index.ts",
     "lint:storyboard": "tsx src/edit/lint.ts",
     "test": "node --import tsx --test 'tests/**/*.test.ts'",
-    "build": "tsc",
-    "typecheck": "tsc --noEmit"
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

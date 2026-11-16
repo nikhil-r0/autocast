@@ -61,6 +61,35 @@ export type Scene = z.infer<typeof SceneSchema>;
 export type StoryboardMeta = z.infer<typeof StoryboardMetaSchema>;
 export type Storyboard = z.infer<typeof StoryboardSchema>;
 
+export interface CompiledScene {
+  sceneId: string;
+  startFrame: number;
+  endFrame: number;
+  durationFrames: number;
+  camera: { zoom: number; panX: number; panY: number };
+  targetRect: { x: number; y: number; w: number; h: number };
+}
+
+export interface AuthoritativeTimeline {
+  fps: number;
+  totalDurationFrames: number;
+  scenes: CompiledScene[];
+}
+
+export interface StoryboardPatch {
+  sceneId: string;
+  issue: 'clipping' | 'sidebar_overlap' | 'excessive_zoom' | 'cursor' | 'other';
+  adjustments: {
+    zoom?: number;
+    panX?: number;
+    panY?: number;
+    target?: { x: number; y: number; w: number; h: number };
+    cursorTo?: [number, number];
+    caption?: string;
+  };
+  reason: string;
+}
+
 export interface KaneStep {
   stepNumber: number;
   kind: string;
@@ -191,8 +220,10 @@ export interface RunManifest {
     re_verification_run_id?: string;
   };
   visual_qa?: {
-    status: 'passed' | 'repaired' | 'failed';
+    status: 'passed' | 'flagged';
     attempts: number;
+    patch?: StoryboardPatch;
+    rechecked_frames?: number[];
     flagged_frames?: number[];
   };
   security_scan?: {

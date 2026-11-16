@@ -28,8 +28,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <div
       style={{
-        width: 472,
-        height: 783,
+        width: 382,
+        height: 854,
         backgroundColor: '#0d131f',
         borderRadius: 14,
         border: '1px solid rgba(255, 255, 255, 0.08)',

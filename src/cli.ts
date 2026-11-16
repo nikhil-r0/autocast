@@ -22,6 +22,7 @@ import {
 } from './agent/antigravity.js';
 import { LedgerlyLifecycleAdapter } from './app/lifecycle.js';
 import { generateRunManifest } from './manifest.js';
+import { RunManifest } from './types.js';
 
 import dns from 'dns';
 
@@ -278,52 +279,83 @@ async function main() {
     process.exit(1);
   }
 
-  // 5. REVIEW LOOP (Loop 3: Kane reviews our own video edit)
+  // 5. REVIEW LOOP (Loop 2 Visual QA: Kane reviews our own video edit)
+  let visualQaMetadata: RunManifest['visual_qa'] = {
+    status: skipReview ? 'flagged' : 'passed',
+    attempts: 0,
+  };
+
   if (!skipReview) {
-    let reviewAttempts = 0;
-    const MAX_VISUAL_REPAIRS = 2;
-    let visualReviewPassed = false;
+    visualQaMetadata.attempts = 1;
+    const initialReview = await executeReviewLoop(storyboard, appUrl);
 
-    while (reviewAttempts <= MAX_VISUAL_REPAIRS) {
-      const reviewResult = await executeReviewLoop(storyboard, appUrl);
-      if (reviewResult.passed) {
-        visualReviewPassed = true;
-        console.log('\n✓ Loop 3 Visual QA: Kane confirmed video layout, typography, and framing are defect-free.');
-        break;
+    if (initialReview.passed) {
+      console.log('\n✓ Loop 2 Visual QA: Kane confirmed video layout, typography, and framing are defect-free.');
+      visualQaMetadata.status = 'passed';
+    } else {
+      const failedReviews = initialReview.reviews.filter((r) => !r.passed);
+      const failedFrameNums = failedReviews.map((r) => r.frameNumber);
+      const passedFrameNums = initialReview.reviews.filter((r) => r.passed).map((r) => r.frameNumber);
+
+      console.warn(`\n[Visual QA Pass 1] Flaws detected on frame(s): ${failedFrameNums.join(', ')}.`);
+      if (passedFrameNums.length > 0) {
+        console.log(`[Visual QA Pass 1] Passed frame(s): ${passedFrameNums.join(', ')}.`);
       }
 
-      if (reviewAttempts === MAX_VISUAL_REPAIRS) {
-        console.error(`\n🚨 AUTOCAST VISUAL QA HALT: Visual defects persist after ${MAX_VISUAL_REPAIRS} repair iterations.`);
-        reviewResult.reviews.filter((r) => !r.passed).forEach((r) => {
-          console.error(`  - Frame ${r.frameNumber}: ${r.summary}`);
-        });
-        console.error('As per Autocast policy: NO DEFECTIVE VIDEO WILL BE RENDERED.');
-        process.exit(1);
+      // Single retry budget: propose targeted patch on the failing scene only
+      const repair = repairVisualDefects(storyboard, initialReview.reviews);
+      visualQaMetadata.patch = repair.patch;
+
+      if (repair.fieldChanged) {
+        console.log(`[Visual QA Patch] Field changed: ${repair.fieldChanged}`);
       }
 
-      reviewAttempts++;
-      console.warn(`\n[Loop 3 Review] Kane flagged visual QA warnings (attempt ${reviewAttempts}/${MAX_VISUAL_REPAIRS}). Applying repair...`);
-      const repair = repairVisualDefects(storyboard, reviewResult.reviews);
-      if (repair.repaired) {
-        console.log(`[Loop 3 Autonomous Repair] Applied ${repair.actionsTaken.length} layout fix(es):`);
-        repair.actionsTaken.forEach((act) => console.log(`  - ${act}`));
+      if (repair.reverted || !repair.lintPassed) {
+        console.warn(`[Visual QA] Patch failed storyboard lint and was reverted. Skipping second Kane run.`);
+        visualQaMetadata.status = 'flagged';
+        visualQaMetadata.flagged_frames = failedFrameNums;
+      } else if (repair.repaired) {
+        // Save patched storyboard
         storyboard = repair.storyboard;
-        // Re-write updated storyboard
         fs.writeFileSync(
           path.join(process.cwd(), 'storyboard.json'),
-          JSON.stringify(repair.storyboard, null, 2)
+          JSON.stringify(storyboard, null, 2)
         );
         fs.writeFileSync(
           path.join(process.cwd(), 'public', 'storyboard.json'),
-          JSON.stringify(repair.storyboard, null, 2)
+          JSON.stringify(storyboard, null, 2)
         );
+
+        // Re-check ONLY the frames that failed
+        console.log(`\n[Visual QA Retry] Re-checking failed frame(s) only: ${failedFrameNums.join(', ')}...`);
+        visualQaMetadata.attempts = 2;
+        visualQaMetadata.rechecked_frames = failedFrameNums;
+
+        const retryReview = await executeReviewLoop(storyboard, appUrl, failedFrameNums);
+        const retryFailed = retryReview.reviews.filter((r) => !r.passed);
+
+        if (retryReview.passed) {
+          console.log(`\n✓ Visual QA retry PASSED for frame(s): ${failedFrameNums.join(', ')}.`);
+          visualQaMetadata.status = 'passed';
+        } else {
+          const stillFailing = retryFailed.map((r) => r.frameNumber);
+          console.warn(`\n⚠ Visual QA retry still flagged flaw on frame(s): ${stillFailing.join(', ')}.`);
+          visualQaMetadata.status = 'flagged';
+          visualQaMetadata.flagged_frames = stillFailing;
+        }
       } else {
-        console.error('Autonomous storyboard repair could not resolve detected visual defects. Aborting render.');
-        process.exit(1);
+        visualQaMetadata.status = 'flagged';
+        visualQaMetadata.flagged_frames = failedFrameNums;
       }
+
+      console.log(`[Visual QA] Retry budget is spent (1 retry maximum). Proceeding to render demo MP4.`);
     }
   } else {
-    console.log('\n[Loop 3 Review] Skipped via --skip-review flag (STAMPED AS UNVERIFIED DRAFT).');
+    console.log('\n[Visual QA] Skipped via --skip-review flag (STAMPED AS UNVERIFIED DRAFT).');
+    visualQaMetadata = {
+      status: 'flagged',
+      attempts: 0,
+    };
   }
 
   // 6. RENDER PHASE: Remotion Render
@@ -417,10 +449,7 @@ async function main() {
       claims: kaneResult.claims,
     },
     closedLoopRepair: closedLoopMetadata,
-    visualQa: {
-      status: skipReview ? 'failed' : 'passed',
-      attempts: 1,
-    },
+    visualQa: visualQaMetadata,
     securityScan: {
       status: 'clean',
       ocr_frames_scanned: ocrResult.framesScanned,

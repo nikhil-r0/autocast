@@ -44,14 +44,6 @@ export const Scene: React.FC<SceneProps> = ({
         opacity: transitionOpacity,
       }}
     >
-      {/* Verified Stat Chip HUD */}
-      <StatChip
-        currentStep={currentStep}
-        totalSteps={totalSteps}
-        label="Kane Verified"
-        durationInFrames={durationInFrames}
-      />
-
       <CameraRig
         target={scene.target}
         zoom={scene.camera.zoom}

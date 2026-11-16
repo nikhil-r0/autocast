@@ -85,9 +85,9 @@ export const Demo: React.FC<DemoProps> = ({ storyboard }) => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '0 48px',
+        padding: '0 32px',
         boxSizing: 'border-box',
-        gap: 32,
+        gap: 24,
         position: 'relative',
         overflow: 'hidden',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
@@ -97,7 +97,7 @@ export const Demo: React.FC<DemoProps> = ({ storyboard }) => {
       {isTitleVisible && <TitleCard title={meta.title} />}
 
       {/* Main Studio Viewport (Browser Frame + Sidebar) */}
-      <BrowserFrame url={`http://localhost:8080/invoices`} width={1320} height={783}>
+      <BrowserFrame url={`http://localhost:8080/invoices`} width={1450} height={854}>
         <Series>
           {/* Title placeholder offset */}
           <Series.Sequence durationInFrames={TITLE_FRAMES}>
