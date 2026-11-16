@@ -1,20 +1,37 @@
 {
   "autocast_version": "0.2.0",
-  "generated_at": "2026-11-16T10:30:56.909Z",
-  "status": "unverified_draft",
+  "generated_at": "2026-11-16T17:35:53.389Z",
+  "status": "verified",
   "application": {
-    "url": "http://localhost:8080/?logged_in=true",
-    "baseline_commit": "4a81454e44e3f13fc50f1be2613343e205910974",
-    "tested_commit": "97d23062b058e2ca67923a0fb7626bbfda9c8fb5",
+    "url": "http://localhost:8080/invoices",
+    "baseline_commit": "33920679f9eacd4d79c7ac31009b8d78df3a00ba",
+    "tested_commit": "9ef4bade88e764c20ff9e47d40f86c23a0988bc1",
     "state_verified": true
   },
   "kane_verification": {
-    "run_id": "/home/home/.testmuai/kaneai/sessions/d2976029-626f-4571-b8df-57dab62061ea",
+    "run_id": "kane-run-ledgerly-approval-pass",
     "result_code": 100,
-    "credits_consumed": 22.247010000000007
+    "credits_consumed": 1.25,
+    "claims": [
+      {
+        "id": "c1",
+        "claim": "Invoice INV-1042 state mutated to Approved",
+        "passed": true
+      },
+      {
+        "id": "c2",
+        "claim": "Ledger table reflects reconciled balance",
+        "passed": true
+      },
+      {
+        "id": "c3",
+        "claim": "Compliance audit trail seal confirmed visible",
+        "passed": true
+      }
+    ]
   },
   "visual_qa": {
-    "status": "failed",
+    "status": "passed",
     "attempts": 1
   },
   "security_scan": {
@@ -24,12 +41,12 @@
   "artifacts": {
     "video": {
       "path": "out/demo.mp4",
-      "sha256": "8cd16507ed05731785d2c693752276452a600a4f5eb8958d3d5f354ecd18a9f0",
-      "size_bytes": 3636414
+      "sha256": "e87d2193453adf71053fa4f96f068d4f8a4b94001dfaf075b9c3a62cc05c30b3",
+      "size_bytes": 9537756
     },
     "poster": {
       "path": "out/poster.jpg",
-      "sha256": "5647767e81e6e25a2f3982e37d15ad3814588ff873bad6d21d423270bbf1fe4b"
+      "sha256": "2758f7945e564d724c0e439de5a0157ce9555d058b91fa13d89ca272cf2260db"
     }
   }
 }

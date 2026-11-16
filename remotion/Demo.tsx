@@ -13,6 +13,8 @@ import { Scene } from './components/Scene';
 import { TitleCard } from './components/TitleCard';
 import { Outro } from './components/Outro';
 import { FloatingHud } from './components/FloatingHud';
+import { AuroraBackground } from './components/AuroraBackground';
+import { ParticleField } from './components/ParticleField';
 import { Storyboard } from '../src/types';
 
 export type DemoProps = {
@@ -78,7 +80,7 @@ export const Demo: React.FC<DemoProps> = ({ storyboard }) => {
   const isOutroVisible = frame >= durationInFrames - OUTRO_FRAMES;
 
   // Dynamic 3-stage layout:
-  // Act 1 (Scene 1): Hero Wide opening (1720x920, centered, clean overview)
+  // Act 1 (Scene 1): Hero Wide opening (1720x920, centered, clean overview with subtle 3D tilt)
   // Act 2 (Scenes 2 to penultimate): Studio Split (1450x854 browser + synchronized sidebar)
   // Act 3 (Final Scene): Return to Hero Wide to celebrate the reconciled, approved state
   const hasMultipleScenes = scenes.length > 2;
@@ -131,22 +133,34 @@ export const Demo: React.FC<DemoProps> = ({ storyboard }) => {
     extrapolateRight: 'clamp',
   });
 
+  // 3D Perspective Tilt on Browser Frame:
+  // In Hero Wide mode, subtle Apple keynote tilt adds cinematic depth.
+  // In Studio Split mode, smoothly flattens to 0deg for crisp legibility.
+  const tiltFactor = (1 - splitFactor);
+  const tiltX = interpolate(tiltFactor, [0, 1], [0, 2.8]);
+  const tiltY = interpolate(tiltFactor, [0, 1], [0, -2.4 + Math.sin(frame * 0.02) * 0.6]);
+
   return (
     <div
       style={{
         width: 1920,
         height: 1080,
-        backgroundColor: '#090d16',
-        backgroundImage: 'radial-gradient(circle at 50% 0%, #1e293b 0%, #090d16 80%)',
+        backgroundColor: '#070b14',
         position: 'relative',
         overflow: 'hidden',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       }}
     >
-      {/* Title Card Overlay */}
+      {/* Aurora Mesh Living Background with chromatic floating orbs */}
+      <AuroraBackground showGrid={true} />
+
+      {/* Ambient Floating Particle Dust Field */}
+      <ParticleField count={22} />
+
+      {/* Title Card Overlay with Staggered Shimmer Typography */}
       {isTitleVisible && <TitleCard title={meta.title} />}
 
-      {/* Main Studio Viewport (Browser Frame) */}
+      {/* Main Studio Viewport (Browser Frame with 3D Perspective Tilt & Border Beam) */}
       <div
         style={{
           position: 'absolute',
@@ -154,38 +168,55 @@ export const Demo: React.FC<DemoProps> = ({ storyboard }) => {
           top: browserTop,
           width: browserWidth,
           height: browserHeight,
-          transition: 'none',
+          perspective: 1400,
+          perspectiveOrigin: '50% 50%',
         }}
       >
-        <BrowserFrame url={`http://localhost:8080/invoices`} width={browserWidth} height={browserHeight}>
-          <Series>
-            {/* Title placeholder offset */}
-            <Series.Sequence durationInFrames={TITLE_FRAMES}>
-              <div style={{ width: 1920, height: 1080, backgroundColor: '#0f172a' }} />
-            </Series.Sequence>
+        <div
+          style={{
+            width: '100%',
+            height: '100%',
+            transform: `rotateX(${tiltX}deg) rotateY(${tiltY}deg)`,
+            transformStyle: 'preserve-3d',
+            transition: 'none',
+          }}
+        >
+          <BrowserFrame
+            url={`http://localhost:8080/invoices`}
+            width={browserWidth}
+            height={browserHeight}
+            showBorderBeam={true}
+          >
+            <Series>
+              {/* Title placeholder offset */}
+              <Series.Sequence durationInFrames={TITLE_FRAMES}>
+                <div style={{ width: 1920, height: 1080, backgroundColor: '#0f172a' }} />
+              </Series.Sequence>
 
-            {/* Sequential Scenes */}
-            {scenes.map((scene, idx) => {
-              const sceneFrames = Math.round((scene.audio_sec || 3.5) * fps);
-              return (
-                <Series.Sequence key={scene.id} durationInFrames={sceneFrames}>
-                  <Scene
-                    scene={scene}
-                    videoSrc={meta.source.video}
-                    durationInFrames={sceneFrames}
-                    currentStep={idx + 1}
-                    totalSteps={scenes.length}
-                  />
-                </Series.Sequence>
-              );
-            })}
+              {/* Sequential Scenes */}
+              {scenes.map((scene, idx) => {
+                const sceneFrames = Math.round((scene.audio_sec || 3.5) * fps);
+                return (
+                  <Series.Sequence key={scene.id} durationInFrames={sceneFrames}>
+                    <Scene
+                      scene={scene}
+                      videoSrc={meta.source.video}
+                      durationInFrames={sceneFrames}
+                      currentStep={idx + 1}
+                      totalSteps={scenes.length}
+                      showLowerThird={splitFactor < 0.25 || isHudLayout}
+                    />
+                  </Series.Sequence>
+                );
+              })}
 
-            {/* Outro placeholder */}
-            <Series.Sequence durationInFrames={OUTRO_FRAMES}>
-              <div style={{ width: 1920, height: 1080, backgroundColor: '#0f172a' }} />
-            </Series.Sequence>
-          </Series>
-        </BrowserFrame>
+              {/* Outro placeholder */}
+              <Series.Sequence durationInFrames={OUTRO_FRAMES}>
+                <div style={{ width: 1920, height: 1080, backgroundColor: '#0f172a' }} />
+              </Series.Sequence>
+            </Series>
+          </BrowserFrame>
+        </div>
       </div>
 
       {/* Either Synchronized Step Sidebar or Floating HUD */}
@@ -217,7 +248,7 @@ export const Demo: React.FC<DemoProps> = ({ storyboard }) => {
         </div>
       )}
 
-      {/* Outro Overlay: Verified End Card */}
+      {/* Outro Overlay: Verified End Card with Rolling Number Counter & Tactical Stamp */}
       {isOutroVisible && <Outro title={meta.title} />}
     </div>
   );

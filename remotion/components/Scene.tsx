@@ -10,6 +10,8 @@ import {
 import { CameraRig } from './CameraRig';
 import { Cursor } from './Cursor';
 import { Spotlight } from './Spotlight';
+import { KineticTransition } from './KineticTransition';
+import { LowerThird } from './LowerThird';
 import { Scene as SceneType } from '../../src/types';
 
 interface SceneProps {
@@ -18,6 +20,7 @@ interface SceneProps {
   durationInFrames: number;
   currentStep?: number;
   totalSteps?: number;
+  showLowerThird?: boolean;
 }
 
 export const Scene: React.FC<SceneProps> = ({
@@ -26,6 +29,7 @@ export const Scene: React.FC<SceneProps> = ({
   durationInFrames,
   currentStep = 1,
   totalSteps = 4,
+  showLowerThird = false,
 }) => {
   const frame = useCurrentFrame();
   const startSec = scene.segments[0]?.src_start || 0;
@@ -35,7 +39,7 @@ export const Scene: React.FC<SceneProps> = ({
   const transitionOpacity = interpolate(
     frame,
     [0, 5, durationInFrames - 5, durationInFrames],
-    [0.88, 1, 1, 0.92],
+    [0.92, 1, 1, 0.94],
     { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
   );
 
@@ -80,6 +84,18 @@ export const Scene: React.FC<SceneProps> = ({
           durationInFrames={durationInFrames}
         />
       </CameraRig>
+
+      {/* Kinetic Scene Cut Transition Flare */}
+      <KineticTransition durationInFrames={durationInFrames} leadFrames={7} />
+
+      {/* Lower Third Caption when active / in hero wide mode */}
+      {showLowerThird && (
+        <LowerThird
+          scene={scene}
+          stepNumber={currentStep}
+          totalSteps={totalSteps}
+        />
+      )}
 
       {/* Tactile interaction click sound */}
       {scene.cursor.click && (

@@ -1,10 +1,13 @@
 import React from 'react';
+import { BorderBeam } from './BorderBeam';
 
 interface BrowserFrameProps {
   children: React.ReactNode;
   url?: string;
   width?: number;
   height?: number;
+  style?: React.CSSProperties;
+  showBorderBeam?: boolean;
 }
 
 export const BrowserFrame: React.FC<BrowserFrameProps> = ({
@@ -12,11 +15,13 @@ export const BrowserFrame: React.FC<BrowserFrameProps> = ({
   url = 'http://localhost:8080/invoices',
   width = 1450,
   height = 854,
+  style,
+  showBorderBeam = true,
 }) => {
   const navHeight = 38;
   const viewportWidth = width;
-  const viewportHeight = height - navHeight; // 816px for 854px height
-  const scale = width / 1920; // 0.755 for width 1450
+  const viewportHeight = height - navHeight;
+  const scale = width / 1920;
 
   return (
     <div
@@ -26,14 +31,30 @@ export const BrowserFrame: React.FC<BrowserFrameProps> = ({
         borderRadius: 14,
         overflow: 'hidden',
         boxShadow:
-          '0 0 0 10px #111827, 0 0 0 11px rgba(255, 255, 255, 0.08), 0 36px 80px rgba(0, 0, 0, 0.65)',
+          '0 0 0 10px #111827, 0 0 0 11px rgba(255, 255, 255, 0.08), 0 36px 80px rgba(0, 0, 0, 0.75), 0 0 40px rgba(56, 189, 248, 0.12)',
         display: 'flex',
         flexDirection: 'column',
         backgroundColor: '#0f172a',
         position: 'relative',
         flexShrink: 0,
+        ...style,
       }}
     >
+      {/* Animated Glowing Border Beam around Window Bezel */}
+      {showBorderBeam && (
+        <BorderBeam
+          width={width}
+          height={height}
+          borderRadius={14}
+          size={360}
+          duration={90}
+          borderWidth={2}
+          colorFrom="#38bdf8"
+          colorTo="#a855f7"
+          opacity={0.8}
+        />
+      )}
+
       {/* Browser Top Navigation Bar */}
       <div
         style={{
@@ -50,16 +71,40 @@ export const BrowserFrame: React.FC<BrowserFrameProps> = ({
       >
         {/* Window controls */}
         <div style={{ display: 'flex', gap: 8 }}>
-          <div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#ef4444' }} />
-          <div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#f59e0b' }} />
-          <div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#10b981' }} />
+          <div
+            style={{
+              width: 12,
+              height: 12,
+              borderRadius: '50%',
+              backgroundColor: '#ef4444',
+              boxShadow: '0 0 8px rgba(239, 68, 68, 0.4)',
+            }}
+          />
+          <div
+            style={{
+              width: 12,
+              height: 12,
+              borderRadius: '50%',
+              backgroundColor: '#f59e0b',
+              boxShadow: '0 0 8px rgba(245, 158, 11, 0.4)',
+            }}
+          />
+          <div
+            style={{
+              width: 12,
+              height: 12,
+              borderRadius: '50%',
+              backgroundColor: '#10b981',
+              boxShadow: '0 0 8px rgba(16, 185, 129, 0.4)',
+            }}
+          />
         </div>
 
         {/* Address Pill */}
         <div
           style={{
             flex: 1,
-            maxWidth: 520,
+            maxWidth: 540,
             margin: '0 auto',
             height: 26,
             backgroundColor: 'rgba(15, 23, 42, 0.75)',
@@ -89,7 +134,7 @@ export const BrowserFrame: React.FC<BrowserFrameProps> = ({
           backgroundColor: '#0f172a',
         }}
       >
-        {/* Inner 1920x1080 canvas scaled to fit the 1320x743 viewport */}
+        {/* Inner 1920x1080 canvas scaled to fit the viewport */}
         <div
           style={{
             width: 1920,
