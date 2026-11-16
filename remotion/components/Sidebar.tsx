@@ -6,12 +6,14 @@ interface SidebarProps {
   scenes: Scene[];
   activeSceneIndex: number;
   title: string;
+  style?: React.CSSProperties;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   scenes,
   activeSceneIndex,
   title,
+  style,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -42,6 +44,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         position: 'relative',
         overflow: 'hidden',
         flexShrink: 0,
+        ...style,
       }}
     >
       {/* Top Header & Verified Badge */}

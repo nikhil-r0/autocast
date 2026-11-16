@@ -1,5 +1,13 @@
 import React from 'react';
-import { interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
+import {
+  Audio,
+  interpolate,
+  Sequence,
+  spring,
+  staticFile,
+  useCurrentFrame,
+  useVideoConfig,
+} from 'remotion';
 
 interface OutroProps {
   title?: string;
@@ -202,6 +210,11 @@ export const Outro: React.FC<OutroProps> = ({
           <span>Repo: <strong style={{ color: '#38bdf8' }}>github.com/nikhil-r0/autocast</strong></span>
         </div>
       </div>
+
+      {/* Satisfying tactile stamp sound effect */}
+      <Sequence from={12}>
+        <Audio src={staticFile('sfx-stamp.wav')} volume={0.7} />
+      </Sequence>
     </div>
   );
 };

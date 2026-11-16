@@ -47,6 +47,7 @@ export const StoryboardMetaSchema = z.object({
     height: z.number().default(1080),
   }),
   music: z.string().nullable().optional(),
+  layout: z.enum(['split', 'hud', 'auto']).default('auto').optional(),
 });
 
 export const StoryboardSchema = z.object({

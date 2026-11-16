@@ -35,9 +35,9 @@ export const CameraRig: React.FC<CameraRigProps> = ({
     },
   });
 
-  const punchAt = Math.floor(durationInFrames * 0.55);
+  const punchAt = Math.floor(durationInFrames * 0.52);
   const punchBump = punch
-    ? interpolate(relFrame, [punchAt, punchAt + 6, punchAt + 16], [0, 0.08, 0], {
+    ? interpolate(relFrame, [punchAt, punchAt + 8, punchAt + 24], [0, 0.12, 0], {
         extrapolateLeft: 'clamp',
         extrapolateRight: 'clamp',
       })

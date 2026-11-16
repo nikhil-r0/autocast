@@ -68,6 +68,8 @@ async function main() {
   const promptArg = args.find((a) => !a.startsWith('--'));
   const userPrompt = promptArg || 'Create a demo of the invoice approval flow';
   const skipReview = args.includes('--skip-review');
+  const layoutArg = args.find((a) => a.startsWith('--layout='));
+  const layoutChoice = layoutArg ? (layoutArg.split('=')[1] as 'split' | 'hud' | 'auto') : 'auto';
 
   console.log('================================================================');
   console.log('⚡ AUTOCAST AI: THE AUTONOMOUS DEMO DIRECTOR');
@@ -270,6 +272,10 @@ async function main() {
     kaneResult.steps,
     narrations
   );
+  if (layoutChoice && layoutChoice !== 'auto') {
+    storyboard.meta.layout = layoutChoice;
+    console.log(`[Edit] Applied explicit layout preset: ${layoutChoice.toUpperCase()}`);
+  }
 
   // 4. LINT LOOP (Loop 2)
   console.log('\n--- PHASE 4: LINT STORYBOARD (Loop 2) ---');

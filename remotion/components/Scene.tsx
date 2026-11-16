@@ -1,9 +1,15 @@
 import React from 'react';
-import { interpolate, OffthreadVideo, staticFile, useCurrentFrame } from 'remotion';
+import {
+  Audio,
+  interpolate,
+  OffthreadVideo,
+  Sequence,
+  staticFile,
+  useCurrentFrame,
+} from 'remotion';
 import { CameraRig } from './CameraRig';
 import { Cursor } from './Cursor';
 import { Spotlight } from './Spotlight';
-import { StatChip } from './StatChip';
 import { Scene as SceneType } from '../../src/types';
 
 interface SceneProps {
@@ -74,6 +80,13 @@ export const Scene: React.FC<SceneProps> = ({
           durationInFrames={durationInFrames}
         />
       </CameraRig>
+
+      {/* Tactile interaction click sound */}
+      {scene.cursor.click && (
+        <Sequence from={Math.floor(durationInFrames * 0.55)}>
+          <Audio src={staticFile('sfx-click.wav')} volume={0.65} />
+        </Sequence>
+      )}
     </div>
   );
 };

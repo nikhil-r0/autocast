@@ -52,7 +52,7 @@ export const Spotlight: React.FC<SpotlightProps> = ({
         opacity,
       }}
     >
-      {/* Target Focus Ring */}
+      {/* Target Focus Ring - Non-intrusive elegant luminous aura */}
       <div
         style={{
           position: 'absolute',
@@ -61,35 +61,11 @@ export const Spotlight: React.FC<SpotlightProps> = ({
           width,
           height,
           borderRadius: 10,
-          border: '2px solid rgba(59, 130, 246, 0.95)',
-          boxShadow: `0 0 ${16 + pulse}px rgba(59, 130, 246, 0.6), inset 0 0 10px rgba(59, 130, 246, 0.2)`,
-          transform: `scale(${interpolate(progress, [0, 1], [0.95, 1.0])})`,
-          transition: 'all 0.1s ease-out',
+          border: '1.5px solid rgba(59, 130, 246, 0.75)',
+          boxShadow: `0 0 ${12 + pulse}px rgba(59, 130, 246, 0.4), inset 0 0 8px rgba(59, 130, 246, 0.15)`,
+          transform: `scale(${interpolate(progress, [0, 1], [0.96, 1.0])})`,
         }}
-      >
-        {/* Verification Checkmark Pill */}
-        <div
-          style={{
-            position: 'absolute',
-            top: -14,
-            right: 8,
-            backgroundColor: '#1d4ed8',
-            color: '#ffffff',
-            fontSize: 11,
-            fontWeight: 700,
-            fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif',
-            padding: '2px 8px',
-            borderRadius: 12,
-            boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
-            letterSpacing: 0.5,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 4,
-          }}
-        >
-          <span>🎯</span> FOCUS
-        </div>
-      </div>
+      />
     </div>
   );
 };
