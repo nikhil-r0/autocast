@@ -80,3 +80,4 @@ Autocast AI isolated the repository into a dedicated repair worktree (`.worktree
    - **Claims**: "Approved seal is visible" -> `PASS`
    - **Underlying State**: `GET /api/invoices/INV-1042` -> `status: "Approved"`
 4. **Publication**: With proof of correctness established, Autocast rendered the verified 1080p demo video (`out/demo.mp4`), extracted the Frame 0 hero poster (`out/poster.jpg`), and generated the cryptographic provenance manifest (`out/run-manifest.json`).
+
