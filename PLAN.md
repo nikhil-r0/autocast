@@ -343,7 +343,21 @@ npx remotion render Demo out/demo.mp4 --codec=h264 --crf=16 --image-format=png
 
 ---
 
-## 8. Schedule (IST)
+## 8. Adaptations from `/brag` (Craft, Safety & Distribution)
+
+Adapted from [latent-spaces/brag](https://github.com/latent-spaces/brag) (audited in `docs/brag-report.md`):
+
+| # | Adaptation | Mechanism in Autocast AI | Status |
+|---|---|---|---|
+| **1** | **Redact secrets before publishing** | Scrub API keys (`sk_live_...`, `Bearer ...`), private hostnames, tokens, and customer emails from narrations, logs, and video overlays. Seed demo fixtures in replay. | Planned / Medium |
+| **2** | **Readable-text rule** | Enforce reading floor: short labels $\ge 0.8\text{s}$ settled; headlines/sentences $\ge 0.3\text{s}$ per word settled (min $1.2\text{s}$). Lint in Loop 2; check in Loop 3 Kane QA. | Planned / Low |
+| **3** | **Check mid-transition stills** | Audit boundary frames ($T \pm 5\text{ frames}$) in Loop 3 to catch layer collisions and muddy crossfades. Dip through dark background between disparate views. | Planned / Low |
+| **4** | **Hook and narrative shape** | Earn the viewer's attention in the first 2 seconds: cold-open on the outcome (e.g. verified Approved seal), then step highlights, ending on a reconciled ledger punchline. | Implemented / Low |
+| **5** | **Poster frame & frame-0 baking** | Extract strongest settled hero frame as `poster.jpg`. Bake into frame 0 of `demo.mp4` via ffmpeg overlay (`enable='eq(n,0)'`) so Slack, Twitter/X, and Discord thumbnails never show a black frame. Generate `share-copy.txt`. | Implemented / Low |
+
+---
+
+## 9. Schedule (IST)
 
 ### Day 1, Sun 15 Nov: Setup and spike
 
