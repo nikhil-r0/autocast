@@ -12,7 +12,7 @@ export interface KaneRunOptions {
 
 export async function executeKaneRun(options: KaneRunOptions): Promise<KaneRunResult> {
   const sessionName = options.name || `autocast-${Date.now()}`;
-  const targetUrl = options.url || process.env.TARGET_APP_URL || 'http://localhost:8080';
+  const targetUrl = options.url || process.env.TARGET_APP_URL || 'http://localhost:8080/?logged_in=true';
 
   const args = [
     'run',

@@ -35,3 +35,4 @@ export interface Vendor {
   name: string;
   category: string;
 }
+

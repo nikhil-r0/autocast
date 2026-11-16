@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Invoice Approval Workflow",
+    "title": "Ledgerly Invoice Approval",
     "fps": 30,
     "width": 1920,
     "height": 1080,
@@ -15,22 +15,22 @@
     {
       "id": "s01",
       "step_ref": "step-1",
-      "caption": "Pending List: INV-1001 Acme",
-      "narration": "Three pending invoices wait for review, starting with INV-1001 from Acme.",
+      "caption": "12 Pending Invoices",
+      "narration": "Twelve pending invoices wait, led by Apex Cloud invoice INV-1042.",
       "audio": null,
-      "audio_sec": 4.2,
+      "audio_sec": 6.267,
       "segments": [
         {
           "kind": "idle",
           "src_start": 0,
-          "src_end": 4.168,
+          "src_end": 6.267,
           "speed": 1
         }
       ],
       "target": {
         "x": 0,
         "y": 0,
-        "w": 1920,
+        "w": 1100,
         "h": 1080
       },
       "camera": {
@@ -42,8 +42,8 @@
           540
         ],
         "to": [
-          960,
-          540
+          160,
+          169
         ],
         "click": false
       },
@@ -52,35 +52,35 @@
     {
       "id": "s02",
       "step_ref": "step-2",
-      "caption": "INV-1001 Drawer Details",
-      "narration": "Opening INV-1001 shows Cloud Infrastructure Architecture due on Nov 24.",
+      "caption": "Open INV-1042 Details",
+      "narration": "Opening INV-1042 reveals Production Kubernetes details due November 24.",
       "audio": null,
       "audio_sec": 4.2,
       "segments": [
         {
           "kind": "action",
-          "src_start": 4.168,
-          "src_end": 7.899,
+          "src_start": 6.267,
+          "src_end": 9.887,
           "speed": 1
         }
       ],
       "target": {
-        "x": 299,
-        "y": 373,
-        "w": 1572,
-        "h": 69
+        "x": 125,
+        "y": 757,
+        "w": 1100,
+        "h": 61
       },
       "camera": {
-        "zoom": 1.25
+        "zoom": 1
       },
       "cursor": {
         "from": [
-          960,
-          540
+          160,
+          169
         ],
         "to": [
-          1698,
-          407
+          1739,
+          788
         ],
         "click": true
       },
@@ -89,35 +89,35 @@
     {
       "id": "s03",
       "step_ref": "step-3",
-      "caption": "Line Items Total $4,850.00",
-      "narration": "Detailed line items calculate to a combined total of $4,850.00.",
+      "caption": "$4,850.00 Line Item Total",
+      "narration": "Three distinct line items sum up to exactly $4,850.00.",
       "audio": null,
       "audio_sec": 4.2,
       "segments": [
         {
           "kind": "idle",
-          "src_start": 7.899,
-          "src_end": 11.927,
+          "src_start": 9.888,
+          "src_end": 14.052,
           "speed": 1
         }
       ],
       "target": {
-        "x": 700,
-        "y": 293,
-        "w": 520,
-        "h": 494
+        "x": 1344,
+        "y": 0,
+        "w": 556,
+        "h": 1080
       },
       "camera": {
         "zoom": 1.15
       },
       "cursor": {
         "from": [
-          1698,
-          407
+          1739,
+          788
         ],
         "to": [
-          960,
-          580
+          1633,
+          474
         ],
         "click": false
       },
@@ -126,35 +126,35 @@
     {
       "id": "s04",
       "step_ref": "step-4",
-      "caption": "Select Approve Invoice",
-      "narration": "Managers choose Approve Invoice to advance the pending payment along.",
+      "caption": "Click Approve Invoice",
+      "narration": "Selecting Approve Invoice prompts for confirmation notes before proceeding.",
       "audio": null,
-      "audio_sec": 4.2,
+      "audio_sec": 9.073999999999998,
       "segments": [
         {
           "kind": "action",
-          "src_start": 11.927,
-          "src_end": 15.433,
+          "src_start": 14.053,
+          "src_end": 23.127,
           "speed": 1
         }
       ],
       "target": {
-        "x": 1002,
-        "y": 710,
-        "w": 233,
-        "h": 78
+        "x": 0,
+        "y": 0,
+        "w": 1100,
+        "h": 1080
       },
       "camera": {
-        "zoom": 1.35
+        "zoom": 1
       },
       "cursor": {
         "from": [
-          960,
-          580
+          1633,
+          474
         ],
         "to": [
-          1119,
-          749
+          1092,
+          679
         ],
         "click": true
       },
@@ -163,35 +163,35 @@
     {
       "id": "s05",
       "step_ref": "step-5",
-      "caption": "Approved Green Seal Verification",
-      "narration": "The green seal marked Approved gives Kane the check he needs.",
+      "caption": "APPROVED Seal Applied",
+      "narration": "A green APPROVED seal stamps down for Kane to see.",
       "audio": null,
-      "audio_sec": 4.2,
+      "audio_sec": 4.258000000000003,
       "segments": [
         {
           "kind": "idle",
-          "src_start": 15.433,
-          "src_end": 19.36,
+          "src_start": 23.127,
+          "src_end": 27.385,
           "speed": 1
         }
       ],
       "target": {
-        "x": 695,
-        "y": 635,
-        "w": 530,
-        "h": 104
+        "x": 1677,
+        "y": 144,
+        "w": 223,
+        "h": 145
       },
       "camera": {
         "zoom": 1.25
       },
       "cursor": {
         "from": [
-          1119,
-          749
+          1092,
+          679
         ],
         "to": [
-          960,
-          687
+          1792,
+          216
         ],
         "click": false
       },
@@ -200,22 +200,22 @@
     {
       "id": "s06",
       "step_ref": "step-6",
-      "caption": "Pending Count Drops",
-      "narration": "The row flips to Approved while the pending count drops instantly.",
+      "caption": "11 Approvals Remaining",
+      "narration": "The row flips to Approved and pending count drops to 11.",
       "audio": null,
-      "audio_sec": 4.967000000000002,
+      "audio_sec": 5.096,
       "segments": [
         {
           "kind": "action",
-          "src_start": 19.36,
-          "src_end": 24.327,
+          "src_start": 27.385,
+          "src_end": 32.481,
           "speed": 1
         }
       ],
       "target": {
         "x": 0,
         "y": 0,
-        "w": 1920,
+        "w": 1100,
         "h": 1080
       },
       "camera": {
@@ -223,12 +223,12 @@
       },
       "cursor": {
         "from": [
-          960,
-          687
+          1792,
+          216
         ],
         "to": [
-          1485,
-          407
+          1611,
+          788
         ],
         "click": true
       },

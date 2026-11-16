@@ -44,8 +44,8 @@ export async function generateKaneObjective(
 
   if (!apiKey) {
     return {
-      title: 'Invoice Approval Workflow',
-      objective: 'Click the first invoice INV-1001, click the Approve Invoice button, then verify the Approved seal is visible',
+      title: 'Ledgerly Invoice Approval',
+      objective: 'Click the Review button for row INV-1042, click Approve Invoice, enter approval note, click Confirm, then verify Approved seal is visible',
       expectedVerification: frozenClaims[0].expectedAssertion,
       frozenClaims,
     };
@@ -67,17 +67,18 @@ CRITICAL INTEGRITY RULES:
 5. Keep it direct and concise (under 2 sentences).
 
 Target App Start URL: ${appUrl}
-Bundled App Features:
-- Pending Invoices table (e.g. INV-1001 Acme Corp, INV-1002 Stark Dynamics).
-- Clicking an invoice or its "Review Invoice" button opens a review dialog.
-- Clicking "Approve Invoice" marks it approved and displays an "Approved" seal badge.
+Bundled App Features (Ledgerly SaaS):
+- Pending Invoices table (e.g. INV-1042 Apex Cloud Infra $4,850.00).
+- Each invoice row has an individual "Review" button on the right side that slides open the invoice drawer. Do not select checkboxes or use bulk actions.
+- Clicking "Approve Invoice" in the drawer opens a confirmation modal.
+- Entering an authorization note in the textarea and clicking "Confirm Approval" stamps the green "Approved" seal into document preview.
 
 User Request: "${userPrompt}"
 
 Return JSON ONLY in this format:
 {
-  "title": "Short title for the video (e.g. Invoice Approval Workflow)",
-  "objective": "Click the first invoice INV-1001, click the Approve Invoice button, then verify the Approved seal is visible"
+  "title": "Short title for the video (e.g. Ledgerly Invoice Approval)",
+  "objective": "Click the Review button for row INV-1042, click Approve Invoice in the drawer, enter approval note, click Confirm Approval, then verify Approved seal is visible"
 }
 `;
 
@@ -102,8 +103,8 @@ Return JSON ONLY in this format:
   } catch (error) {
     console.warn('Gemini objective generation failed, using fallback:', error);
     return {
-      title: 'Invoice Approval Workflow',
-      objective: `Click the first invoice INV-1001, click the Approve Invoice button, then verify ${frozenClaims[0].expectedAssertion}`,
+      title: 'Ledgerly Invoice Approval',
+      objective: `Click the Review button for row INV-1042, click Approve Invoice in the drawer, enter approval note, click Confirm Approval, then verify ${frozenClaims[0].expectedAssertion}`,
       expectedVerification: frozenClaims[0].expectedAssertion,
       frozenClaims,
     };

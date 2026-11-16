@@ -1,6 +1,7 @@
 import { spawn, execSync } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as crypto from 'crypto';
 import { executeKaneRun } from '../shoot/kane.js';
 import { Storyboard } from '../types.js';
 
@@ -12,6 +13,35 @@ export interface VisualReviewResult {
   kaneTestUrl?: string;
   creditsConsumed?: number;
   flawDetected?: boolean;
+}
+
+function getCachePath(): string {
+  const reviewDir = path.join(process.cwd(), 'out', 'review');
+  if (!fs.existsSync(reviewDir)) {
+    fs.mkdirSync(reviewDir, { recursive: true });
+  }
+  return path.join(reviewDir, 'review-cache.json');
+}
+
+function loadReviewCache(): Record<string, VisualReviewResult> {
+  const cacheFile = getCachePath();
+  if (fs.existsSync(cacheFile)) {
+    try {
+      return JSON.parse(fs.readFileSync(cacheFile, 'utf-8'));
+    } catch {
+      return {};
+    }
+  }
+  return {};
+}
+
+function saveReviewCache(cache: Record<string, VisualReviewResult>): void {
+  const cacheFile = getCachePath();
+  try {
+    fs.writeFileSync(cacheFile, JSON.stringify(cache, null, 2), 'utf-8');
+  } catch (err) {
+    console.warn('[Loop 3 Cache] Warning: Failed to save review cache:', err);
+  }
 }
 
 /**
@@ -39,7 +69,7 @@ export async function renderStillFrame(frameNumber: number): Promise<string> {
       env: { ...process.env },
     });
 
-    let stderr = '';
+  let stderr = '';
     child.stderr.on('data', (d) => { stderr += d.toString(); });
 
     child.on('close', (code) => {
@@ -64,7 +94,20 @@ export async function reviewFrameWithKane(
   isTransitionBoundary: boolean = false
 ): Promise<VisualReviewResult> {
   // Render the still frame first
-  await renderStillFrame(frameNumber);
+  const imagePath = await renderStillFrame(frameNumber);
+
+  // Compute image content hash for smart caching
+  const imageHash = crypto.createHash('sha256').update(fs.readFileSync(imagePath)).digest('hex');
+  const cacheKey = `${imageHash}:${isTransitionBoundary ? 'boundary' : 'standard'}`;
+  const cache = loadReviewCache();
+
+  if (cache[cacheKey] && cache[cacheKey].passed) {
+    console.log(`[Loop 3 Review] ✓ Cache hit: Frame ${frameNumber} (hash ${imageHash.slice(0, 8)}) previously verified.`);
+    return {
+      ...cache[cacheKey],
+      frameNumber,
+    };
+  }
 
   const targetUrl = `${reviewUrl}?frame=${frameNumber}`;
   const objective = isTransitionBoundary
@@ -82,8 +125,7 @@ export async function reviewFrameWithKane(
   });
 
   const passed = kaneResult.passed;
-
-  return {
+  const result: VisualReviewResult = {
     passed,
     frameNumber,
     objective,
@@ -92,6 +134,13 @@ export async function reviewFrameWithKane(
     creditsConsumed: kaneResult.creditsConsumed,
     flawDetected: !passed,
   };
+
+  if (passed) {
+    cache[cacheKey] = result;
+    saveReviewCache(cache);
+  }
+
+  return result;
 }
 
 /**
@@ -111,6 +160,14 @@ export async function executeReviewLoop(
   const firstSceneFrames = Math.round((storyboard.scenes[0]?.audio_sec || 4.0) * fps);
   const transitionBoundaryFrame = titleFrames + firstSceneFrames + 3; // 3 frames into scene 2 transition
 
+  let baseReviewUrl = 'http://localhost:8080/review';
+  try {
+    const parsed = new URL(appUrl);
+    baseReviewUrl = `${parsed.origin}/review`;
+  } catch {
+    baseReviewUrl = 'http://localhost:8080/review';
+  }
+
   // Sample frames:
   // 1. Frame 115: Scene 1 Dashboard Overview (Settled Wide Shot)
   // 2. Mid-transition Boundary Frame (Transition cut point)
@@ -121,22 +178,22 @@ export async function executeReviewLoop(
     { frame: 260, isBoundary: false, desc: 'Scene 3 Modal Line Items Detail' },
   ];
 
-  const reviews: VisualReviewResult[] = [];
-
-  for (const item of sampleFrames) {
-    console.log(`\n[Loop 3 QA Sample] Inspecting: ${item.desc}...`);
-    const result = await reviewFrameWithKane(item.frame, `${appUrl}/review`, item.isBoundary);
-    reviews.push(result);
-
-    if (result.passed) {
-      console.log(`✓ Frame ${item.frame} PASSED Visual QA: ${result.summary}`);
-    } else {
-      console.warn(`✗ Frame ${item.frame} FLAGGED VISUAL FLAW: ${result.summary}`);
-      if (result.kaneTestUrl) {
-        console.warn(`  Kane Evidence: ${result.kaneTestUrl}`);
+  // Run visual review in parallel across the sampled frames
+  const reviews = await Promise.all(
+    sampleFrames.map(async (item) => {
+      console.log(`\n[Loop 3 QA Sample] Inspecting: ${item.desc}...`);
+      const result = await reviewFrameWithKane(item.frame, baseReviewUrl, item.isBoundary);
+      if (result.passed) {
+        console.log(`✓ Frame ${item.frame} PASSED Visual QA: ${result.summary}`);
+      } else {
+        console.warn(`✗ Frame ${item.frame} FLAGGED VISUAL FLAW: ${result.summary}`);
+        if (result.kaneTestUrl) {
+          console.warn(`  Kane Evidence: ${result.kaneTestUrl}`);
+        }
       }
-    }
-  }
+      return result;
+    })
+  );
 
   const allPassed = reviews.every((r) => r.passed);
   return { passed: allPassed, reviews };

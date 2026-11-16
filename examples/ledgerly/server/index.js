@@ -46,7 +46,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // 2. Reset database state
-app.post('/api/reset', (req, res) => {
+app.post(['/api/reset', '//api/reset'], (req, res) => {
   currentInvoices = JSON.parse(JSON.stringify(SEED_INVOICES));
   currentMetrics = JSON.parse(JSON.stringify(INITIAL_METRICS));
   res.json({ success: true, message: 'Ledgerly seed state restored', clock: DEMO_CLOCK });
@@ -238,6 +238,114 @@ app.post('/api/export', async (req, res) => {
     range: dateRange,
     message: 'Export CSV generation complete',
   });
+});
+
+// 11. Loop 3 Visual QA Frame Inspection Endpoint
+app.get('/review', (req, res) => {
+  const frame = req.query.frame || '100';
+  res.type('html').send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Autocast Visual QA - Frame ${frame}</title>
+  <style>
+    body { margin: 0; background: #070b14; color: #f8fafc; font-family: -apple-system, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; }
+    .qa-header { width: 100%; max-width: 1400px; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; background: #0f172a; border-radius: 8px 8px 0 0; border: 1px solid rgba(255,255,255,0.1); box-sizing: border-box; }
+    .qa-badge { background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #60a5fa; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 700; }
+    .frame-wrapper { width: 100%; max-width: 1400px; background: #000; border: 1px solid rgba(255,255,255,0.1); border-top: none; border-radius: 0 0 8px 8px; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.8); }
+    img.preview { width: 100%; height: auto; display: block; }
+  </style>
+</head>
+<body>
+  <div class="qa-header">
+    <div>
+      <span class="qa-badge">LOOP 3 VISUAL QA</span>
+      <span style="margin-left: 12px; font-weight: 600;">Remotion Render Review — Frame ${frame}</span>
+    </div>
+    <div style="font-size: 13px; color: #94a3b8;">Inspect for framing, element clipping, and sidebar readability</div>
+  </div>
+  <div class="frame-wrapper">
+    <img class="preview" id="rendered-frame" src="/review-image?frame=${frame}" alt="Review Frame ${frame}" />
+  </div>
+</body>
+</html>`);
+});
+
+// 12. Serve rendered still frame image
+app.get('/review-image', (req, res) => {
+  const frame = req.query.frame || '100';
+  const reviewDir = path.join(process.cwd(), 'out', 'review');
+  let targetFile = path.join(reviewDir, `frame-${frame}.png`);
+  if (!fs.existsSync(targetFile)) {
+    targetFile = path.join(reviewDir, 'test-frame.png');
+  }
+  if (fs.existsSync(targetFile)) {
+    res.type('png');
+    return fs.createReadStream(targetFile).pipe(res);
+  } else {
+    return res.status(404).type('text').send('Frame image not found. Ensure Remotion still has rendered.');
+  }
+});
+
+// 13. Loop 3 MP4 Video Review Endpoint
+app.get('/review-video', (req, res) => {
+  const t = req.query.t || '0';
+  res.type('html').send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Autocast MP4 Video QA - Time ${t}s</title>
+  <style>
+    body { margin: 0; background: #070b14; color: #f8fafc; font-family: -apple-system, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; }
+    .qa-header { width: 100%; max-width: 1400px; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; background: #0f172a; border-radius: 8px 8px 0 0; border: 1px solid rgba(255,255,255,0.1); box-sizing: border-box; }
+    .qa-badge { background: rgba(59, 130, 246, 0.2); border: 1px solid #3b82f6; color: #60a5fa; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 700; }
+    .video-wrapper { width: 100%; max-width: 1400px; background: #000; border: 1px solid rgba(255,255,255,0.1); border-top: none; border-radius: 0 0 8px 8px; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.8); }
+    video { width: 100%; height: auto; display: block; }
+  </style>
+</head>
+<body>
+  <div class="qa-header">
+    <div>
+      <span class="qa-badge">LOOP 3 MP4 VIDEO QA</span>
+      <span style="margin-left: 12px; font-weight: 600;">Direct File Review at ${t}s</span>
+    </div>
+    <div style="font-size: 13px; color: #94a3b8;">Verifying rendered MP4 encoding, transitions, and audio sync</div>
+  </div>
+  <div class="video-wrapper">
+    <video id="mp4-player" controls autoplay muted src="/video-stream#t=${t}"></video>
+  </div>
+</body>
+</html>`);
+});
+
+// 14. MP4 Video Stream with Range Requests
+app.get('/video-stream', (req, res) => {
+  const videoPath = path.join(process.cwd(), 'out', 'demo.mp4');
+  if (!fs.existsSync(videoPath)) {
+    return res.status(404).type('text').send('Rendered video not found. Run render phase first.');
+  }
+  const stat = fs.statSync(videoPath);
+  const range = req.headers.range;
+  if (range) {
+    const parts = range.replace(/bytes=/, "").split("-");
+    const start = parseInt(parts[0], 10);
+    const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
+    const chunksize = (end - start) + 1;
+    const file = fs.createReadStream(videoPath, { start, end });
+    res.writeHead(206, {
+      'Content-Range': `bytes ${start}-${end}/${stat.size}`,
+      'Accept-Ranges': 'bytes',
+      'Content-Length': chunksize,
+      'Content-Type': 'video/mp4',
+    });
+    return file.pipe(res);
+  } else {
+    res.writeHead(200, {
+      'Content-Length': stat.size,
+      'Content-Type': 'video/mp4',
+    });
+    return fs.createReadStream(videoPath).pipe(res);
+  }
 });
 
 // Serve frontend assets

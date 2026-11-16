@@ -141,3 +141,4 @@ export const SpendChart: React.FC<SpendChartProps> = ({ loading }) => {
     </div>
   );
 };
+

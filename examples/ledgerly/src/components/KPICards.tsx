@@ -133,3 +133,4 @@ export const KPICards: React.FC<KPICardsProps> = ({ metrics, loading }) => {
     </div>
   );
 };
+

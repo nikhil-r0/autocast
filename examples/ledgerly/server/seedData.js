@@ -513,3 +513,4 @@ export const SEED_INVOICES = [
     lineItems: [{ id: 'li-41', description: 'Unverified Rooftop Turbine Feasibility Study', quantity: 1, unitPrice: 2750.00, total: 2750.00 }],
   },
 ];
+

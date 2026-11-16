@@ -96,3 +96,4 @@ Generated screenshots:
 docker build -t ledgerly .
 docker run -p 8080:8080 -e APP_BUG="" ledgerly
 ```
+

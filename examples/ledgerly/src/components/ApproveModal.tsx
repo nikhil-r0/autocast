@@ -139,3 +139,4 @@ export const ApproveModal: React.FC<ApproveModalProps> = ({
     </div>
   );
 };
+

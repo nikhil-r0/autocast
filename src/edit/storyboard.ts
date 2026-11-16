@@ -32,7 +32,7 @@ export function buildStoryboard(
       narration: `Complete workflow step ${i + 1} with real-time auditability.`,
     };
 
-    const targetRect = seg.target
+    let targetRect = seg.target
       ? {
           x: Math.max(0, Math.min(1920, seg.target.x)),
           y: Math.max(0, Math.min(1080, seg.target.y)),
@@ -40,6 +40,14 @@ export function buildStoryboard(
           h: Math.max(20, Math.min(1080, seg.target.h)),
         }
       : { x: 0, y: 0, w: 1920, h: 1080 };
+
+    // Enforce safe area margin of 20px for non-fullscreen elements
+    if (targetRect.w < 1880) {
+      if (targetRect.x < 20) targetRect.x = 20;
+      if (targetRect.x + targetRect.w > 1900) {
+        targetRect.w = Math.max(20, 1900 - targetRect.x);
+      }
+    }
 
     const targetCursor: [number, number] = seg.cursorTo || [
       Math.round(targetRect.x + targetRect.w / 2),

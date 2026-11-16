@@ -36,7 +36,7 @@ async function ensureSampleAppRunning(port: number = 8080): Promise<void> {
   }
 
   console.log(`[Setup] Starting bundled sample app at ${url}...`);
-  const serverScript = path.join(process.cwd(), 'examples', 'invoice-app', 'server.js');
+  const serverScript = path.join(process.cwd(), 'examples', 'ledgerly', 'server', 'index.js');
   const serverProc = spawn('node', [serverScript], {
     detached: true,
     stdio: 'ignore',
@@ -66,8 +66,21 @@ async function main() {
   console.log('================================================================');
   console.log(`User Prompt: "${userPrompt}"\n`);
 
-  const appUrl = process.env.TARGET_APP_URL || 'http://localhost:8080';
+  const appUrl = process.env.TARGET_APP_URL || 'http://localhost:8080/?logged_in=true';
   await ensureSampleAppRunning(8080);
+
+  // Restore fresh deterministic seed data
+  const apiBase = appUrl.split('?')[0].replace(/\/+$/, '');
+  try {
+    const resetRes = await fetch(`${apiBase}/api/reset`, { method: 'POST' });
+    if (resetRes.ok) {
+      console.log(`[Setup] ✓ Reset application state to fresh seed data at ${apiBase}`);
+    } else {
+      console.warn(`[Setup] Warning: /api/reset returned HTTP ${resetRes.status}`);
+    }
+  } catch (err) {
+    console.warn(`[Setup] Note: could not reset seed data: ${err}`);
+  }
 
   // 1. SHOOT LOOP (Loop 1: Kane CLI Verification)
   console.log('\n--- PHASE 1: SHOOT & VERIFY (Loop 1) ---');
@@ -81,6 +94,10 @@ async function main() {
   while (shootAttempts < maxShootAttempts) {
     shootAttempts++;
     console.log(`\n[Shoot Loop] Attempt ${shootAttempts}/${maxShootAttempts}...`);
+
+    try {
+      await fetch(`${apiBase}/api/reset`, { method: 'POST' });
+    } catch {}
 
     kaneResult = await executeKaneRun({
       objective: objectivePlan.objective,
