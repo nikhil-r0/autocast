@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "Autocast AI: The Autonomous Demo Director. Demos that can't lie.",
   "main": "src/cli.ts",
+  "type": "module",
   "bin": {
     "autocast": "./bin/autocast.js"
   },

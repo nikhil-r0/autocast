@@ -83,7 +83,11 @@ Return JSON ONLY in this format:
 `;
 
   try {
-    const result = await model.generateContent(prompt);
+    const generatePromise = model.generateContent(prompt);
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Gemini API timeout (4s)')), 4000)
+    );
+    const result = await Promise.race([generatePromise, timeoutPromise]);
     const text = result.response.text();
     const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
     const parsed = JSON.parse(cleanJson);

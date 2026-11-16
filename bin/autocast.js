@@ -15,3 +15,4 @@ const child = spawn(process.execPath, ['--import', 'tsx', cliPath, ...process.ar
 child.on('exit', (code) => {
   process.exit(code ?? 0);
 });
+

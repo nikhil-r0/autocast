@@ -81,3 +81,4 @@ test('TEST-11: Visual flaws persist when unrepairable -> repair returns repaired
   const repair = repairVisualDefects(dummyStoryboard, persistentFlaws);
   assert.equal(repair.repaired, false, 'Should report repaired=false when zoom cannot be clamped further');
 });
+

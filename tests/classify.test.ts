@@ -106,3 +106,4 @@ test('Kane returns exit 0 with status passed (Complete)', () => {
   const classification = classifyKaneRun(normalized);
   assert.strictEqual(classification.type, 'pass');
 });
+

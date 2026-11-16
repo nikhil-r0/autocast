@@ -51,3 +51,4 @@ test('TEST-08b: Server connection refused (offline server) -> Healthcheck return
   const isHealthy = await adapter.healthCheck();
   assert.equal(isHealthy, false, 'Health check must return false when server is completely down');
 });
+

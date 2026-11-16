@@ -18,3 +18,4 @@ test('TEST-17: Closed loop halts after configured max repair attempts (max 2)', 
   assert.equal(repairAttempts, 2);
   assert.equal(terminated, true);
 });
+

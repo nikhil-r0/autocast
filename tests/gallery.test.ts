@@ -20,3 +20,4 @@ test('startVisualQAGallery serves HTML gallery and health check on port 8089', a
     await gallery.stop();
   }
 });
+

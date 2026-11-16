@@ -15,15 +15,15 @@
     {
       "id": "s01",
       "step_ref": "step-1",
-      "caption": "12 Pending Invoices",
-      "narration": "Twelve pending invoices wait, led by Apex Cloud invoice INV-1042.",
+      "caption": "12 invoices waiting",
+      "narration": "Twelve invoices await executive review, led by INV-1042.",
       "audio": null,
-      "audio_sec": 6.267,
+      "audio_sec": 7.679,
       "segments": [
         {
           "kind": "idle",
           "src_start": 0,
-          "src_end": 6.267,
+          "src_end": 7.679,
           "speed": 1
         }
       ],
@@ -52,15 +52,15 @@
     {
       "id": "s02",
       "step_ref": "step-2",
-      "caption": "Open INV-1042 Details",
-      "narration": "Opening INV-1042 reveals Production Kubernetes details due November 24.",
+      "caption": "Review INV-1042",
+      "narration": "Open INV-1042 to inspect Kubernetes cluster infrastructure charges.",
       "audio": null,
       "audio_sec": 4.2,
       "segments": [
         {
           "kind": "action",
-          "src_start": 6.267,
-          "src_end": 9.887,
+          "src_start": 7.679,
+          "src_end": 11.604,
           "speed": 1
         }
       ],
@@ -89,15 +89,15 @@
     {
       "id": "s03",
       "step_ref": "step-3",
-      "caption": "$4,850.00 Line Item Total",
-      "narration": "Three distinct line items sum up to exactly $4,850.00.",
+      "caption": "Apex, $4,850.00",
+      "narration": "Production compute and multi-AZ data transfer total $4,850.00.",
       "audio": null,
-      "audio_sec": 4.2,
+      "audio_sec": 4.468,
       "segments": [
         {
           "kind": "idle",
-          "src_start": 9.888,
-          "src_end": 14.052,
+          "src_start": 11.604,
+          "src_end": 16.072,
           "speed": 1
         }
       ],
@@ -126,15 +126,15 @@
     {
       "id": "s04",
       "step_ref": "step-4",
-      "caption": "Click Approve Invoice",
-      "narration": "Selecting Approve Invoice prompts for confirmation notes before proceeding.",
+      "caption": "Approve Invoice",
+      "narration": "Approve Invoice with required budget verification note.",
       "audio": null,
-      "audio_sec": 9.073999999999998,
+      "audio_sec": 8.368000000000002,
       "segments": [
         {
           "kind": "action",
-          "src_start": 14.053,
-          "src_end": 23.127,
+          "src_start": 16.072,
+          "src_end": 24.44,
           "speed": 1
         }
       ],
@@ -163,15 +163,15 @@
     {
       "id": "s05",
       "step_ref": "step-5",
-      "caption": "APPROVED Seal Applied",
-      "narration": "A green APPROVED seal stamps down for Kane to see.",
+      "caption": "Approved seal",
+      "narration": "The green Approved compliance seal stamps into document preview.",
       "audio": null,
-      "audio_sec": 4.258000000000003,
+      "audio_sec": 4.385999999999999,
       "segments": [
         {
           "kind": "idle",
-          "src_start": 23.127,
-          "src_end": 27.385,
+          "src_start": 24.442,
+          "src_end": 28.828,
           "speed": 1
         }
       ],
@@ -200,15 +200,15 @@
     {
       "id": "s06",
       "step_ref": "step-6",
-      "caption": "11 Approvals Remaining",
-      "narration": "The row flips to Approved and pending count drops to 11.",
+      "caption": "Pending drops to 11",
+      "narration": "INV-1042 is approved and pending approvals drops to 11.",
       "audio": null,
-      "audio_sec": 5.096,
+      "audio_sec": 5.201999999999998,
       "segments": [
         {
           "kind": "action",
-          "src_start": 27.385,
-          "src_end": 32.481,
+          "src_start": 28.829,
+          "src_end": 34.031,
           "speed": 1
         }
       ],

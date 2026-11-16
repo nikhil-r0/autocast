@@ -144,3 +144,4 @@ export class LedgerlyLifecycleAdapter implements AppLifecycleAdapter {
     }
   }
 }
+

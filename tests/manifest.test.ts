@@ -48,3 +48,4 @@ test('TEST-19: MP4 bytes modified after manifest generation -> SHA-256 verificat
   fs.rmSync(tempVideo, { force: true });
   fs.rmSync(tempManifest, { force: true });
 });
+

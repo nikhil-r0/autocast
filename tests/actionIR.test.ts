@@ -95,3 +95,4 @@ test('OutcomeSpec passes when conditions are satisfied', async () => {
   assert.equal(result.passed, true);
   assert.equal(result.failures.length, 0);
 });
+

@@ -29,3 +29,4 @@ TARGET_APP_URL="http://localhost:8080/?logged_in=true" autocast "Approve invoice
 - `out/share-copy.txt`: Multi-channel social copy for X/Twitter and LinkedIn.
 - `out/run-manifest.json`: Tamper-evident cryptographic provenance manifest.
 - `docs/catches/`: Archival evidence packs of autonomous catches and repairs.
+

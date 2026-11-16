@@ -1,0 +1,35 @@
+{
+  "autocast_version": "0.2.0",
+  "generated_at": "2026-11-16T10:30:56.909Z",
+  "status": "unverified_draft",
+  "application": {
+    "url": "http://localhost:8080/?logged_in=true",
+    "baseline_commit": "4a81454e44e3f13fc50f1be2613343e205910974",
+    "tested_commit": "97d23062b058e2ca67923a0fb7626bbfda9c8fb5",
+    "state_verified": true
+  },
+  "kane_verification": {
+    "run_id": "/home/home/.testmuai/kaneai/sessions/d2976029-626f-4571-b8df-57dab62061ea",
+    "result_code": 100,
+    "credits_consumed": 22.247010000000007
+  },
+  "visual_qa": {
+    "status": "failed",
+    "attempts": 1
+  },
+  "security_scan": {
+    "status": "clean",
+    "ocr_frames_scanned": 4
+  },
+  "artifacts": {
+    "video": {
+      "path": "out/demo.mp4",
+      "sha256": "8cd16507ed05731785d2c693752276452a600a4f5eb8958d3d5f354ecd18a9f0",
+      "size_bytes": 3636414
+    },
+    "poster": {
+      "path": "out/poster.jpg",
+      "sha256": "5647767e81e6e25a2f3982e37d15ad3814588ff873bad6d21d423270bbf1fe4b"
+    }
+  }
+}
