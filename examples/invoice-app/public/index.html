@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PayFlow - Invoice Management</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- RUNTIME_CONFIG -->
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Navigation Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-icon">⚡</div>
+        <span class="brand-name">PayFlow</span>
+      </div>
+      <nav class="nav-links">
+        <a href="#" class="nav-item active">
+          <span class="nav-icon">📄</span>
+          <span>Invoices</span>
+        </a>
+        <a href="#" class="nav-item">
+          <span class="nav-icon">📊</span>
+          <span>Analytics</span>
+        </a>
+        <a href="#" class="nav-item">
+          <span class="nav-icon">👥</span>
+          <span>Vendors</span>
+        </a>
+        <a href="#" class="nav-item">
+          <span class="nav-icon">⚙️</span>
+          <span>Settings</span>
+        </a>
+      </nav>
+      <div class="user-profile">
+        <div class="avatar">JD</div>
+        <div class="user-info">
+          <span class="user-name">Jane Doe</span>
+          <span class="user-role">Finance Director</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <header class="topbar">
+        <div>
+          <h1 class="page-title">Invoice Approvals</h1>
+          <p class="page-subtitle">Review, verify, and authorize pending vendor disbursements.</p>
+        </div>
+        <div class="topbar-actions">
+          <div class="badge-env" id="env-badge">System: Production</div>
+        </div>
+      </header>
+
+      <!-- Metrics Row -->
+      <section class="metrics-grid">
+        <div class="metric-card">
+          <span class="metric-label">Pending Approval</span>
+          <span class="metric-value">$17,250.00</span>
+          <span class="metric-sub">2 invoices waiting</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Approved This Month</span>
+          <span class="metric-value">$84,190.00</span>
+          <span class="metric-sub success">↑ 14% vs last month</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Average Processing</span>
+          <span class="metric-value">1.8 hrs</span>
+          <span class="metric-sub">Fast approval SLA</span>
+        </div>
+      </section>
+
+      <!-- Invoices Table Section -->
+      <section class="table-container">
+        <div class="table-header">
+          <h2 class="section-title">Pending Invoices</h2>
+          <div class="filter-group">
+            <button class="filter-btn active">All</button>
+            <button class="filter-btn">Pending</button>
+            <button class="filter-btn">Approved</button>
+          </div>
+        </div>
+
+        <table class="invoice-table" id="invoices-table">
+          <thead>
+            <tr>
+              <th>Invoice #</th>
+              <th>Vendor</th>
+              <th>Issue Date</th>
+              <th>Due Date</th>
+              <th>Amount</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr id="row-INV-1001" class="invoice-row" onclick="openInvoice('INV-1001')">
+              <td class="font-mono font-bold">INV-1001</td>
+              <td>
+                <div class="vendor-cell">
+                  <span class="vendor-avatar">A</span>
+                  <div>
+                    <span class="vendor-name">Acme Corporation</span>
+                    <span class="vendor-meta">SaaS Infrastructure</span>
+                  </div>
+                </div>
+              </td>
+              <td>Nov 10, 2026</td>
+              <td>Nov 24, 2026</td>
+              <td class="font-bold amount-cell">$4,850.00</td>
+              <td><span class="status-pill status-pending" id="status-INV-1001">Pending</span></td>
+              <td>
+                <button class="action-btn" id="btn-view-INV-1001" onclick="event.stopPropagation(); openInvoice('INV-1001')">
+                  Review Invoice
+                </button>
+              </td>
+            </tr>
+            <tr id="row-INV-1002" class="invoice-row" onclick="openInvoice('INV-1002')">
+              <td class="font-mono font-bold">INV-1002</td>
+              <td>
+                <div class="vendor-cell">
+                  <span class="vendor-avatar">S</span>
+                  <div>
+                    <span class="vendor-name">Stark Dynamics</span>
+                    <span class="vendor-meta">Hardware & GPU Rental</span>
+                  </div>
+                </div>
+              </td>
+              <td>Nov 12, 2026</td>
+              <td>Nov 26, 2026</td>
+              <td class="font-bold amount-cell">$12,400.00</td>
+              <td><span class="status-pill status-pending" id="status-INV-1002">Pending</span></td>
+              <td>
+                <button class="action-btn" id="btn-view-INV-1002" onclick="event.stopPropagation(); openInvoice('INV-1002')">
+                  Review Invoice
+                </button>
+              </td>
+            </tr>
+            <tr id="row-INV-1003" class="invoice-row" onclick="openInvoice('INV-1003')">
+              <td class="font-mono font-bold">INV-1003</td>
+              <td>
+                <div class="vendor-cell">
+                  <span class="vendor-avatar">W</span>
+                  <div>
+                    <span class="vendor-name">Wayne Technologies</span>
+                    <span class="vendor-meta">Security Operations</span>
+                  </div>
+                </div>
+              </td>
+              <td>Nov 01, 2026</td>
+              <td>Nov 15, 2026</td>
+              <td class="font-bold amount-cell">$8,200.00</td>
+              <td><span class="status-pill status-approved" id="status-INV-1003">Approved</span></td>
+              <td>
+                <button class="action-btn" id="btn-view-INV-1003" onclick="event.stopPropagation(); openInvoice('INV-1003')">
+                  Review Invoice
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+
+    <!-- Slide-over Modal / Drawer for Invoice Review -->
+    <div class="modal-overlay" id="modal-overlay" onclick="closeInvoice()">
+      <div class="modal-card" id="modal-card" onclick="event.stopPropagation()">
+        <div class="modal-header">
+          <div>
+            <div class="modal-tag font-mono" id="modal-inv-id">INV-1001</div>
+            <h3 class="modal-title" id="modal-vendor-name">Acme Corporation</h3>
+          </div>
+          <button class="close-btn" id="close-modal-btn" onclick="closeInvoice()">✕</button>
+        </div>
+
+        <div class="modal-body">
+          <div id="error-banner" class="alert-error" style="display: none;">
+            ⚠️ Approval Failed: Database lock prevented authorization stamp.
+          </div>
+
+          <div class="invoice-details-box">
+            <div class="detail-row">
+              <span class="detail-label">Issue Date:</span>
+              <span class="detail-val" id="modal-issue-date">Nov 10, 2026</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Due Date:</span>
+              <span class="detail-val" id="modal-due-date">Nov 24, 2026</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Payment Terms:</span>
+              <span class="detail-val">Net 14 (Direct Wire)</span>
+            </div>
+          </div>
+
+          <h4 class="subheading">Itemized Charges</h4>
+          <div class="line-items" id="modal-line-items">
+            <div class="line-item">
+              <span>Cloud Infrastructure Architecture (40 hrs)</span>
+              <span class="font-mono">$3,800.00</span>
+            </div>
+            <div class="line-item">
+              <span>Automated Penetration & SSL Testing</span>
+              <span class="font-mono">$1,050.00</span>
+            </div>
+          </div>
+
+          <div class="total-row">
+            <span>Total Payable</span>
+            <span class="total-amount" id="modal-total-amount">$4,850.00</span>
+          </div>
+
+          <!-- The Approved Seal Checkpoint -->
+          <div id="approval-seal" class="approval-seal" style="display: none;">
+            <div class="seal-check">✓</div>
+            <div class="seal-details">
+              <div class="seal-title">Approved</div>
+              <div class="seal-subtitle" id="seal-timestamp">Verified by Finance Director • Nov 15, 2026</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer" id="modal-footer">
+          <button class="btn-secondary" id="reject-invoice-btn" onclick="closeInvoice()">Dismiss</button>
+          <button class="btn-primary" id="approve-invoice-btn" onclick="approveCurrentInvoice()">
+            Approve Invoice
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+{
+  "name": "autocast",
+  "version": "0.1.0",
+  "description": "Autocast AI: The Autonomous Demo Director. Demos that can't lie.",
+  "main": "src/cli.ts",
+  "scripts": {
+    "app": "node examples/invoice-app/server.js",
+    "demo": "tsx src/cli.ts",
+    "render": "remotion render Demo out/demo.mp4 --codec=h264",
+    "preview": "remotion preview remotion/Root.tsx",
+    "lint:storyboard": "tsx src/edit/lint.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "@remotion/cli": "^4.0.260",
+    "@remotion/media": "^4.0.260",
+    "@remotion/player": "^4.0.260",
+    "@remotion/transitions": "^4.0.260",
+    "dotenv": "^16.4.7",
+    "playwright": "^1.49.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "remotion": "^4.0.260",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

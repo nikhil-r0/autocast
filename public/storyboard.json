@@ -1,0 +1,238 @@
+{
+  "meta": {
+    "title": "Invoice Approval Workflow",
+    "fps": 30,
+    "width": 1920,
+    "height": 1080,
+    "source": {
+      "video": "source.mp4",
+      "width": 1920,
+      "height": 1080
+    },
+    "music": null
+  },
+  "scenes": [
+    {
+      "id": "s01",
+      "step_ref": "step-1",
+      "caption": "Monitor Accounts Payable Key Metrics",
+      "narration": "Gain instant visibility into pending liabilities and processing bottlenecks across your entire organization seamlessly.",
+      "audio": null,
+      "audio_sec": 4.2,
+      "segments": [
+        {
+          "kind": "idle",
+          "src_start": 0,
+          "src_end": 4.112,
+          "speed": 1
+        }
+      ],
+      "target": {
+        "x": 0,
+        "y": 0,
+        "w": 1920,
+        "h": 1080
+      },
+      "camera": {
+        "zoom": 1
+      },
+      "cursor": {
+        "from": [
+          960,
+          540
+        ],
+        "to": [
+          960,
+          540
+        ],
+        "click": false
+      },
+      "hold_sec": 0.5
+    },
+    {
+      "id": "s02",
+      "step_ref": "step-2",
+      "caption": "Access Detailed Pending Invoice Breakdown",
+      "narration": "Accelerate verification by accessing comprehensive vendor data and line items directly from the main view.",
+      "audio": null,
+      "audio_sec": 4.2,
+      "segments": [
+        {
+          "kind": "action",
+          "src_start": 4.112,
+          "src_end": 7.814,
+          "speed": 1
+        }
+      ],
+      "target": {
+        "x": 299,
+        "y": 373,
+        "w": 1572,
+        "h": 69
+      },
+      "camera": {
+        "zoom": 1.25
+      },
+      "cursor": {
+        "from": [
+          960,
+          540
+        ],
+        "to": [
+          1698,
+          407
+        ],
+        "click": true
+      },
+      "hold_sec": 0.5
+    },
+    {
+      "id": "s03",
+      "step_ref": "step-3",
+      "caption": "Audit Itemized Charges and Terms",
+      "narration": "Eliminate billing errors through automated matching of unit prices, payment terms, and contract agreements.",
+      "audio": null,
+      "audio_sec": 4.2,
+      "segments": [
+        {
+          "kind": "idle",
+          "src_start": 7.814,
+          "src_end": 11.872,
+          "speed": 1
+        }
+      ],
+      "target": {
+        "x": 700,
+        "y": 293,
+        "w": 520,
+        "h": 494
+      },
+      "camera": {
+        "zoom": 1.15
+      },
+      "cursor": {
+        "from": [
+          1698,
+          407
+        ],
+        "to": [
+          960,
+          580
+        ],
+        "click": false
+      },
+      "hold_sec": 0.5
+    },
+    {
+      "id": "s04",
+      "step_ref": "step-4",
+      "caption": "Authorize Immediate Vendor Funds Disbursement",
+      "narration": "Secure prompt vendor payments with single-click authorization that enforces compliance rules and spending thresholds.",
+      "audio": null,
+      "audio_sec": 4.2,
+      "segments": [
+        {
+          "kind": "action",
+          "src_start": 11.873,
+          "src_end": 15.364,
+          "speed": 1
+        }
+      ],
+      "target": {
+        "x": 1002,
+        "y": 710,
+        "w": 233,
+        "h": 78
+      },
+      "camera": {
+        "zoom": 1.35
+      },
+      "cursor": {
+        "from": [
+          960,
+          580
+        ],
+        "to": [
+          1119,
+          749
+        ],
+        "click": true
+      },
+      "hold_sec": 0.5
+    },
+    {
+      "id": "s05",
+      "step_ref": "step-5",
+      "caption": "Verify Executive Approval Compliance Signoff",
+      "narration": "Ensure enterprise-grade audit readiness with cryptographic director signoffs applied instantly to every approved document.",
+      "audio": null,
+      "audio_sec": 4.2,
+      "segments": [
+        {
+          "kind": "idle",
+          "src_start": 15.364,
+          "src_end": 19.305,
+          "speed": 1
+        }
+      ],
+      "target": {
+        "x": 695,
+        "y": 635,
+        "w": 530,
+        "h": 104
+      },
+      "camera": {
+        "zoom": 1.25
+      },
+      "cursor": {
+        "from": [
+          1119,
+          749
+        ],
+        "to": [
+          960,
+          687
+        ],
+        "click": false
+      },
+      "hold_sec": 0.5
+    },
+    {
+      "id": "s06",
+      "step_ref": "step-6",
+      "caption": "Update General Ledger Balance Automatically",
+      "narration": "Maintain real-time financial accuracy as reconciled status and updated general ledger balances sync immediately.",
+      "audio": null,
+      "audio_sec": 4.966999999999999,
+      "segments": [
+        {
+          "kind": "action",
+          "src_start": 19.305,
+          "src_end": 24.272,
+          "speed": 1
+        }
+      ],
+      "target": {
+        "x": 0,
+        "y": 0,
+        "w": 1920,
+        "h": 1080
+      },
+      "camera": {
+        "zoom": 1
+      },
+      "cursor": {
+        "from": [
+          960,
+          687
+        ],
+        "to": [
+          1485,
+          407
+        ],
+        "click": true
+      },
+      "hold_sec": 0.5
+    }
+  ]
+}

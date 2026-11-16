@@ -1,0 +1,12 @@
+node_modules/
+.env
+.env.*
+!.env.example
+out/
+.testmuai/evidence/
+.testmuai/tests/
+*.log
+*.ndjson
+dist/
+public/raw-captures/
+public/*.mp4
