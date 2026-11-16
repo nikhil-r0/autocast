@@ -39,6 +39,7 @@ app.get('/api/health', (req, res) => {
     status: 'ok',
     app: 'ledgerly',
     clock: DEMO_CLOCK,
+    commit: process.env.APP_COMMIT || 'development',
     bug: process.env.APP_BUG || null,
     invoicesCount: currentInvoices.length,
     pendingCount: currentMetrics.pendingApprovals,

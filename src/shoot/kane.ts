@@ -2,6 +2,7 @@ import { spawn } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import { KaneRunResult, KaneStep } from '../types.js';
+import { normalizeKaneExecution } from './kaneAdapter.js';
 
 export interface KaneRunOptions {
   objective: string;
@@ -13,6 +14,7 @@ export interface KaneRunOptions {
 export async function executeKaneRun(options: KaneRunOptions): Promise<KaneRunResult> {
   const sessionName = options.name || `autocast-${Date.now()}`;
   const targetUrl = options.url || process.env.TARGET_APP_URL || 'http://localhost:8080/?logged_in=true';
+  const timeoutSec = options.timeoutSec || 300;
 
   const args = [
     'run',
@@ -31,16 +33,13 @@ export async function executeKaneRun(options: KaneRunOptions): Promise<KaneRunRe
     'stop',
     '--name',
     sessionName,
-    '--code-export',
-    '--code-language',
-    'javascript',
+    '--timeout',
+    String(timeoutSec),
   ];
 
-  if (options.timeoutSec) {
-    args.push('--timeout', String(options.timeoutSec));
-  }
-
   console.log(`[Shoot Loop] Invoking Kane CLI: kane-cli ${args.join(' ')}`);
+
+  const startTime = Date.now();
 
   return new Promise((resolve) => {
     const child = spawn('kane-cli', args, {
@@ -48,35 +47,11 @@ export async function executeKaneRun(options: KaneRunOptions): Promise<KaneRunRe
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 
-    let runEndData: any = null;
-    const capturedSteps: KaneStep[] = [];
     let stdoutBuffer = '';
     let stderrText = '';
 
     child.stdout.on('data', (chunk) => {
       stdoutBuffer += chunk.toString();
-      const lines = stdoutBuffer.split('\n');
-      stdoutBuffer = lines.pop() || '';
-
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        try {
-          const event = JSON.parse(line.trim());
-          if (event.type === 'run_end') {
-            runEndData = event;
-          } else if (event.step && event.status === 'done') {
-            capturedSteps.push({
-              stepNumber: event.step,
-              kind: event.remark?.split(':')[0]?.trim() || 'action',
-              summary: event.remark || `Step ${event.step}`,
-              durationMs: 1500,
-              timestamp: event.ts,
-            });
-          }
-        } catch (e) {
-          // ignore non-json lines
-        }
-      }
     });
 
     child.stderr.on('data', (chunk) => {
@@ -84,41 +59,64 @@ export async function executeKaneRun(options: KaneRunOptions): Promise<KaneRunRe
     });
 
     child.on('close', (code) => {
-      if (stdoutBuffer.trim()) {
-        try {
-          const event = JSON.parse(stdoutBuffer.trim());
-          if (event.type === 'run_end') runEndData = event;
-        } catch (e) {}
+      const durationSec = (Date.now() - startTime) / 1000;
+      const exitCode = code ?? 1;
+
+      // Normalize output through KaneRunAdapter
+      const normalized = normalizeKaneExecution({
+        exitCode,
+        stdout: stdoutBuffer,
+        stderr: stderrText,
+        durationSec,
+        timeoutSec,
+      });
+
+      // Persist raw stream & stderr to disk for provenance & debugging
+      const runLogDir = path.join(process.cwd(), 'out', 'runs', sessionName);
+      try {
+        fs.mkdirSync(runLogDir, { recursive: true });
+        fs.writeFileSync(path.join(runLogDir, 'kane-stream.ndjson'), stdoutBuffer, 'utf-8');
+        fs.writeFileSync(path.join(runLogDir, 'kane-stderr.log'), stderrText, 'utf-8');
+        fs.writeFileSync(
+          path.join(runLogDir, 'run-metadata.json'),
+          JSON.stringify(
+            {
+              sessionName,
+              objective: options.objective,
+              targetUrl,
+              exitCode,
+              durationSec,
+              category: normalized.category,
+              resultCode: normalized.resultCode,
+              verdict: normalized.verdict,
+            },
+            null,
+            2
+          ),
+          'utf-8'
+        );
+      } catch (err) {
+        console.warn(`[Kane Run] Warning: Failed to persist run logs: ${err}`);
       }
 
-      const passed = runEndData?.status === 'passed';
-      const isProductDefect = runEndData?.status === 'failed' || code !== 0;
-
       // Extract rich step details from session actions ndjson if available
-      let enrichedSteps = capturedSteps;
-      if (runEndData?.session_dir) {
-        enrichedSteps = enrichStepsFromSession(runEndData.session_dir, capturedSteps);
+      let enrichedSteps = normalized.steps;
+      if (normalized.sessionDir) {
+        enrichedSteps = enrichStepsFromSession(normalized.sessionDir, normalized.steps);
       }
 
       resolve({
-        passed,
-        isProductDefect: !passed,
-        resultCode: runEndData?.result_code ?? (code === 0 ? 100 : 500),
-        reasonCode: runEndData?.reason_code || (passed ? 'success.complete' : 'failure'),
-        summary: runEndData?.summary || (passed ? 'Objective passed' : 'Objective failed'),
-        sessionDir: runEndData?.session_dir,
-        runDir: runEndData?.run_dir,
+        ...normalized,
         steps: enrichedSteps,
-        creditsConsumed: runEndData?.credits_consumed,
-        testUrl: runEndData?.test_url,
-        errorMessage: stderrText || (!passed ? runEndData?.summary : undefined),
       });
     });
 
     child.on('error', (err) => {
       resolve({
         passed: false,
+        category: 'cli_configuration_error',
         isProductDefect: false,
+        exitCode: 2,
         resultCode: 500,
         reasonCode: 'execution.error',
         summary: `Failed to spawn kane-cli: ${err.message}`,
@@ -131,9 +129,7 @@ export async function executeKaneRun(options: KaneRunOptions): Promise<KaneRunRe
 
 function enrichStepsFromSession(sessionDir: string, fallbackSteps: KaneStep[]): KaneStep[] {
   try {
-    const codeExportDir = path.join(sessionDir, 'code-export');
     const actionsLog = findActionsLog(sessionDir);
-
     if (!actionsLog || !fs.existsSync(actionsLog)) {
       return fallbackSteps;
     }
@@ -145,7 +141,7 @@ function enrichStepsFromSession(sessionDir: string, fallbackSteps: KaneStep[]): 
       if (!line.trim()) continue;
       try {
         const item = JSON.parse(line.trim());
-        if (item.action_type === 'navigate' || item.action_type === 'click') {
+        if (item.action_type === 'navigate' || item.action_type === 'click' || item.action_type === 'type') {
           const visual = item.visual_data;
           steps.push({
             stepNumber: item.step,
@@ -167,25 +163,24 @@ function enrichStepsFromSession(sessionDir: string, fallbackSteps: KaneStep[]): 
             timestamp: item.timestamp,
           });
         }
-      } catch (e) {}
+      } catch {}
     }
 
     return steps.length > 0 ? steps : fallbackSteps;
-  } catch (e) {
+  } catch {
     return fallbackSteps;
   }
 }
 
 function findActionsLog(dir: string): string | null {
-  // Look for 0-actions.ndjson in subdirectories
   const findRecursive = (current: string): string | null => {
     const entries = fs.readdirSync(current, { withFileTypes: true });
     for (const entry of entries) {
       const full = path.join(current, entry.name);
-      if (entry.isFile() && entry.name === '0-actions.ndjson') {
+      if (entry.isFile() && (entry.name === '0-actions.ndjson' || entry.name.endsWith('-actions.ndjson'))) {
         return full;
       }
-      if (entry.isDirectory() && entry.name !== 'node_modules') {
+      if (entry.isDirectory() && entry.name !== 'node_modules' && !entry.name.startsWith('.')) {
         const found = findRecursive(full);
         if (found) return found;
       }
@@ -195,8 +190,7 @@ function findActionsLog(dir: string): string | null {
 
   try {
     return findRecursive(dir);
-  } catch (e) {
+  } catch {
     return null;
   }
 }
-

@@ -81,12 +81,42 @@ export interface KaneStep {
   timestamp?: string;
 }
 
+export interface KaneVerdict {
+  confirmed: boolean;
+  family: string;
+  category: string;
+  severity: string;
+  oneLiner: string;
+  confidence: number;
+}
+
+export interface OutcomeSpec {
+  id: string;
+  verification:
+    | { type: 'dom_text'; selector: string; expected: string }
+    | { type: 'visible'; selector: string }
+    | { type: 'url'; expected: string }
+    | { type: 'api_state'; endpoint: string; jsonPath: string; expected: unknown };
+}
+
+export type FailureCategory =
+  | 'pass'
+  | 'confirmed_product_bug'
+  | 'unconfirmed_failure'
+  | 'cli_configuration_error'
+  | 'timeout'
+  | 'cancelled';
+
 export interface KaneRunResult {
   passed: boolean;
+  category: FailureCategory;
   isProductDefect: boolean;
-  resultCode: number;
-  reasonCode: string;
+  exitCode: number;
+  resultCode?: number;
+  reasonCode?: string;
   summary: string;
+  verdict?: KaneVerdict;
+  claims?: Array<{ id: string; claim: string; passed: boolean }>;
   sessionDir?: string;
   runDir?: string;
   evidencePack?: string;
@@ -94,5 +124,93 @@ export interface KaneRunResult {
   creditsConsumed?: number;
   testUrl?: string;
   errorMessage?: string;
+  rawEvents?: any[];
 }
+
+export interface AgentRepairRequest {
+  worktreeDir: string;
+  appRelativePath: string; // e.g. "examples/ledgerly"
+  objective: string;
+  verdict?: { family: string; category: string; oneLiner: string; severity: string };
+  failingStep?: string;
+  evidence: {
+    sessionDir: string;
+    evidencePackPath?: string;
+    failureScreenshot?: string;
+    consoleLogs?: string[];
+    networkErrors?: string[];
+  };
+  constraints: {
+    allowedDirectories: string[];
+    protectedPaths: string[];
+    maxRepairAttempts: number; // max 2
+  };
+}
+
+export interface AgentRepairResult {
+  success: boolean;
+  candidateCommit?: string;
+  worktreeDir?: string;
+  repairBranch?: string;
+  diffSummary?: string;
+  error?: string;
+}
+
+export interface AppLifecycleAdapter {
+  name: string;
+  appDir: string;
+  start: (opts?: { env?: Record<string, string>; commit?: string }) => Promise<{ pid: number; port: number; commit?: string }>;
+  stop: () => Promise<void>;
+  healthCheck: (expectedCommit?: string) => Promise<boolean>;
+  resetSeedData: () => Promise<void>;
+  verifyUnderlyingState: (expected?: Record<string, any>) => Promise<boolean>;
+}
+
+export interface RunManifest {
+  autocast_version: string;
+  generated_at: string;
+  status: 'verified' | 'unverified_draft' | 'quarantined' | 'failed';
+  application: {
+    url: string;
+    baseline_commit?: string;
+    tested_commit?: string;
+    state_verified: boolean;
+  };
+  kane_verification?: {
+    run_id: string;
+    result_code?: number;
+    credits_consumed?: number;
+    claims?: Array<{ id: string; claim: string; passed: boolean }>;
+  };
+  closed_loop_repair?: {
+    occurred: boolean;
+    initial_failure?: string;
+    agent?: string;
+    candidate_commit?: string;
+    patch_file?: string;
+    re_verification_run_id?: string;
+  };
+  visual_qa?: {
+    status: 'passed' | 'repaired' | 'failed';
+    attempts: number;
+    flagged_frames?: number[];
+  };
+  security_scan?: {
+    status: 'clean' | 'secrets_detected';
+    ocr_frames_scanned: number;
+    quarantined?: boolean;
+  };
+  artifacts: {
+    video?: {
+      path: string;
+      sha256: string;
+      size_bytes: number;
+    };
+    poster?: {
+      path: string;
+      sha256: string;
+    };
+  };
+}
+
 

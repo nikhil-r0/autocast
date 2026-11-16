@@ -1,55 +1,67 @@
-import { KaneRunResult } from '../types.js';
+import { KaneRunResult, FailureCategory } from '../types.js';
 
 export interface Classification {
-  type: 'pass' | 'product_defect' | 'bad_objective';
+  type: FailureCategory;
   message: string;
   report?: string;
+  verdictOneLiner?: string;
 }
 
 export function classifyKaneRun(result: KaneRunResult): Classification {
-  if (result.passed) {
+  if (result.category === 'pass' || result.passed) {
     return {
       type: 'pass',
       message: 'Objective passed successfully and verified by Kane CLI.',
     };
   }
 
-  // Check for product defect:
-  // - Result code indicates assertion failed, or Kane observed unexpected UI error
-  // - Or errorMessage indicates assertion or verification failure
-  const isAssertionFailure =
-    result.isProductDefect ||
-    (result.errorMessage && result.errorMessage.toLowerCase().includes('assert')) ||
-    (result.reasonCode && result.reasonCode.toLowerCase().includes('assert')) ||
-    (result.summary && result.summary.toLowerCase().includes('failed'));
-
-  if (isAssertionFailure) {
+  if (result.category === 'confirmed_product_bug') {
     const report = `
 ================================================================================
 🚨 AUTOCAST AI STOP-ON-BUG: DEMOS CAN'T LIE
 ================================================================================
-Kane CLI detected a defect in the application under test.
-As per Autocast AI safety policy, NO VIDEO HAS BEEN RENDERED.
-
+Kane CLI detected a CONFIRMED PRODUCT BUG in the application under test.
 • Result Code: ${result.resultCode} (${result.reasonCode})
-• Summary: ${result.summary || 'Assertion condition was not met'}
+• Verdict: ${result.verdict?.oneLiner || result.summary}
+• Severity: ${result.verdict?.severity || 'high'} (Confidence: ${result.verdict?.confidence ?? 1.0})
+• Failing Step: ${result.steps.length > 0 ? result.steps[result.steps.length - 1].summary : 'Unknown step'}
 • Test URL: ${result.testUrl || 'Check local evidence pack'}
 • Session Directory: ${result.sessionDir || 'N/A'}
-• Failing Step: ${result.steps.length > 0 ? result.steps[result.steps.length - 1].summary : 'Unknown step'}
 
-Please resolve the application bug before generating this product demo.
+As per Autocast AI safety policy, NO VIDEO HAS BEEN RENDERED.
 ================================================================================
 `;
     return {
-      type: 'product_defect',
-      message: 'Product defect detected. Halting pipeline without rendering.',
+      type: 'confirmed_product_bug',
+      message: result.verdict?.oneLiner || result.summary || 'Confirmed product bug detected.',
       report,
+      verdictOneLiner: result.verdict?.oneLiner,
+    };
+  }
+
+  if (result.category === 'cli_configuration_error') {
+    return {
+      type: 'cli_configuration_error',
+      message: `Kane CLI configuration error: ${result.errorMessage || result.summary}`,
+    };
+  }
+
+  if (result.category === 'timeout') {
+    return {
+      type: 'timeout',
+      message: `Kane run timed out: ${result.summary}`,
+    };
+  }
+
+  if (result.category === 'cancelled') {
+    return {
+      type: 'cancelled',
+      message: 'Kane run cancelled by user or signal.',
     };
   }
 
   return {
-    type: 'bad_objective',
-    message: result.errorMessage || 'Kane could not find an element or navigate according to objective.',
+    type: 'unconfirmed_failure',
+    message: result.summary || result.errorMessage || 'Kane could not complete objective (unconfirmed failure).',
   };
 }
-

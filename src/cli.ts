@@ -106,9 +106,11 @@ async function main() {
 
     const classification = classifyKaneRun(kaneResult);
 
-    if (classification.type === 'product_defect') {
+    if (classification.type === 'confirmed_product_bug') {
       // STOP-ON-BUG: The centerpiece of Autocast AI
       console.error(classification.report);
+      // In Phase B, this triggers invokeAntigravityRepair.
+      // If agent repair is not enabled or max repairs reached, halt immediately.
       process.exit(1);
     }
 
@@ -118,6 +120,11 @@ async function main() {
         console.log(`  Credits consumed: ${kaneResult.creditsConsumed.toFixed(2)}`);
       }
       break;
+    }
+
+    if (classification.type === 'cli_configuration_error' || classification.type === 'cancelled') {
+      console.error(`\n[Shoot Loop] Kane execution halted: ${classification.message}`);
+      process.exit(1);
     }
 
     console.warn(`[Shoot Loop] Kane run did not pass (${classification.message}). Refining objective...`);
@@ -142,7 +149,7 @@ async function main() {
   console.log('[Edit] Generating scene captions and voiceover narration with Gemini...');
   const narrations = await generateNarration(kaneResult.steps, objectivePlan.title, replayResult.segments.length);
 
-  const storyboard = buildStoryboard(
+  let storyboard = buildStoryboard(
     objectivePlan.title,
     replayResult,
     kaneResult.steps,
@@ -159,13 +166,34 @@ async function main() {
 
   // 5. REVIEW LOOP (Loop 3: Kane reviews our own video edit)
   if (!skipReview) {
-    const reviewResult = await executeReviewLoop(storyboard, appUrl);
-    if (!reviewResult.passed) {
-      console.warn('\n[Loop 3 Review] Kane flagged visual QA warnings on rendered frames.');
+    let reviewAttempts = 0;
+    const MAX_VISUAL_REPAIRS = 2;
+    let visualReviewPassed = false;
+
+    while (reviewAttempts <= MAX_VISUAL_REPAIRS) {
+      const reviewResult = await executeReviewLoop(storyboard, appUrl);
+      if (reviewResult.passed) {
+        visualReviewPassed = true;
+        console.log('\n✓ Loop 3 Visual QA: Kane confirmed video layout, typography, and framing are defect-free.');
+        break;
+      }
+
+      if (reviewAttempts === MAX_VISUAL_REPAIRS) {
+        console.error(`\n🚨 AUTOCAST VISUAL QA HALT: Visual defects persist after ${MAX_VISUAL_REPAIRS} repair iterations.`);
+        reviewResult.reviews.filter((r) => !r.passed).forEach((r) => {
+          console.error(`  - Frame ${r.frameNumber}: ${r.summary}`);
+        });
+        console.error('As per Autocast policy: NO DEFECTIVE VIDEO WILL BE RENDERED.');
+        process.exit(1);
+      }
+
+      reviewAttempts++;
+      console.warn(`\n[Loop 3 Review] Kane flagged visual QA warnings (attempt ${reviewAttempts}/${MAX_VISUAL_REPAIRS}). Applying repair...`);
       const repair = repairVisualDefects(storyboard, reviewResult.reviews);
       if (repair.repaired) {
         console.log(`[Loop 3 Autonomous Repair] Applied ${repair.actionsTaken.length} layout fix(es):`);
         repair.actionsTaken.forEach((act) => console.log(`  - ${act}`));
+        storyboard = repair.storyboard;
         // Re-write updated storyboard
         fs.writeFileSync(
           path.join(process.cwd(), 'storyboard.json'),
@@ -175,12 +203,13 @@ async function main() {
           path.join(process.cwd(), 'public', 'storyboard.json'),
           JSON.stringify(repair.storyboard, null, 2)
         );
+      } else {
+        console.error('Autonomous storyboard repair could not resolve detected visual defects. Aborting render.');
+        process.exit(1);
       }
-    } else {
-      console.log('\n✓ Loop 3 Visual QA: Kane confirmed video layout, typography, and framing are defect-free.');
     }
   } else {
-    console.log('\n[Loop 3 Review] Skipped via --skip-review flag.');
+    console.log('\n[Loop 3 Review] Skipped via --skip-review flag (STAMPED AS UNVERIFIED DRAFT).');
   }
 
   // 6. RENDER PHASE: Remotion Render
@@ -234,14 +263,24 @@ async function main() {
 
   // 8. PIXEL SAFETY OCR AUDIT
   console.log('\n--- PHASE 8: PIXEL-LEVEL SAFETY OCR AUDIT ---');
-  try {
-    const ocrResult = await scanVideoPixelsForSecrets(outputMp4);
-    if (!ocrResult.passed) {
-      console.error('[Pixel Safety OCR] ❌ Warning: Potential secret patterns detected in video pixels!');
+  const ocrResult = await scanVideoPixelsForSecrets(outputMp4);
+  if (!ocrResult.passed) {
+    console.error('\n🚨 AUTOCAST SECURITY GATE HALT: Potential secrets/credentials detected in video pixels or text assets!');
+    const quarantineDir = path.join(process.cwd(), '.quarantine');
+    fs.mkdirSync(quarantineDir, { recursive: true });
+    const quarantinedVideo = path.join(quarantineDir, `quarantined-demo-${Date.now()}.mp4`);
+    if (fs.existsSync(outputMp4)) {
+      fs.renameSync(outputMp4, quarantinedVideo);
     }
-  } catch (ocrErr: any) {
-    console.warn(`[Pixel Safety OCR] OCR audit warning: ${ocrErr.message}`);
+    if (fs.existsSync(posterPath)) {
+      fs.unlinkSync(posterPath);
+    }
+    console.error(`Artifact quarantined to: ${quarantinedVideo}`);
+    console.error('As per Autocast policy: Demos cannot leak customer secrets. Release halted.');
+    process.exit(1);
   }
+
+  console.log('✓ Pixel Safety OCR: No potential secrets were detected in the scanned frames and accompanying text assets.');
 
   // Sync to examples/output for docs & sample delivery
   const examplesOutDir = path.join(process.cwd(), 'examples', 'output');
