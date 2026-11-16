@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Invoice Approval Workflow",
+    "title": "Invoice Approval Flow",
     "fps": 30,
     "width": 1920,
     "height": 1080,
@@ -15,15 +15,15 @@
     {
       "id": "s01",
       "step_ref": "step-1",
-      "caption": "Three invoices waiting",
-      "narration": "INV-1001 from Acme is pending. Two more sit behind it.",
+      "caption": "Pending List: INV-1001 Acme",
+      "narration": "Three pending invoices wait in the queue, starting with INV-1001.",
       "audio": null,
-      "audio_sec": 4.2,
+      "audio_sec": 4.36,
       "segments": [
         {
           "kind": "idle",
           "src_start": 0,
-          "src_end": 4.112,
+          "src_end": 4.36,
           "speed": 1
         }
       ],
@@ -52,15 +52,15 @@
     {
       "id": "s02",
       "step_ref": "step-2",
-      "caption": "Open INV-1001",
-      "narration": "The drawer lists Cloud Infrastructure, SSL testing, due Nov 24.",
+      "caption": "INV-1001 Details Due Nov 24",
+      "narration": "Opening INV-1001 reveals cloud infrastructure and security testing services.",
       "audio": null,
       "audio_sec": 4.2,
       "segments": [
         {
           "kind": "action",
-          "src_start": 4.112,
-          "src_end": 7.814,
+          "src_start": 4.361,
+          "src_end": 8.068,
           "speed": 1
         }
       ],
@@ -89,15 +89,15 @@
     {
       "id": "s03",
       "step_ref": "step-3",
-      "caption": "Acme, $4,850.00",
-      "narration": "Acme's bill is $4,850.00 for architecture hours and SSL testing.",
+      "caption": "Line Items Total $4,850.00",
+      "narration": "The listed line items total four thousand eight hundred fifty dollars.",
       "audio": null,
       "audio_sec": 4.2,
       "segments": [
         {
           "kind": "idle",
-          "src_start": 7.814,
-          "src_end": 11.872,
+          "src_start": 8.068,
+          "src_end": 12.128,
           "speed": 1
         }
       ],
@@ -126,15 +126,15 @@
     {
       "id": "s04",
       "step_ref": "step-4",
-      "caption": "Approve Invoice",
-      "narration": "Approve Invoice. Kane checks the green seal before a video exists.",
+      "caption": "Approve Invoice Button",
+      "narration": "Selecting the Approve Invoice button moves the document to final signoff.",
       "audio": null,
       "audio_sec": 4.2,
       "segments": [
         {
           "kind": "action",
-          "src_start": 11.873,
-          "src_end": 15.364,
+          "src_start": 12.128,
+          "src_end": 15.677,
           "speed": 1
         }
       ],
@@ -163,15 +163,15 @@
     {
       "id": "s05",
       "step_ref": "step-5",
-      "caption": "Approved seal",
-      "narration": "The green Approved seal is the sign-off. No seal, no demo.",
+      "caption": "Green Seal Reads Approved",
+      "narration": "A green Approved seal confirms the check Kane needs to see.",
       "audio": null,
-      "audio_sec": 4.4,
+      "audio_sec": 4.2,
       "segments": [
         {
           "kind": "idle",
-          "src_start": 15.364,
-          "src_end": 19.305,
+          "src_start": 15.677,
+          "src_end": 19.629,
           "speed": 1
         }
       ],
@@ -200,15 +200,15 @@
     {
       "id": "s06",
       "step_ref": "step-6",
-      "caption": "INV-1001 is Approved",
-      "narration": "INV-1001 flips to Approved. The pending count drops.",
+      "caption": "INV-1001 Row Flips Approved",
+      "narration": "The Acme row flips to approved as the pending count drops.",
       "audio": null,
-      "audio_sec": 4.966999999999999,
+      "audio_sec": 5.093,
       "segments": [
         {
           "kind": "action",
-          "src_start": 19.305,
-          "src_end": 24.272,
+          "src_start": 19.629,
+          "src_end": 24.722,
           "speed": 1
         }
       ],

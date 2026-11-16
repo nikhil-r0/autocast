@@ -1,7 +1,7 @@
-Title: Invoice Approval Workflow — Demos that can't lie
+Title: Invoice Approval Flow — Demos that can't lie
 
 Post:
 One prompt in. Kane proves the flow in a real browser. If the check fails, Autocast renders no video.
 
 YouTube description:
-Invoice Approval Workflow. Autocast renders a demo only after Kane CLI passes. Stop-on-bug means a failed check produces a bug report and no MP4.
+Invoice Approval Flow. Autocast renders a demo only after Kane CLI passes. Stop-on-bug means a failed check produces a bug report and no MP4.
