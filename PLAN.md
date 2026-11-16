@@ -2,7 +2,7 @@
 
 > **Tagline:** Demos that can't lie.  
 > **Core Architecture:** Three decoupled, evidence-driven orchestration loops proving product correctness, cinematic quality, and release safety.  
-> **The Winning Hackathon Story:** A bug is deliberately introduced. Kane CLI catches it (`result_code: 740`). Antigravity AI (`agy`) autonomously repairs the actual application source code in an isolated Git worktree. The application is restarted, health-checked, and re-verified by Kane. Only upon verified pass does Autocast render a 1080p demo video with a tamper-evident provenance manifest.
+> **The Winning Hackathon Story:** A bug is deliberately introduced. Kane CLI catches it (`result_code: 740`). Antigravity AI (`agy`) autonomously repairs the actual application source code in an isolated Git worktree. The candidate repair is committed, the application server restarts on the candidate commit, and Kane re-verifies the fix. Only upon independent state and Kane verification does Autocast render a 1080p demo video accompanied by a tamper-evident provenance manifest.
 
 ---
 
@@ -16,20 +16,23 @@ flowchart TD
         direction TB
         ObjPrompt["User Prompt / Feature Goal"] --> GenObj["Phase 1: Gemini Director Generates Objective & Claims"]
         GenObj --> KaneShoot["Kane CLI Execution (Real Chrome)
-        Flags: --agent --bug-detection stop --timeout 300"]
-        KaneShoot --> KaneAdapter["KaneRunAdapter (NDJSON Stream, run_end & Exit Code Normalizer)"]
+        Flags: --agent --bug-detection stop --timeout 300 --name session"]
+        KaneShoot --> StreamPersist["Persist Stream: kane-stream.ndjson & kane-stderr.log"]
+        StreamPersist --> KaneAdapter["KaneRunAdapter (NDJSON Stream, run_end & Exit Code Normalizer)"]
         KaneAdapter --> DecisionTree{"Kane Exit Code & Verdict"}
         
         DecisionTree -- "Exit 0 / Complete" --> KanePassed["Objective Verified ✓"]
-        DecisionTree -- "Exit 1 + 740 Confirmed Verdict" --> Worktree["1. Require Clean Repo & Spawn Isolated Git Worktree"]
+        DecisionTree -- "Exit 1 + 740 Confirmed Verdict" --> Worktree["1. Require Clean Repo & Spawn Worktree:
+        git worktree add -b autocast/repair-id .worktrees/repair-id HEAD"]
         Worktree --> Handoff["2. Assemble Evidence Bundle (Screenshots, Actions, Logs)"]
         Handoff --> AgyAgent["3. Antigravity AI Coding Agent (agy)
         Flags: -p prompt --mode accept-edits --output-format json"]
         AgyAgent --> AGYCheck{"AGY status === 'SUCCESS' & Non-Empty Git Diff?"}
         AGYCheck -- "No / Soft-Denied" --> RepairFail["Reject Repair: No Code Changes / Execution Failed"]
-        AGYCheck -- "Yes" --> AppTest["4. AutoCast Runs npm test & Checks Allowed Paths"]
-        AppTest --> RestartApp["5. AutoCast Restarts App Server & Awaits /api/health (200 OK)"]
-        RestartApp --> DBReset["6. Reset Seed State & Kane Re-Shoot Verification"]
+        AGYCheck -- "Yes" --> PathGuard["4. Validate Allowed Paths & Untracked Files (git status --porcelain)"]
+        PathGuard --> AppTest["5. AutoCast Runs npm test & Commits Candidate Fix"]
+        AppTest --> RestartApp["6. AutoCast Restarts App Server & Verifies Commit via /api/health"]
+        RestartApp --> DBReset["7. Reset Seed State & Kane Re-Shoot Verification"]
         DBReset --> KaneShoot
         
         DecisionTree -- "Exit 1 / Unconfirmed Failure" --> EvidenceInspect["Inspect Evidence: Prompt Refinement or Blocker Report"]
@@ -42,12 +45,12 @@ flowchart TD
         KanePassed --> UnpackEvidence["Unpack .evidence Pack (actions.ndjson, step.json)"]
         UnpackEvidence --> ActionIR["Compile Normalized Action IR (Viewport, Coordinates, Pacing)"]
         ActionIR --> PlaywrightRecord["Deterministic Playwright 1080p Capture (Bezier Trajectories & Settle Holds)"]
-        PlaywrightRecord --> SemanticCheck{"Replay State Matches Objective Claims?"}
+        PlaywrightRecord --> SemanticCheck{"Replay Evaluates Machine OutcomeSpec (DOM + Backend API)?"}
         SemanticCheck -- "State Diverged" --> ReplayHalt["Reject Replay: Semantic Equivalence Failed"]
-        SemanticCheck -- "Equivalence Proven" --> StoryboardCompile["Storyboard Compilation (Authoritative Timeline)"]
+        SemanticCheck -- "Equivalence Proven" --> StoryboardCompile["Storyboard Compilation (Authoritative Shared Timeline)"]
         
         StoryboardCompile --> PreviewStills["Render Preview Frames (Remotion Stills: Wide, Cut Point, Detail)"]
-        PreviewStills --> VisualGallery["Serve Local Visual QA Gallery (http://localhost:8080/qa-gallery)"]
+        PreviewStills --> VisualGallery["Serve Local Visual QA Gallery (http://localhost:8081/qa-gallery)"]
         VisualGallery --> KaneVisualQA["Kane Visual QA in Real Chrome"]
         KaneVisualQA --> VisualCheck{"Visual Flaws Detected?"}
         
@@ -62,13 +65,13 @@ flowchart TD
         RemotionRender --> TechValidation["Post-Render Technical Validation (FFprobe Bitrate & Extracted Frames)"]
         TechValidation --> HeroPoster["Hero Poster Extraction & Frame-0 Bake (enable='eq(n,0)')"]
         HeroPoster --> DenseScan["Dense Video Frame Extraction & Text Asset Aggregation"]
-        DenseScan --> TesseractOCR["Tesseract OCR + Secret Pattern Regex & Entropy Scanner
+        DenseScan --> TesseractOCR["Tesseract OCR + Secret Pattern Regex & Shannon Entropy Scanner
         Scans: Frames, Poster, Captions, Voiceover Script, Share Copy"]
         TesseractOCR --> SecretCheck{"Credentials / Secrets Found?"}
         
         SecretCheck -- "Secret Found" --> Quarantine["HARD STOP: Move to .quarantine/ & Redact Logs (No Public Release)"]
         SecretCheck -- "Clean (0 Leaks)" --> ProvenanceManifest["Generate Tamper-Evident run-manifest.json
-        Real Computed SHA-256 Hashes, Git Commit, Sanitized Evidence"]
+        Real Computed 64-Hex SHA-256 Hashes, Git Commit, Sanitized Evidence"]
         ProvenanceManifest --> ReleaseArtifacts["Publish Verified demo.mp4, poster.jpg, share-copy.txt"]
     end
 ```
@@ -102,12 +105,12 @@ The official Kane CLI contract establishes four exit codes:
 - **`2`**: CLI / configuration / authentication error.
 - **`3`**: Cancelled or timed out.
 
-`KaneRunAdapter` processes stdout NDJSON line-by-line, capturing `stream_start`, progress events, `warning`, `error`, and `run_end`. It normalizes them into an unambiguous classification:
+`KaneRunAdapter` consumes stdout line-by-line and persists `kane-stream.ndjson` and `kane-stderr.log` directly in the session directory.
 
-| Exit Code | `run_end` Status & Payload | Classification | Engine Action |
+| Process Exit Code | `run_end` Status & Payload | Classification | Engine Action |
 |---|---|---|---|
 | **`0`** | `status: "passed"` | `PASS` | Advance to Loop 2 (Action IR compilation). |
-| **`1`** | `result_code: 740` with `verdict.confirmed === true` | `CONFIRMED_PRODUCT_BUG` | Trigger Antigravity (`agy`) Closed Loop Source Repair. |
+| **`1`** | `result_code: 740` with `verdict.confirmed === true` | `CONFIRMED_PRODUCT_BUG` | Trigger Antigravity (`agy`) Closed Loop Source Repair (max 2 attempts). |
 | **`1`** | `status: "failed"` without confirmed verdict (e.g. checkpoint failed, selector missing) | `UNCONFIRMED_FAILURE` | Inspect evidence pack; do **not** auto-patch application code. If objective was flawed or selector moved, refine with Gemini. |
 | **`2`** | No `run_end` (CLI / config / auth refusal) | `CLI_CONFIGURATION_ERROR` | Halt with diagnostic; do not retry. |
 | **`3`** | `duration >= timeoutSec` (or timeout reason) | `TIMEOUT` | Report timeout; allow user retry with extended limit. |
@@ -154,16 +157,17 @@ In headless mode, Antigravity's `--mode accept-edits` automatically approves wor
 | Inspect source & locate bug | **Antigravity (`agy`)** | Analyzes code in context of Kane's failure evidence. |
 | Modify application source files | **Antigravity (`agy`)** | Patches files in isolated Git worktree under `--mode accept-edits`. |
 | Explain modifications | **Antigravity (`agy`)** | Returns structured JSON summary (`status: "SUCCESS"`). |
-| Verify modified paths & git diff | **AutoCast Engine** | Validates `git diff --name-only`; rejects changes to tests or configs. |
+| Verify modified paths & git diff | **AutoCast Engine** | Validates `git diff --name-only`, `git diff --cached`, and `git status --porcelain=v1 --untracked-files=all`. Rejects symlink escapes and protected file edits (`tests/**`, configs). |
 | Run application test suite | **AutoCast Engine** | Executes `npm test` directly in the worktree. |
-| Restart application server | **AutoCast Engine** | Gracefully terminates old process, spawns new server, polls `/api/health`. |
+| Commit candidate fix | **AutoCast Engine** | Commits candidate patch to `autocast/repair-<id>`. |
+| Restart application server | **AutoCast Engine** | Spawns new server instance on candidate commit; verifies commit hash in `/api/health`. |
 | Reset seed data & trigger Kane | **AutoCast Engine** | Resets test database and invokes Kane re-verification. |
 
-#### Safe Headless Invocation:
+#### Safe Headless Invocation Interface:
 ```typescript
 export interface AgentRepairRequest {
   worktreeDir: string;
-  appDir: string;
+  appRelativePath: string; // e.g. "examples/ledgerly"
   objective: string;
   verdict?: { family: string; category: string; oneLiner: string; severity: string };
   failingStep?: string;
@@ -177,16 +181,22 @@ export interface AgentRepairRequest {
   constraints: {
     allowedDirectories: string[];
     protectedPaths: string[];
-    maxRepairAttempts: number;
+    maxRepairAttempts: number; // max 2
   };
 }
 
 export async function invokeAntigravityRepair(request: AgentRepairRequest): Promise<AgentRepairResult> {
   const agyBinary = process.env.AGY_PATH || '/home/home/.local/bin/agy';
   
+  // Explicitly resolve appDir inside worktreeDir to avoid ambiguous paths
+  const appDir = path.resolve(request.worktreeDir, request.appRelativePath);
+  if (!appDir.startsWith(path.resolve(request.worktreeDir))) {
+    throw new Error('Security Error: appRelativePath resolves outside worktreeDir');
+  }
+
   // Wrap web-derived text in strict passive data boundaries to prevent prompt injection
   const prompt = `
-You are fixing a verified product bug detected by Kane CLI in ${request.appDir}.
+You are fixing a verified product bug detected by Kane CLI in ${appDir}.
 
 <UNTRUSTED_EVIDENCE_CONTEXT>
 Objective: ${request.objective}
@@ -197,13 +207,12 @@ Failure Screenshot Reference: ${request.evidence.failureScreenshot || 'None'}
 </UNTRUSTED_EVIDENCE_CONTEXT>
 
 TASK:
-1. Inspect the source code in ${request.appDir}.
+1. Inspect the source code in ${appDir}.
 2. Fix the defect in the application logic so that the user flow succeeds.
 3. Do not modify test files, fixtures, or configuration files.
 4. Output your analysis and changes in structured format.
 `.trim();
 
-  // Run with --mode accept-edits and --output-format json
   const child = spawn(agyBinary, [
     '-p', prompt,
     '--mode', 'accept-edits',
@@ -221,7 +230,7 @@ TASK:
 
 ---
 
-### 1.3 Application Lifecycle Adapter & Verifiable Patch Integration
+### 1.3 Application Lifecycle Adapter & 7-Step Verification Lifecycle
 
 To prevent hardcoding Ledgerly-specific endpoints across the engine, Autocast introduces an `AppLifecycleAdapter`:
 
@@ -229,37 +238,41 @@ To prevent hardcoding Ledgerly-specific endpoints across the engine, Autocast in
 export interface AppLifecycleAdapter {
   name: string;
   appDir: string;
-  start: () => Promise<{ pid: number; port: number }>;
+  start: () => Promise<{ pid: number; port: number; commit?: string }>;
   stop: () => Promise<void>;
-  healthCheck: () => Promise<boolean>;
+  healthCheck: (expectedCommit?: string) => Promise<boolean>;
   resetSeedData: () => Promise<void>;
   verifyUnderlyingState: (expected: Record<string, any>) => Promise<boolean>;
 }
 ```
 
-#### The 6-Step Verification Lifecycle:
-1. **Clean Worktree Isolation**: Require a clean repository (`git status --porcelain`). Create dedicated repair worktree at `git worktree add .worktrees/repair-<id> HEAD`.
-2. **Agent Repair**: `agy` modifies code in the worktree. AutoCast inspects `git diff --name-only`: if protected paths (e.g. `tests/**`) were touched, reject patch.
+#### The 7-Step Verification Lifecycle:
+1. **Clean Worktree Isolation**: Require a clean repository (`git status --porcelain`). Create dedicated repair worktree and branch:  
+   `git worktree add -b autocast/repair-<id> .worktrees/repair-<id> HEAD`.
+2. **Agent Repair**: `agy` modifies code in the worktree. AutoCast inspects:
+   - `git diff --name-only`
+   - `git diff --cached --name-only`
+   - `git status --porcelain=v1 --untracked-files=all`
+   If any untracked file or modified path falls outside `allowedDirectories` or touches protected files, reject patch and discard worktree.
 3. **App Regression Test**: Execute `npm test` inside worktree.
-4. **Server Restart & Healthcheck**:
+4. **Candidate Commit**: Commit candidate fix to `autocast/repair-<id>` branch (`git commit -m "fix(autocast): candidate repair for Kane bug 740"`).
+5. **Server Restart & Revision-Aware Healthcheck**:
    - Terminate active server process (`SIGTERM` -> `SIGKILL`).
-   - Spawn new server instance from the repair worktree.
-   - Poll `GET /api/health` until HTTP 200 OK (max 15s).
-5. **Kane Re-Verification**: Call `POST /api/reset` to restore clean seed state, then run Kane CLI against the original objective.
-6. **Independent Backend State Verification**: Inspect the backend API / database directly (e.g. `GET /api/invoices/INV-1042` verifies status is `Approved` in memory storage, not just an HTML label).
-7. **Commit & Integrate**: Commit the verified fix to `repair-<id>` branch and merge cleanly into `main`.
+   - Spawn new server instance from candidate commit.
+   - Poll `GET /api/health` until HTTP 200 OK **and** `body.commit === candidateCommitHash` (max 15s).
+6. **Kane Re-Verification**: Call `resetSeedData()`, then run Kane CLI against the original objective.
+7. **Independent Backend State Verification**: Inspect the backend API / database directly (e.g. `GET /api/invoices/INV-1042` verifies status is `Approved` in memory storage, not just an HTML label). Upon success, merge `autocast/repair-<id>` into `main`.
 
 ---
 
 ## 2. Loop 2: Cinematic Quality Engine
 
-### 2.1 Two-Stage Replay: Evidence-Based Action IR & Semantic Equivalence
+### 2.1 Two-Stage Replay: Action IR & Machine OutcomeSpec
 
-Kane's actual evidence pack (`.evidence` zip / `session_dir`) contains:
-- `logs/<n>-actions.ndjson`: Every atomic user action with timestamps, selectors, and bounding boxes.
-- `steps/<step-id>/step.json`: Element coordinates, action types, and durations.
-- `events.ndjson`: Real-time streaming events.
-- `code-export/` (optional): Generated scripts if supported.
+The archived `.evidence` ZIP contains:
+- `tests/<test-id>/logs/0-actions.ndjson`: Atomic user actions with timestamps, selectors, and bounding boxes.
+- `tests/<test-id>/steps/<step-id>/step.json`: Element coordinates, action types, and durations.
+- `tests/<test-id>/auteur/execution.json`: Execution metadata.
 
 #### Stage A: Ingest Evidence into Normalized Action IR
 ```typescript
@@ -274,27 +287,42 @@ export interface ReplayAction {
   sourceStep: number;
 }
 
+export interface OutcomeSpec {
+  id: string;
+  verification:
+    | { type: 'dom_text'; selector: string; expected: string }
+    | { type: 'visible'; selector: string }
+    | { type: 'url'; expected: string }
+    | { type: 'api_state'; endpoint: string; jsonPath: string; expected: unknown };
+}
+
 export interface ActionIR {
   startUrl: string;
   viewport: { width: number; height: number; deviceScaleFactor: number };
   actions: ReplayAction[];
-  claims: Array<{ id: string; assertion: string }>;
+  outcomeSpecs: OutcomeSpec[];
 }
 ```
-*Rule:* Unsupported action types are explicitly rejected rather than silently skipped.
+*Rule:* Unsupported action types are explicitly rejected rather than silently skipped. Coordinate scaling accounts for original source viewport and live element bounding boxes.
 
 #### Stage B: Cinematic Playwright Capture
 - Consumes `ActionIR` at 1920x1080 (30 fps).
 - Translates coordinates smoothly using cubic-bezier virtual mouse trajectories (`page.mouse.move(x, y, { steps: 25 })`).
 - Enforces natural humanized typing delays and visual settle buffers (800ms to 1500ms).
-- **Semantic Equivalence Check**: Following recording, the page's final state is evaluated against the verified claims. If the application state diverges from Kane's verified result, replay is rejected.
+- **Semantic Equivalence Verification**: Replay independently checks all `OutcomeSpec` items (DOM visibility + backend API state). If state diverges from Kane's verified result, replay is rejected.
 
 ---
 
-### 2.2 Authoritative Timeline & Local Visual QA Gallery
+### 2.2 Authoritative Shared Timeline & Local Visual QA Gallery
 
-#### Authoritative Timeline Compilation
-Scene start frames and durations are derived directly from the Remotion composition compiler:
+#### Shared Timeline Definition
+A single timeline definition drives both Remotion rendering and visual QA frame lookups:
+
+```
+Storyboard JSON  ───►  Shared Timeline Compiler  ───┬───►  Remotion Sequence Components
+                                                    ├───►  AuthoritativeTimeline Lookup
+                                                    └───►  Preview-Frame Renderer
+```
 
 ```typescript
 export interface CompiledScene {
@@ -314,15 +342,16 @@ export interface AuthoritativeTimeline {
 ```
 
 #### Visual QA Gallery & Kane Inspection:
-1. **Preview Frame Render**: Remotion renders 3 critical preview still frames:
-   - Frame A: Settled Wide Shot (Scene 1).
-   - Frame B: Mid-Transition Boundary Cut Point (Scene 1 -> Scene 2 transition).
-   - Frame C: High-Zoom Detail View (Scene 3 / Line Items).
-2. **Visual QA Gallery Server**: AutoCast serves a local web gallery (`http://localhost:8080/qa-gallery` or dedicated port) displaying:
-   - Rendered frame images.
+1. **Preview Frame Render**: Remotion `renderStill()` renders targeted preview frames:
+   - Settled Wide Shot (Scene 1).
+   - Mid-Transition Boundary Cut Point (Scene 1 -> Scene 2 transition).
+   - Maximum-Zoom Detail View (Scene 3 / Line Items).
+   - Final Outro Frame.
+2. **Visual QA Gallery Server**: AutoCast serves a local web gallery on port **8081** (`http://localhost:8081/qa-gallery`, avoiding collision with target app on 8080) displaying:
+   - Rendered preview frame images.
    - Scene metadata, camera zoom level, and safe-area margin guides.
-   - Interactive checklist for Kane: "Verify no viewport clipping, verify right sidebar text does not collide with frame boundary."
-3. **Kane Review in Real Chrome**: Kane navigates to `/qa-gallery` in headless Chrome and evaluates visual invariants.
+   - Checklist for Kane: "Verify no viewport clipping, verify right sidebar text does not collide with frame boundary."
+3. **Kane Review in Real Chrome**: Kane navigates to `http://localhost:8081/qa-gallery` in headless Chrome and evaluates visual invariants.
 4. **Targeted Storyboard Patch**: If Kane detects a visual flaw:
    - Frame number is mapped to exact `sceneId` via `AuthoritativeTimeline`.
    - Proposes structured `StoryboardPatch`:
@@ -345,27 +374,29 @@ export interface AuthoritativeTimeline {
 ### 3.1 Fail-Closed Secret Scanning & Quarantine
 
 1. **Multi-Asset Secret Detection**:
-   - Dense video frame sampling (sampled at 1.5s intervals across all scenes).
+   - Dense video frame sampling (every interaction frame, scene boundaries, transition frames, title/outro, plus 1.0s regular intervals).
    - `poster.jpg`.
    - Voiceover narration script & subtitles.
    - `share-copy.txt`.
 2. **Scanning Engine**:
    - Tesseract OCR extracts text from pixel frames.
-   - Regex & Shannon entropy detectors scan for API keys (e.g. `sk_live_`, `AIzaSy`), JWTs, Bearer tokens, passwords, and private IP/hostname patterns.
+   - Regex & Shannon entropy detectors scan for API keys (e.g. `sk_live_`, `AIzaSy`), JWTs, Bearer tokens, passwords, and private IP/hostname patterns (with `localhost` / internal dev URLs allowlisted).
    - Redacts any matches in logs (e.g. `sk_live_•••••••`).
-3. **Quarantine & Fail-Closed Gate**:
+3. **Accurate Release Security Claim**:
+   - Manifest & reports accurately claim: *"No potential secrets were detected in the scanned frames and accompanying text assets."*
+4. **Quarantine & Fail-Closed Gate**:
    - If a secret is detected:
      - Rendered MP4 and poster are moved to `.quarantine/` and purged from `out/`.
      - Releases are blocked: artifacts are **never** copied to `examples/output/`.
      - Pipeline exits non-zero with security violation report.
-4. **Verified vs. Unverified Status**:
+5. **Verified vs. Unverified Status**:
    - If `--skip-review` or `--no-ocr` is enabled, the outro card and manifest are explicitly marked **`UNVERIFIED DRAFT`**. A verified badge is only stamped when all three loops pass.
 
 ---
 
 ### 3.2 Tamper-Evident Provenance Manifest (`run-manifest.json`)
 
-Autocast calculates and seals `run-manifest.json` after rendering, computing real SHA-256 hashes:
+Autocast calculates and seals `run-manifest.json` after rendering, computing real 64-character SHA-256 hex digests:
 
 ```json
 {
@@ -374,7 +405,8 @@ Autocast calculates and seals `run-manifest.json` after rendering, computing rea
   "status": "verified",
   "application": {
     "url": "http://localhost:8080/?logged_in=true",
-    "tested_commit": "f3d9639",
+    "baseline_commit": "f3d9639",
+    "tested_commit": "88670cc",
     "state_verified": true
   },
   "kane_verification": {
@@ -389,6 +421,7 @@ Autocast calculates and seals `run-manifest.json` after rendering, computing rea
     "occurred": true,
     "initial_failure": "result_code: 740 (confirmed_product_bug)",
     "agent": "Antigravity CLI (agy 2.0 accept-edits)",
+    "candidate_commit": "88670cc",
     "patch_file": "docs/catches/catch-ledgerly-approval/patch.diff",
     "re_verification_run_id": "autocast-1794815943641"
   },
@@ -398,14 +431,14 @@ Autocast calculates and seals `run-manifest.json` after rendering, computing rea
     "sampled_frames": [115, 260, 266]
   },
   "safety_audit": {
-    "scanned_frames": 24,
+    "scanned_frames": 36,
     "text_assets_scanned": ["poster.jpg", "share-copy.txt", "narration.json"],
     "secrets_detected": 0,
     "status": "passed"
   },
   "artifacts": {
-    "video_sha256": "4a719c8f2b3e8a1d0e5f6...",
-    "poster_sha256": "8f3b2c1e9a4d701a2b3..."
+    "video_sha256": "4a719c8f2b3e8a1d0e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d",
+    "poster_sha256": "8f3b2c1e9a4d701a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a"
   }
 }
 ```
@@ -457,16 +490,16 @@ Mon Nov 16: FOUNDATION (P0)
 
 Tue Nov 17: CLOSED LOOP (P1 - The Winning Differentiator)
   [ ] Build src/agent/antigravity.ts wrapper (worktree isolation, --mode accept-edits, --output-format json)
-  [ ] Build src/app/lifecycle.ts (Ledgerly restart, healthcheck poll, seed reset, DB check)
+  [ ] Build src/app/lifecycle.ts (Ledgerly restart, healthcheck poll with commit verification, seed reset, DB check)
   [ ] Inject Ledgerly bug (APP_BUG=approve-noop)
   [ ] Execute end-to-end closed loop: Kane 740 catch -> agy patch -> restart -> Kane 100 pass
   [ ] Archive sanitized catch evidence in docs/catches/catch-ledgerly-approval/
 
 Wed Nov 18: CINEMATIC REPLAY & TIMELINE (P2)
   [ ] Implement Evidence Normalizer (extract actions.ndjson / step.json into Action IR)
-  [ ] Replay executor with cubic-bezier cursor motion & semantic equivalence verification
+  [ ] Replay executor with cubic-bezier cursor motion & Machine OutcomeSpec verification
   [ ] Build AuthoritativeTimeline compiler from Remotion composition logic
-  [ ] Build local Visual QA Gallery endpoint & targeted StoryboardPatch module
+  [ ] Build local Visual QA Gallery endpoint (port 8081) & targeted StoryboardPatch module
   [ ] Generate tamper-evident run-manifest.json with real SHA-256 hashes
 
 Thu Nov 19: SUBMISSION FREEZE & DEMO (P3)
@@ -479,7 +512,7 @@ Thu Nov 19: SUBMISSION FREEZE & DEMO (P3)
 
 ---
 
-## 6. Verification Test Suite Matrix (14 Automated Tests)
+## 6. Verification Test Suite Matrix (19 Automated Tests)
 
 | Test ID | Module | Scenario | Expected Behavior |
 |---|---|---|---|
@@ -491,9 +524,14 @@ Thu Nov 19: SUBMISSION FREEZE & DEMO (P3)
 | `TEST-06` | `Antigravity` | Agent returns success but leaves `git diff` empty | Repair rejected; reports no changes made. |
 | `TEST-07` | `Antigravity` | Agent modifies source but `npm test` fails | Rejected; server is not restarted; no Kane re-run. |
 | `TEST-08` | `Lifecycle` | Server fails `/api/health` 200 OK after restart | Aborts with restart failure report. |
-| `TEST-09` | `Replay` | Replay final DOM state diverges from Kane `claims` | Replay rejected for semantic non-equivalence. |
+| `TEST-09` | `Replay` | Replay final DOM/API state diverges from `OutcomeSpec` | Replay rejected for semantic non-equivalence. |
 | `TEST-10` | `Replay` | Action IR encounters unsupported action type | Replay aborts cleanly rather than silently skipping. |
 | `TEST-11` | `Visual QA` | Preview frame fails Kane visual QA twice | Loop 2 aborts pipeline; zero MP4 rendered. |
 | `TEST-12` | `Safety OCR` | Injected fake API key (`sk_live_...`) in video frame | Video moved to `.quarantine/`; release halted. |
 | `TEST-13` | `Safety OCR` | `--skip-review` flag enabled | Outro card & manifest stamped `UNVERIFIED DRAFT`. |
 | `TEST-14` | `End-to-End` | Ledgerly `APP_BUG=approve-noop` injected | Verified catch pack generated, passing re-test, sealed `run-manifest.json`. |
+| `TEST-15` | `Antigravity` | Agent creates untracked file outside allowed scope | Rejected by `git status --porcelain` check; worktree discarded. |
+| `TEST-16` | `Lifecycle` | Candidate server returns HTTP 200 but serves old commit hash | Healthcheck rejects server; aborts repair cycle. |
+| `TEST-17` | `Antigravity` | Kane reports another 740 after AGY repair attempt | Halts after configured limit (max 2 attempts). |
+| `TEST-18` | `Safety OCR` | Secret visible for 0.5s in transition frame | Detected by interaction & boundary frame scanner. |
+| `TEST-19` | `Manifest` | MP4 bytes modified after manifest generation | SHA-256 verification detects tampering. |
