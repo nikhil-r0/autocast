@@ -2,6 +2,7 @@ import { chromium } from 'playwright';
 import * as path from 'path';
 import * as fs from 'fs';
 import { KaneStep } from '../types.js';
+import { ActionIR, parseActionsLogToActionIR, findActionsLog, verifyOutcomeSpecs } from './actionIR.js';
 
 export interface ReplaySegment {
   stepIndex: number;
@@ -25,7 +26,11 @@ export interface ReplayResult {
 
 export async function replayAndRecord(
   steps: KaneStep[],
-  startUrl: string = 'http://localhost:8080'
+  startUrl: string = 'http://localhost:8080',
+  options?: {
+    actionIR?: ActionIR;
+    sessionDir?: string;
+  }
 ): Promise<ReplayResult> {
   const publicDir = path.join(process.cwd(), 'public');
   if (!fs.existsSync(publicDir)) {
@@ -35,6 +40,21 @@ export async function replayAndRecord(
   const tempVideoDir = path.join(publicDir, 'raw-captures');
   if (!fs.existsSync(tempVideoDir)) {
     fs.mkdirSync(tempVideoDir, { recursive: true });
+  }
+
+  // Resolve Action IR
+  let actionIR = options?.actionIR;
+  if (!actionIR && options?.sessionDir) {
+    const actionsLog = findActionsLog(options.sessionDir);
+    if (actionsLog && fs.existsSync(actionsLog)) {
+      try {
+        const content = fs.readFileSync(actionsLog, 'utf-8');
+        actionIR = parseActionsLogToActionIR(content, { fallbackUrl: startUrl });
+        console.log(`[Path B Replay] Ingested Action IR from ${actionsLog} (${actionIR.actions.length} action(s), ${actionIR.outcomeSpecs.length} outcome spec(s))`);
+      } catch (err) {
+        console.warn(`[Path B Replay] Could not parse action IR: ${err}`);
+      }
+    }
   }
 
   console.log('[Path B Replay] Launching Playwright at 1920x1080 with crisp recording...');
@@ -120,12 +140,14 @@ export async function replayAndRecord(
     kind: 'action',
     srcStart: s2Start,
     srcEnd: s2End,
-    target: rowBox ? {
-      x: Math.round(rowBox.x),
-      y: Math.round(rowBox.y),
-      w: Math.round(rowBox.width),
-      h: Math.round(rowBox.height),
-    } : { x: 280, y: 350, w: 1360, h: 80 },
+    target: rowBox
+      ? {
+          x: Math.round(rowBox.x),
+          y: Math.round(rowBox.y),
+          w: Math.round(rowBox.width),
+          h: Math.round(rowBox.height),
+        }
+      : { x: 280, y: 350, w: 1360, h: 80 },
     cursorTo: [btnX, btnY],
   });
 
@@ -151,12 +173,14 @@ export async function replayAndRecord(
     kind: 'idle',
     srcStart: s3Start,
     srcEnd: s3End,
-    target: drawerBox ? {
-      x: Math.round(drawerBox.x),
-      y: Math.round(drawerBox.y),
-      w: Math.round(drawerBox.width),
-      h: Math.round(drawerBox.height),
-    } : { x: 1300, y: 0, w: 620, h: 1080 },
+    target: drawerBox
+      ? {
+          x: Math.round(drawerBox.x),
+          y: Math.round(drawerBox.y),
+          w: Math.round(drawerBox.width),
+          h: Math.round(drawerBox.height),
+        }
+      : { x: 1300, y: 0, w: 620, h: 1080 },
     cursorTo: [inspectX, inspectY],
   });
 
@@ -190,6 +214,7 @@ export async function replayAndRecord(
   await page.waitForTimeout(500);
 
   const btnConfirm = page.locator('[data-testid="btn-confirm-approve"]');
+  await btnConfirm.waitFor({ state: 'visible', timeout: 5000 });
   const confirmBox = await btnConfirm.boundingBox();
   const confirmX = confirmBox ? Math.round(confirmBox.x + confirmBox.width / 2) : 1100;
   const confirmY = confirmBox ? Math.round(confirmBox.y + confirmBox.height / 2) : 620;
@@ -205,12 +230,14 @@ export async function replayAndRecord(
     kind: 'action',
     srcStart: s4Start,
     srcEnd: s4End,
-    target: modalBox ? {
-      x: Math.round(modalBox.x),
-      y: Math.round(modalBox.y),
-      w: Math.round(modalBox.width),
-      h: Math.round(modalBox.height),
-    } : { x: 700, y: 350, w: 520, h: 380 },
+    target: modalBox
+      ? {
+          x: Math.round(modalBox.x),
+          y: Math.round(modalBox.y),
+          w: Math.round(modalBox.width),
+          h: Math.round(modalBox.height),
+        }
+      : { x: 700, y: 350, w: 520, h: 380 },
     cursorTo: [confirmX, confirmY],
   });
 
@@ -233,12 +260,14 @@ export async function replayAndRecord(
     kind: 'idle',
     srcStart: s5Start,
     srcEnd: s5End,
-    target: sealBox ? {
-      x: Math.round(sealBox.x - 30),
-      y: Math.round(sealBox.y - 20),
-      w: Math.round(sealBox.width + 60),
-      h: Math.round(sealBox.height + 40),
-    } : { x: 1600, y: 180, w: 220, h: 100 },
+    target: sealBox
+      ? {
+          x: Math.round(sealBox.x - 30),
+          y: Math.round(sealBox.y - 20),
+          w: Math.round(sealBox.width + 60),
+          h: Math.round(sealBox.height + 40),
+        }
+      : { x: 1600, y: 180, w: 220, h: 100 },
     cursorTo: [sealX, sealY],
   });
 
@@ -275,6 +304,36 @@ export async function replayAndRecord(
     target: { x: 0, y: 0, w: 1920, h: 1080 }, // Full wide shot
     cursorTo: [pillX, pillY],
   });
+
+  // Semantic Equivalence Verification (TEST-09)
+  const specsToVerify = actionIR?.outcomeSpecs || [
+    {
+      id: 'seal-visibility',
+      verification: {
+        type: 'visible',
+        selector: '[data-testid="status-badge-INV-1042"]',
+      },
+    },
+    {
+      id: 'api-state-approved',
+      verification: {
+        type: 'api_state',
+        endpoint: '/api/invoices/INV-1042',
+        jsonPath: 'status',
+        expected: 'Approved',
+      },
+    },
+  ];
+
+  console.log(`[Path B Replay] Verifying ${specsToVerify.length} Machine OutcomeSpec(s)...`);
+  const outcomeResult = await verifyOutcomeSpecs(page, specsToVerify, baseUrl);
+  if (!outcomeResult.passed) {
+    await page.close();
+    await context.close();
+    await browser.close();
+    throw new Error(`Replay rejected for semantic non-equivalence: ${outcomeResult.failures.join('; ')}`);
+  }
+  console.log('[Path B Replay] ✓ All Machine OutcomeSpecs verified successfully.');
 
   const totalElapsed = getElapsedSec();
 
