@@ -45,40 +45,17 @@ The finished file is `out/demo.mp4`, with a launch blurb beside it at `out/share
 
 ## How a demo is made
 
-```
-"Create a demo of the invoice approval flow"
-                |
-                v
-       Director (Gemini)
-       objective + assertion
-                |
-     1. Shoot — Kane CLI, real Chrome
-        product defect?  -->  stop. print the report. no render.
-                |
-     2. Capture — Playwright replay at 1920×1080
-        exact clicks, no model pauses in the footage
-                |
-     3. Edit — narration, captions, zoom rects, cursor path
-        written to storyboard.json
-                |
-     4. Lint — schema, bounds, timing, frame fit
-                |
-     5. Review — Kane inspects rendered frames
-        clipping, cut-off type, overlapping text
-                |
-     6. Render — Remotion, H.264, 1080p, 30fps
-                |
-                v
-            out/demo.mp4
-```
+![Autocast pipeline](docs/architecture.png)
+
+A flagged frame does not stop the render. The dashed arrow is the fix: edit `storyboard.json`, then lint again.
 
 | Loop | What it checks | What happens on failure |
 | --- | --- | --- |
 | Shoot | The live product does what the prompt asked | Render is aborted. A defect report is printed. |
 | Lint | The storyboard is valid: schema, zoom bounds, pacing | Render is aborted before Remotion starts. |
-| Review | Rendered frames stay inside the frame and stay readable | Kane flags the visual defect. Fix the scene, then render. |
+| Review | Two still frames stay inside the frame and stay readable | Kane flags the frame. The render still continues. |
 
-Shoot retries are capped at 3. Review iterations are capped at 4. Content lives in `storyboard.json`; the Remotion components stay generic.
+Shoot retries are capped at 3. Review checks frames 115 and 260 once. Content lives in `storyboard.json`; the Remotion components stay generic.
 
 ## Demos that can't lie
 
