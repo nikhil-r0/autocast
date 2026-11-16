@@ -112,3 +112,4 @@ Seven distinct tone profiles altering pacing, typography, voice, and transitions
 1. **Simulated Re-enactments:** Never replace real browser execution with simulated DOM mocks. Kane verification is our core value proposition.
 2. **Hallucinated Product Copy:** Never let the LLM invent features or metrics that Kane did not verify on the live app.
 3. **Chaotic / Meme Tones:** Keep the focus on crisp, professional, high-trust walkthroughs. Autocast builds trust; it does not parody.
+

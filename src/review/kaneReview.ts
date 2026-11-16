@@ -60,15 +60,18 @@ export async function renderStillFrame(frameNumber: number): Promise<string> {
  */
 export async function reviewFrameWithKane(
   frameNumber: number,
-  reviewUrl: string = 'http://localhost:8080/review'
+  reviewUrl: string = 'http://localhost:8080/review',
+  isTransitionBoundary: boolean = false
 ): Promise<VisualReviewResult> {
   // Render the still frame first
   await renderStillFrame(frameNumber);
 
   const targetUrl = `${reviewUrl}?frame=${frameNumber}`;
-  const objective = `Open ${targetUrl} and verify that the application layout is properly contained inside the browser window without being cropped off at the edges, and verify the workflow sidebar on the right shows the step title without text overlap.`;
+  const objective = isTransitionBoundary
+    ? `Open ${targetUrl} and inspect the scene transition boundary frame: verify that the viewport layout is properly contained without element clipping or visual tearing, and verify the workflow sidebar on the right renders clearly without overlapping text.`
+    : `Open ${targetUrl} and verify that the application layout is properly contained inside the browser window without being cropped off at the edges, and verify the workflow sidebar on the right shows the step title without text overlap.`;
 
-  console.log(`\n[Loop 3 Review] Executing Kane Vision QA on frame ${frameNumber}...`);
+  console.log(`\n[Loop 3 Review] Executing Kane Vision QA on frame ${frameNumber} (transitionBoundary=${isTransitionBoundary})...`);
   console.log(`  Objective: "${objective}"`);
 
   const kaneResult = await executeKaneRun({
@@ -92,31 +95,43 @@ export async function reviewFrameWithKane(
 }
 
 /**
- * Execute Loop 3 Review across key sampled frames.
+ * Execute Loop 3 Review across key sampled frames (overview, mid-transition, detail).
  */
 export async function executeReviewLoop(
   storyboard: Storyboard,
   appUrl: string = 'http://localhost:8080'
 ): Promise<{ passed: boolean; reviews: VisualReviewResult[] }> {
   console.log('\n================================================================');
-  console.log('🔍 PHASE 6: LOOP 3 REVIEW LOOP (Kane Visual Video QA)');
-  console.log('   "Kane checks our own video edit to catch visual clipping & overlap"');
+  console.log('🔍 PHASE 5: LOOP 3 REVIEW LOOP (Kane Visual Video QA)');
+  console.log('   "Kane checks our own video edit to catch visual clipping, transition tearing & overlap"');
   console.log('================================================================');
 
+  const fps = storyboard.meta.fps || 30;
+  const titleFrames = 75; // 2.5s
+  const firstSceneFrames = Math.round((storyboard.scenes[0]?.audio_sec || 4.0) * fps);
+  const transitionBoundaryFrame = titleFrames + firstSceneFrames + 3; // 3 frames into scene 2 transition
+
   // Sample frames:
-  // Frame 115: Scene 1 Dashboard Overview (Wide Shot)
-  // Frame 260: Scene 3 Invoice Line Items Review
-  const sampleFrames = [115, 260];
+  // 1. Frame 115: Scene 1 Dashboard Overview (Settled Wide Shot)
+  // 2. Mid-transition Boundary Frame (Transition cut point)
+  // 3. Frame 260: Scene 3 Invoice Line Items Review (Detail View)
+  const sampleFrames = [
+    { frame: 115, isBoundary: false, desc: 'Scene 1 Dashboard Overview' },
+    { frame: transitionBoundaryFrame, isBoundary: true, desc: `Scene Transition Boundary (Frame ${transitionBoundaryFrame})` },
+    { frame: 260, isBoundary: false, desc: 'Scene 3 Modal Line Items Detail' },
+  ];
+
   const reviews: VisualReviewResult[] = [];
 
-  for (const frameNum of sampleFrames) {
-    const result = await reviewFrameWithKane(frameNum, `${appUrl}/review`);
+  for (const item of sampleFrames) {
+    console.log(`\n[Loop 3 QA Sample] Inspecting: ${item.desc}...`);
+    const result = await reviewFrameWithKane(item.frame, `${appUrl}/review`, item.isBoundary);
     reviews.push(result);
 
     if (result.passed) {
-      console.log(`✓ Frame ${frameNum} PASSED Visual QA: ${result.summary}`);
+      console.log(`✓ Frame ${item.frame} PASSED Visual QA: ${result.summary}`);
     } else {
-      console.warn(`✗ Frame ${frameNum} FLAGGED VISUAL FLAW: ${result.summary}`);
+      console.warn(`✗ Frame ${item.frame} FLAGGED VISUAL FLAW: ${result.summary}`);
       if (result.kaneTestUrl) {
         console.warn(`  Kane Evidence: ${result.kaneTestUrl}`);
       }

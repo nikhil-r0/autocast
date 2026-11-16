@@ -349,11 +349,11 @@ Adapted from [latent-spaces/brag](https://github.com/latent-spaces/brag) (audite
 
 | # | Adaptation | Mechanism in Autocast AI | Status |
 |---|---|---|---|
-| **1** | **Redact secrets before publishing** | Scrub API keys (`sk_live_...`, `Bearer ...`), private hostnames, tokens, and customer emails from narrations, logs, and video overlays. Seed demo fixtures in replay. | Planned / Medium |
-| **2** | **Readable-text rule** | Enforce reading floor: short labels $\ge 0.8\text{s}$ settled; headlines/sentences $\ge 0.3\text{s}$ per word settled (min $1.2\text{s}$). Lint in Loop 2; check in Loop 3 Kane QA. | Planned / Low |
-| **3** | **Check mid-transition stills** | Audit boundary frames ($T \pm 5\text{ frames}$) in Loop 3 to catch layer collisions and muddy crossfades. Dip through dark background between disparate views. | Planned / Low |
-| **4** | **Hook and narrative shape** | Earn the viewer's attention in the first 2 seconds: cold-open on the outcome (e.g. verified Approved seal), then step highlights, ending on a reconciled ledger punchline. | Implemented / Low |
-| **5** | **Poster frame & frame-0 baking** | Extract strongest settled hero frame as `poster.jpg`. Bake into frame 0 of `demo.mp4` via ffmpeg overlay (`enable='eq(n,0)'`) so Slack, Twitter/X, and Discord thumbnails never show a black frame. Generate `share-copy.txt`. | Implemented / Low |
+| **1** | **Redact secrets before publishing** | Scrub API keys (`sk_live_...`, `Bearer ...`), private hostnames, tokens, and customer emails from narrations, logs, and video overlays. Seed demo fixtures in replay. | Implemented |
+| **2** | **Readable-text rule** | Enforce reading floor: short labels $\ge 0.8\text{s}$ settled; headlines/sentences $\ge 0.3\text{s}$ per word settled (min $1.2\text{s}$). Lint in Loop 2; check in Loop 3 Kane QA. | Implemented |
+| **3** | **Check mid-transition stills** | Audit boundary frames ($T \pm 5\text{ frames}$) in Loop 3 to catch layer collisions and muddy crossfades. Dip through dark background between disparate views. | Implemented |
+| **4** | **Hook and narrative shape** | Earn the viewer's attention in the first 2 seconds: cold-open on the outcome (e.g. verified Approved seal), then step highlights, ending on a reconciled ledger punchline. | Implemented |
+| **5** | **Poster frame & frame-0 baking** | Extract strongest settled hero frame as `poster.jpg`. Bake into frame 0 of `demo.mp4` via ffmpeg overlay (`enable='eq(n,0)'`) so Slack, Twitter/X, and Discord thumbnails never show a black frame. Generate `share-copy.txt`. | Implemented |
 
 ---
 
@@ -361,41 +361,42 @@ Adapted from [latent-spaces/brag](https://github.com/latent-spaces/brag) (audite
 
 ### Day 1, Sun 15 Nov: Setup and spike
 
-- [ ] Section 0 checklist.
-- [ ] Sample app (`examples/invoice-app`) running locally, or pick ForgeRoom/ExportEase.
-- [ ] Spike (section 3), starting with Path B (`testmd run` plus Playwright export), then `docs/spike-findings.md` and the decision gate.
-- [ ] `parsePack.ts` producing normalized steps from one real run.
-- [ ] Remotion project scaffolded with the Remotion skill installed.
+- [x] Section 0 checklist.
+- [x] Sample app (`examples/invoice-app`) running locally, or pick ForgeRoom/ExportEase.
+- [x] Spike (section 3), starting with Path B (`testmd run` plus Playwright export), then `docs/spike-findings.md` and the decision gate.
+- [x] `parsePack.ts` producing normalized steps from one real run.
+- [x] Remotion project scaffolded with the Remotion skill installed.
 
 **Exit criterion:** one real Kane run parsed into a list of steps with click coordinates and a known path (A / B / C).
 
 ### Day 2, Mon 16 Nov: Remotion template and first good render
 
-- [ ] `BrowserFrame`, `CameraRig`, `Sidebar`, `Cursor`, `Scene`, `Demo` with `calculateMetadata`.
-- [ ] **Early 5 s test render** with real footage: check text sharpness at your zoom, render time, A/V sync.
-- [ ] Hand-written `storyboard.json` renders a good-looking 30 s video.
-- [ ] Dead-time trimming working.
+- [x] `BrowserFrame`, `CameraRig`, `Sidebar`, `Cursor`, `Scene`, `Demo` with `calculateMetadata`.
+- [x] **Early 5 s test render** with real footage: check text sharpness at your zoom, render time, A/V sync.
+- [x] Hand-written `storyboard.json` renders a good-looking 30 s video.
+- [x] Dead-time trimming working.
 
 **Exit criterion:** a hand-fed storyboard produces a video you would be proud to show.
 
 ### Day 3, Tue 17 Nov: Agent pipeline, narration, Loop 1
 
-- [ ] `storyboard.ts` generates the JSON from steps automatically.
-- [ ] Narration generation plus TTS adapter plus audio-first timing.
-- [ ] Loop 1 (classify, retry, stop-on-bug) and Loop 2 (lint).
-- [ ] `npm run demo -- "<prompt>"` works end to end on the sample app.
-- [ ] Stop-on-bug works: an env flag that breaks the sample app (e.g. `BROKEN=approve` hides the Approved seal) makes Kane fail and Autocast print a bug report with no render.
-- [ ] Commit a pre-rendered output to `examples/output/` (the safety net).
-- [ ] **Evening:** use Autocast to render a 30 to 45 s sample video for the launch posts.
+- [x] `storyboard.ts` generates the JSON from steps automatically.
+- [x] Narration generation plus TTS adapter plus audio-first timing.
+- [x] Loop 1 (classify, retry, stop-on-bug) and Loop 2 (lint).
+- [x] `npm run demo -- "<prompt>"` works end to end on the sample app.
+- [x] Stop-on-bug works: an env flag that breaks the sample app (e.g. `BROKEN=approve` hides the Approved seal) makes Kane fail and Autocast print a bug report with no render.
+- [x] Commit a pre-rendered output to `examples/output/` (the safety net).
+- [x] **Evening:** use Autocast to render a 30 to 45 s sample video for the launch posts.
 
 **Exit criterion (HARD GATE):** one command, one prompt, one MP4, with narration or silent mode. If this is not true by Tuesday night, skip Loop 3 entirely and spend Day 4 making the pipeline reliable and polished.
 
 ### Day 4, Wed 18 Nov: Loop 3 (bonus), polish, record, launch buzz
 
-- [ ] Only if the Day 3 gate passed: review page plus `kaneReview.ts` plus fix loop, on at least 3 sampled frames.
-- [ ] Add the **chaos flag** (section 9) so the loop can be demonstrated.
-- [ ] Title/outro cards, transitions, optional music.
-- [ ] README with a judge quick start, `.env.example`, and fallback output in `examples/output/`.
+- [x] Only if the Day 3 gate passed: review page plus `kaneReview.ts` plus fix loop, on at least 3 sampled frames.
+- [x] Add the **chaos flag** (section 9) so the loop can be demonstrated.
+- [x] Title/outro cards, transitions, optional music.
+- [x] README with a judge quick start, `.env.example`, and fallback output in `examples/output/`.
+- [x] Adaptations from `/brag`: secret redaction, readable-text lint, boundary frame visual QA, hero poster extraction & frame-0 thumbnail baking.
 - [ ] **Publish the first two launch posts** (section 10) so they gather engagement before the deadline.
 - [ ] Record the demo video (draft cut).
 

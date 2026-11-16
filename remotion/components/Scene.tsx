@@ -1,5 +1,5 @@
 import React from 'react';
-import { OffthreadVideo, staticFile } from 'remotion';
+import { interpolate, OffthreadVideo, staticFile, useCurrentFrame } from 'remotion';
 import { CameraRig } from './CameraRig';
 import { Cursor } from './Cursor';
 import { Scene as SceneType } from '../../src/types';
@@ -15,8 +15,17 @@ export const Scene: React.FC<SceneProps> = ({
   videoSrc,
   durationInFrames,
 }) => {
+  const frame = useCurrentFrame();
   const startSec = scene.segments[0]?.src_start || 0;
   const startFrame = Math.round(startSec * 30);
+
+  // Dip-through-background transition: gentle fade at scene cut points
+  const transitionOpacity = interpolate(
+    frame,
+    [0, 5, durationInFrames - 5, durationInFrames],
+    [0.88, 1, 1, 0.92],
+    { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
+  );
 
   return (
     <div
@@ -26,6 +35,7 @@ export const Scene: React.FC<SceneProps> = ({
         position: 'relative',
         overflow: 'hidden',
         backgroundColor: '#0f172a',
+        opacity: transitionOpacity,
       }}
     >
       <CameraRig

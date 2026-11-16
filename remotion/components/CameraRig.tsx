@@ -49,14 +49,19 @@ export const CameraRig: React.FC<CameraRigProps> = ({
   const targetCenterX = target.x + target.w / 2;
   const targetCenterY = target.y + target.h / 2;
 
-  // Clamped panning so the 1920x1080 frame edges never pull away from boundaries
-  const minTx = 1920 * (1 - currentZoom);
-  const minTy = 1080 * (1 - currentZoom);
-  const txIdeal = 960 - currentZoom * targetCenterX;
-  const tyIdeal = 540 - currentZoom * targetCenterY;
+  // If target element is wide (e.g. table rows > 900px), lock zoom to 1.0 and tx to 0
+  // to prevent horizontal viewport clipping and keep left table columns fully visible.
+  const isWide = target.w > 900;
+  const effectiveZoom = isWide ? 1.0 : currentZoom;
 
-  const tx = currentZoom <= 1.001 ? 0 : Math.max(minTx, Math.min(0, txIdeal));
-  const ty = currentZoom <= 1.001 ? 0 : Math.max(minTy, Math.min(0, tyIdeal));
+  // Clamped panning so the 1920x1080 frame edges never pull away from boundaries
+  const minTx = 1920 * (1 - effectiveZoom);
+  const minTy = 1080 * (1 - effectiveZoom);
+  const txIdeal = 960 - effectiveZoom * targetCenterX;
+  const tyIdeal = 540 - effectiveZoom * targetCenterY;
+
+  const tx = (effectiveZoom <= 1.001 || isWide) ? 0 : Math.max(minTx, Math.min(0, txIdeal));
+  const ty = effectiveZoom <= 1.001 ? 0 : Math.max(minTy, Math.min(0, tyIdeal));
 
   return (
     <div
@@ -64,7 +69,7 @@ export const CameraRig: React.FC<CameraRigProps> = ({
         width: 1920,
         height: 1080,
         position: 'relative',
-        transform: `translate(${tx}px, ${ty}px) scale(${currentZoom})`,
+        transform: `translate(${tx}px, ${ty}px) scale(${effectiveZoom})`,
         transformOrigin: '0 0',
         willChange: 'transform',
       }}

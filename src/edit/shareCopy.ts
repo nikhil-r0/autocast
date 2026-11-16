@@ -1,15 +1,17 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { redactSecrets } from './redact.js';
 
 export function shareCopyText(title: string): string {
+  const safeTitle = redactSecrets(title).text;
   return [
-    `Title: ${title} — Demos that can't lie`,
+    `Title: ${safeTitle} — Demos that can't lie`,
     '',
     'Post:',
     'One prompt in. Kane proves the flow in a real browser. If the check fails, Autocast renders no video.',
     '',
     'YouTube description:',
-    `${title}. Autocast renders a demo only after Kane CLI passes. Stop-on-bug means a failed check produces a bug report and no MP4.`,
+    `${safeTitle}. Autocast renders a demo only after Kane CLI passes. Stop-on-bug means a failed check produces a bug report and no MP4.`,
     '',
   ].join('\n');
 }

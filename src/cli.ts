@@ -11,6 +11,7 @@ import { buildStoryboard } from './edit/storyboard.js';
 import { lintStoryboard } from './edit/lint.js';
 import { writeShareCopy } from './edit/shareCopy.js';
 import { executeReviewLoop } from './review/kaneReview.js';
+import { findHeroTimestamp, extractPosterFrame, bakePosterToFrame0 } from './edit/poster.js';
 
 import dns from 'dns';
 
@@ -169,22 +170,55 @@ async function main() {
     '--concurrency=2',
   ];
 
-  const renderProc = spawn('npx', renderArgs, {
-    stdio: 'inherit',
-    env: { ...process.env },
+  await new Promise<void>((resolve, reject) => {
+    const renderProc = spawn('npx', renderArgs, {
+      stdio: 'inherit',
+      env: { ...process.env },
+    });
+
+    renderProc.on('close', async (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`Remotion render exited with code ${code}`));
+      }
+    });
+
+    renderProc.on('error', reject);
   });
 
-  renderProc.on('close', (code) => {
-    if (code === 0) {
-      console.log('\n================================================================');
-      console.log('🎉 AUTOCAST DEMO RENDER COMPLETE!');
-      console.log(`Output: file://${outputMp4}`);
-      console.log('================================================================');
-    } else {
-      console.error(`Remotion render exited with code ${code}`);
-      process.exit(code || 1);
+  // 7. POSTER EXTRACTION & FRAME-0 BAKING
+  console.log('\n--- PHASE 7: POSTER FRAME & FRAME-0 BAKING ---');
+  const posterPath = path.join(outDir, 'poster.jpg');
+  try {
+    const heroSec = findHeroTimestamp(storyboard);
+    await extractPosterFrame(outputMp4, posterPath, heroSec);
+    await bakePosterToFrame0(outputMp4, posterPath);
+  } catch (err: any) {
+    console.warn(`[Poster] Poster processing warning: ${err.message}`);
+  }
+
+  // Sync to examples/output for docs & sample delivery
+  const examplesOutDir = path.join(process.cwd(), 'examples', 'output');
+  if (fs.existsSync(examplesOutDir)) {
+    fs.copyFileSync(outputMp4, path.join(examplesOutDir, 'sample-demo.mp4'));
+    if (fs.existsSync(posterPath)) {
+      fs.copyFileSync(posterPath, path.join(examplesOutDir, 'poster.jpg'));
     }
-  });
+    fs.copyFileSync(sharePath, path.join(examplesOutDir, 'share-copy.txt'));
+    const sbPath = path.join(process.cwd(), 'storyboard.json');
+    if (fs.existsSync(sbPath)) {
+      fs.copyFileSync(sbPath, path.join(examplesOutDir, 'sample-storyboard.json'));
+    }
+    console.log(`[Sync] Updated examples/output artifacts.`);
+  }
+
+  console.log('\n================================================================');
+  console.log('🎉 AUTOCAST DEMO RENDER COMPLETE!');
+  console.log(`Output Video: file://${outputMp4}`);
+  console.log(`Hero Poster:  file://${posterPath}`);
+  console.log(`Share Copy:   file://${sharePath}`);
+  console.log('================================================================');
 }
 
 main().catch((err) => {

@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { StoryboardSchema, Storyboard } from '../types.js';
+import { redactSecrets } from './redact.js';
 
 export interface LintResult {
   valid: boolean;
@@ -69,6 +70,25 @@ export function lintStoryboard(storyboardOrPath?: Storyboard | string): LintResu
     // Cursor path bounds
     if (s.cursor.to[0] < 0 || s.cursor.to[0] > width || s.cursor.to[1] < 0 || s.cursor.to[1] > height) {
       errors.push(`${prefix} cursor target (${s.cursor.to[0]}, ${s.cursor.to[1]}) is out of screen.`);
+    }
+
+    // 3. Readable-text rule (pacing floor from /brag)
+    // Label/caption: >=0.8s settled; sentence/narration: >=0.3s per word, minimum 1.2s.
+    const words = (s.narration || s.caption || '').trim().split(/\s+/).filter(Boolean).length;
+    if (words > 0) {
+      const minReadableFloor = words <= 3 ? 0.8 : Math.max(1.2, words * 0.3);
+      if (s.audio_sec < minReadableFloor) {
+        errors.push(
+          `${prefix} audio_sec ${s.audio_sec.toFixed(1)}s violates readable-text floor (${minReadableFloor.toFixed(1)}s required for ${words} words: "${s.caption}")`
+        );
+      }
+    }
+
+    // 4. Secret leak check
+    const secretCheckCap = redactSecrets(s.caption);
+    const secretCheckNar = redactSecrets(s.narration);
+    if (secretCheckCap.redactedCount > 0 || secretCheckNar.redactedCount > 0) {
+      errors.push(`${prefix} contains unredacted secrets or tokens (${[...secretCheckCap.detectedTypes, ...secretCheckNar.detectedTypes].join(', ')}).`);
     }
   }
 

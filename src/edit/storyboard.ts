@@ -3,6 +3,7 @@ import * as path from 'path';
 import { Storyboard, Scene, KaneStep } from '../types.js';
 import { SceneNarration } from './narration.js';
 import { ReplayResult } from '../capture/replay.js';
+import { redactStoryboard } from './redact.js';
 
 export function buildStoryboard(
   title: string,
@@ -48,7 +49,12 @@ export function buildStoryboard(
     const words = narrationItem.narration.trim().split(/\s+/).filter(Boolean).length;
     const readableSec = Math.round((words * 0.3 + 0.8) * 10) / 10;
     const sceneDuration = Math.max(4.2, seg.srcEnd - seg.srcStart, readableSec);
-    const zoom = zoomLevels[i] ?? 1.15;
+
+    // Safe zoom calculation: If target element is wide (e.g. table row > 900px),
+    // cap zoom at 1.0 to prevent horizontal viewport clipping and keep left table columns visible.
+    const isWideTarget = targetRect.w > 900;
+    const requestedZoom = zoomLevels[i] ?? 1.15;
+    const zoom = isWideTarget ? 1.0 : requestedZoom;
 
     scenes.push({
       id: `s0${i + 1}`,
@@ -80,7 +86,7 @@ export function buildStoryboard(
     lastCursorPos = targetCursor;
   }
 
-  const storyboard: Storyboard = {
+  const rawStoryboard: Storyboard = {
     meta: {
       title,
       fps: 30,
@@ -95,6 +101,9 @@ export function buildStoryboard(
     },
     scenes,
   };
+
+  // Run Secret Redaction Pass (Scrub API keys, tokens, emails, IPs)
+  const { storyboard } = redactStoryboard(rawStoryboard);
 
   // Write to storyboard.json, public/storyboard.json, and remotion/defaultStoryboard.json
   const rootStoryboardPath = path.join(process.cwd(), 'storyboard.json');

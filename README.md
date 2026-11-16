@@ -19,8 +19,10 @@ No video is rendered when the product fails. No video ships when the edit fails 
 A single command produces a 1080p, 30fps H.264 demo:
 
 - A real browser walkthrough of the feature, captured at 1920×1080
-- Benefit-led narration and scene captions
-- Camera zooms, a synthesized cursor, and title and outro cards
+- Benefit-led narration and scene captions with automated secret redaction
+- Camera zooms with edge-containment protection, a synthesized cursor, and title and outro cards
+- Readable-text pacing enforcement (>=0.3s per word settled on screen)
+- Hero poster frame extraction (`out/poster.jpg`) and frame-0 preview baking for instant rich social thumbnails on Slack, Discord, and X
 - A structured defect report, with screenshots, when the product is broken
 
 A bundled invoice-approval app is included so the pipeline runs without your own product. Point `TARGET_APP_URL` at any web app when you are ready.
@@ -41,7 +43,7 @@ cp .env.example .env
 npm run demo -- "Create a demo of the invoice approval flow"
 ```
 
-The finished file is `out/demo.mp4`, with a launch blurb beside it at `out/share-copy.txt`. A pre-rendered sample is at `examples/output/sample-demo.mp4`. The matching blurb is `examples/output/share-copy.txt`.
+The finished files are `out/demo.mp4` (with frame-0 thumbnail baked in), `out/poster.jpg` (hero settled screenshot), and `out/share-copy.txt` (ready-to-post launch copy). Pre-rendered samples are committed in `examples/output/`.
 
 ## How a demo is made
 
@@ -121,14 +123,14 @@ autocast/
 │   ├── cli.ts                 # Pipeline entry
 │   ├── shoot/                 # Objective, Kane run, stop-on-bug
 │   ├── capture/replay.ts      # 1080p Playwright replay
-│   ├── edit/                  # Narration, storyboard, lint
-│   └── review/kaneReview.ts   # Frame-level visual QA
+│   ├── edit/                  # Storyboard, lint, redact, poster, shareCopy
+│   └── review/kaneReview.ts   # Boundary & frame-level Kane visual QA
 ├── remotion/                  # Composition, camera, cursor, cards
 ├── examples/
 │   ├── invoice-app/           # Sample product
-│   └── output/                # Sample MP4 and storyboard
-├── docs/                      # Cover and design notes
+│   └── output/                # Sample MP4, poster, share-copy, and storyboard
+├── docs/                      # Cover, design notes, and comparative reports
 └── storyboard.json            # The edit. Change this, not the components.
 ```
 
-Further reading: [shoot findings](docs/spike-findings.md) and [the review loop](docs/loop3-review.md).
+Further reading: [shoot findings](docs/spike-findings.md), [the review loop](docs/loop3-review.md), and [brag comparative audit & roadmap](docs/brag-report.md).
