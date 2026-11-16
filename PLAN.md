@@ -2,7 +2,7 @@
 
 > **Tagline:** Demos that can't lie.  
 > **Core Architecture:** Three decoupled, evidence-driven orchestration loops proving product correctness, cinematic quality, and release safety.  
-> **Key Hackathon Differentiator:** Closed loop where Kane CLI catches a verified application bug, Antigravity AI (`agy`) autonomously patches the source code in an isolated worktree, the application is restarted and re-tested by Kane, and Autocast renders a verified 1080p demo of the repaired workflow.
+> **The Winning Hackathon Story:** A bug is deliberately introduced. Kane CLI catches it (`result_code: 740`). Antigravity AI (`agy`) autonomously repairs the actual application source code in an isolated Git worktree. The application is restarted, health-checked, and re-verified by Kane. Only upon verified pass does Autocast render a 1080p demo video with a tamper-evident provenance manifest.
 
 ---
 
@@ -14,19 +14,21 @@ Autocast enforces a strict separation of concerns. **These three loops are non-s
 flowchart TD
     subgraph LOOP1["LOOP 1: Product Correctness Loop"]
         direction TB
-        ObjPrompt["User Prompt / Feature Goal"] --> GenObj["Phase 1: Gemini Director Generates Objective"]
+        ObjPrompt["User Prompt / Feature Goal"] --> GenObj["Phase 1: Gemini Director Generates Objective & Claims"]
         GenObj --> KaneShoot["Kane CLI Execution (Real Chrome)
         Flags: --agent --bug-detection stop --timeout 300"]
-        KaneShoot --> KaneAdapter["KaneRunAdapter (NDJSON Stream & Exit Code Normalizer)"]
-        KaneAdapter --> DecisionTree{"Kane Result & Verdict"}
+        KaneShoot --> KaneAdapter["KaneRunAdapter (NDJSON Stream, run_end & Exit Code Normalizer)"]
+        KaneAdapter --> DecisionTree{"Kane Exit Code & Verdict"}
         
-        DecisionTree -- "Exit 0 / 100 Complete" --> KanePassed["Objective Verified ✓"]
-        DecisionTree -- "740 Confirmed Product Bug" --> Worktree["1. Require Clean Repo & Spawn Isolated Git Worktree"]
-        Worktree --> Handoff["2. Assemble Evidence Bundle (Screenshots, Logs, Step Failure)"]
+        DecisionTree -- "Exit 0 / Complete" --> KanePassed["Objective Verified ✓"]
+        DecisionTree -- "Exit 1 + 740 Confirmed Verdict" --> Worktree["1. Require Clean Repo & Spawn Isolated Git Worktree"]
+        Worktree --> Handoff["2. Assemble Evidence Bundle (Screenshots, Actions, Logs)"]
         Handoff --> AgyAgent["3. Antigravity AI Coding Agent (agy)
         Flags: -p prompt --mode accept-edits --output-format json"]
-        AgyAgent --> AppTest["4. Autocast Runs Tests (npm test) & Inspects Git Diff"]
-        AppTest --> RestartApp["5. Autocast Restarts App Server & Awaits /api/health (200 OK)"]
+        AgyAgent --> AGYCheck{"AGY status === 'SUCCESS' & Non-Empty Git Diff?"}
+        AGYCheck -- "No / Soft-Denied" --> RepairFail["Reject Repair: No Code Changes / Execution Failed"]
+        AGYCheck -- "Yes" --> AppTest["4. AutoCast Runs npm test & Checks Allowed Paths"]
+        AppTest --> RestartApp["5. AutoCast Restarts App Server & Awaits /api/health (200 OK)"]
         RestartApp --> DBReset["6. Reset Seed State & Kane Re-Shoot Verification"]
         DBReset --> KaneShoot
         
@@ -37,14 +39,15 @@ flowchart TD
 
     subgraph LOOP2["LOOP 2: Cinematic Quality Loop"]
         direction TB
-        KanePassed --> ActionIR["Two-Stage Replay: Normalize Kane Evidence to Action IR"]
-        ActionIR --> PlaywrightRecord["Deterministic Playwright 1080p Capture (Bezier Cursor & Hold Pacing)"]
-        PlaywrightRecord --> SemanticCheck{"Replay State Matches Kane Final State?"}
+        KanePassed --> UnpackEvidence["Unpack .evidence Pack (actions.ndjson, step.json)"]
+        UnpackEvidence --> ActionIR["Compile Normalized Action IR (Viewport, Coordinates, Pacing)"]
+        ActionIR --> PlaywrightRecord["Deterministic Playwright 1080p Capture (Bezier Trajectories & Settle Holds)"]
+        PlaywrightRecord --> SemanticCheck{"Replay State Matches Objective Claims?"}
         SemanticCheck -- "State Diverged" --> ReplayHalt["Reject Replay: Semantic Equivalence Failed"]
         SemanticCheck -- "Equivalence Proven" --> StoryboardCompile["Storyboard Compilation (Authoritative Timeline)"]
         
         StoryboardCompile --> PreviewStills["Render Preview Frames (Remotion Stills: Wide, Cut Point, Detail)"]
-        PreviewStills --> VisualGallery["Serve Local Visual QA Gallery (Frame Previews & Checks)"]
+        PreviewStills --> VisualGallery["Serve Local Visual QA Gallery (http://localhost:8080/qa-gallery)"]
         VisualGallery --> KaneVisualQA["Kane Visual QA in Real Chrome"]
         KaneVisualQA --> VisualCheck{"Visual Flaws Detected?"}
         
@@ -56,7 +59,7 @@ flowchart TD
 
     subgraph LOOP3["LOOP 3: Release Safety Loop"]
         direction TB
-        RemotionRender --> TechValidation["Post-Render Technical Validation (FFprobe & Bitrate/CRF Check)"]
+        RemotionRender --> TechValidation["Post-Render Technical Validation (FFprobe Bitrate & Extracted Frames)"]
         TechValidation --> HeroPoster["Hero Poster Extraction & Frame-0 Bake (enable='eq(n,0)')"]
         HeroPoster --> DenseScan["Dense Video Frame Extraction & Text Asset Aggregation"]
         DenseScan --> TesseractOCR["Tesseract OCR + Secret Pattern Regex & Entropy Scanner
@@ -65,7 +68,7 @@ flowchart TD
         
         SecretCheck -- "Secret Found" --> Quarantine["HARD STOP: Move to .quarantine/ & Redact Logs (No Public Release)"]
         SecretCheck -- "Clean (0 Leaks)" --> ProvenanceManifest["Generate Tamper-Evident run-manifest.json
-        Real SHA-256 Hashes, Git Commit, Kane Evidence Reference"]
+        Real Computed SHA-256 Hashes, Git Commit, Sanitized Evidence"]
         ProvenanceManifest --> ReleaseArtifacts["Publish Verified demo.mp4, poster.jpg, share-copy.txt"]
     end
 ```
@@ -74,11 +77,11 @@ flowchart TD
 
 ## 1. Loop 1: Product Correctness Engine
 
-### 1.1 Strict Kane CLI Contract & `KaneRunAdapter`
+### 1.1 Verified Kane CLI Contract & `KaneRunAdapter`
 
-Kane CLI's `--bug-detection` defaults to `off`. Without explicitly passing `--bug-detection stop`, Kane will not emit result code `740` with a confirmed product bug verdict.
+Kane CLI's `--bug-detection` option defaults to `off`. Without explicitly passing `--bug-detection stop`, Kane will not generate result code `740` with a confirmed product bug verdict.
 
-#### 1. Exact Kane Command Invocation:
+#### 1. Kane CLI Invocation:
 ```bash
 kane-cli run "$OBJECTIVE" \
   --url "$TARGET_APP_URL" \
@@ -93,15 +96,21 @@ kane-cli run "$OBJECTIVE" \
 ```
 
 #### 2. Process Exit Codes & Terminal Event Handling:
-`KaneRunAdapter` consumes the full NDJSON stdout stream and process exit code:
+The official Kane CLI contract establishes four exit codes:
+- **`0`**: Run passed.
+- **`1`**: Run failed.
+- **`2`**: CLI / configuration / authentication error.
+- **`3`**: Cancelled or timed out.
 
-| Process Exit Code | `run_end` Status & Payload | Classification | Action |
+`KaneRunAdapter` processes stdout NDJSON line-by-line, capturing `stream_start`, progress events, `warning`, `error`, and `run_end`. It normalizes them into an unambiguous classification:
+
+| Exit Code | `run_end` Status & Payload | Classification | Engine Action |
 |---|---|---|---|
-| **`0`** | `status: "passed"` (`result_code: 100`) | `PASS` | Advance to Loop 2 (Action IR compilation). |
+| **`0`** | `status: "passed"` | `PASS` | Advance to Loop 2 (Action IR compilation). |
 | **`1`** | `result_code: 740` with `verdict.confirmed === true` | `CONFIRMED_PRODUCT_BUG` | Trigger Antigravity (`agy`) Closed Loop Source Repair. |
-| **`1`** | `status: "failed"` without confirmed verdict (e.g. checkpoint failed, selector missing) | `UNCONFIRMED_FAILURE` | Inspect evidence pack; do **not** blindly auto-patch application code. If objective was flawed or selector moved, refine with Gemini. |
+| **`1`** | `status: "failed"` without confirmed verdict (e.g. checkpoint failed, selector missing) | `UNCONFIRMED_FAILURE` | Inspect evidence pack; do **not** auto-patch application code. If objective was flawed or selector moved, refine with Gemini. |
 | **`2`** | No `run_end` (CLI / config / auth refusal) | `CLI_CONFIGURATION_ERROR` | Halt with diagnostic; do not retry. |
-| **`3`** | `duration >= timeoutSec` | `TIMEOUT` | Report timeout; allow user retry with extended limit. |
+| **`3`** | `duration >= timeoutSec` (or timeout reason) | `TIMEOUT` | Report timeout; allow user retry with extended limit. |
 | **`3`** | User SIGINT / cancelled event | `CANCELLED` | Graceful abort. |
 
 #### 3. Normalized Internal Schema (`NormalizedKaneResult`):
@@ -111,6 +120,7 @@ export interface NormalizedKaneResult {
   exitCode: number;
   resultCode?: number;
   reasonCode?: string;
+  status: 'passed' | 'failed';
   summary: string;
   verdict?: {
     confirmed: boolean;
@@ -126,7 +136,7 @@ export interface NormalizedKaneResult {
   testUrl?: string;
   creditsConsumed?: number;
   steps: KaneStep[];
-  events: any[]; // Full NDJSON event log
+  events: any[]; // Full raw NDJSON stream
 }
 ```
 
@@ -134,34 +144,54 @@ export interface NormalizedKaneResult {
 
 ### 1.2 Antigravity AI Coding Agent Integration (`agy`)
 
-When `CONFIRMED_PRODUCT_BUG` is identified, Autocast invokes the local Antigravity CLI (`/home/home/.local/bin/agy`).
+When `CONFIRMED_PRODUCT_BUG` is identified, Autocast invokes the local Antigravity CLI (`/home/home/.local/bin/agy`) under strict process isolation and security controls.
 
-#### Strict Division of Responsibilities:
+#### Strict Division of Responsibilities (Headless Safe):
 In headless mode, Antigravity's `--mode accept-edits` automatically approves workspace file modifications, but commands requiring terminal execution are soft-denied. **AutoCast never asks the agent to run shell commands in headless mode.**
 
-| Responsibility | Handled By | Implementation |
+| Task | Handled By | Implementation Details |
 |---|---|---|
-| Inspect source & locate bug | **Antigravity (`agy`)** | Analyzes code in context of Kane's failure report. |
+| Inspect source & locate bug | **Antigravity (`agy`)** | Analyzes code in context of Kane's failure evidence. |
 | Modify application source files | **Antigravity (`agy`)** | Patches files in isolated Git worktree under `--mode accept-edits`. |
 | Explain modifications | **Antigravity (`agy`)** | Returns structured JSON summary (`status: "SUCCESS"`). |
-| Verify modified paths & git diff | **AutoCast Engine** | Ensures only allowed paths were modified; rejects test fixture tampering. |
+| Verify modified paths & git diff | **AutoCast Engine** | Validates `git diff --name-only`; rejects changes to tests or configs. |
 | Run application test suite | **AutoCast Engine** | Executes `npm test` directly in the worktree. |
 | Restart application server | **AutoCast Engine** | Gracefully terminates old process, spawns new server, polls `/api/health`. |
 | Reset seed data & trigger Kane | **AutoCast Engine** | Resets test database and invokes Kane re-verification. |
 
 #### Safe Headless Invocation:
 ```typescript
+export interface AgentRepairRequest {
+  worktreeDir: string;
+  appDir: string;
+  objective: string;
+  verdict?: { family: string; category: string; oneLiner: string; severity: string };
+  failingStep?: string;
+  evidence: {
+    sessionDir: string;
+    evidencePackPath?: string;
+    failureScreenshot?: string;
+    consoleLogs?: string[];
+    networkErrors?: string[];
+  };
+  constraints: {
+    allowedDirectories: string[];
+    protectedPaths: string[];
+    maxRepairAttempts: number;
+  };
+}
+
 export async function invokeAntigravityRepair(request: AgentRepairRequest): Promise<AgentRepairResult> {
   const agyBinary = process.env.AGY_PATH || '/home/home/.local/bin/agy';
   
-  // Prompt wraps web content in strict passive data boundaries to prevent prompt injection
+  // Wrap web-derived text in strict passive data boundaries to prevent prompt injection
   const prompt = `
 You are fixing a verified product bug detected by Kane CLI in ${request.appDir}.
 
 <UNTRUSTED_EVIDENCE_CONTEXT>
 Objective: ${request.objective}
 Failing Step: ${request.failingStep}
-Bug Summary: ${request.verdict?.oneLiner || request.failureSummary}
+Bug Summary: ${request.verdict?.oneLiner || 'Assertion failed'}
 Evidence Log: ${request.evidence.consoleLogs?.join('\n') || 'None'}
 Failure Screenshot Reference: ${request.evidence.failureScreenshot || 'None'}
 </UNTRUSTED_EVIDENCE_CONTEXT>
@@ -173,7 +203,7 @@ TASK:
 4. Output your analysis and changes in structured format.
 `.trim();
 
-  // Explicitly use --mode accept-edits and --output-format json (NO --dangerously-skip-permissions)
+  // Run with --mode accept-edits and --output-format json
   const child = spawn(agyBinary, [
     '-p', prompt,
     '--mode', 'accept-edits',
@@ -182,8 +212,9 @@ TASK:
     cwd: request.worktreeDir,
     env: { ...process.env },
   });
-  
-  // Process controls: 180s timeout, child process group termination, JSON status validation
+
+  // Enforce 180s timeout, process-group termination (SIGTERM -> SIGKILL),
+  // and validate that JSON output contains status === "SUCCESS" (not merely exit 0).
   ...
 }
 ```
@@ -207,8 +238,8 @@ export interface AppLifecycleAdapter {
 ```
 
 #### The 6-Step Verification Lifecycle:
-1. **Clean Worktree Isolation**: Verify repository is clean (`git status --porcelain`). Create dedicated repair worktree at `git worktree add .worktrees/repair-<id> HEAD`.
-2. **Agent Repair**: `agy` modifies code in the worktree. Validate `git diff --name-only`: if protected paths (e.g. `tests/**`) were touched, reject patch.
+1. **Clean Worktree Isolation**: Require a clean repository (`git status --porcelain`). Create dedicated repair worktree at `git worktree add .worktrees/repair-<id> HEAD`.
+2. **Agent Repair**: `agy` modifies code in the worktree. AutoCast inspects `git diff --name-only`: if protected paths (e.g. `tests/**`) were touched, reject patch.
 3. **App Regression Test**: Execute `npm test` inside worktree.
 4. **Server Restart & Healthcheck**:
    - Terminate active server process (`SIGTERM` -> `SIGKILL`).
@@ -222,7 +253,7 @@ export interface AppLifecycleAdapter {
 
 ## 2. Loop 2: Cinematic Quality Engine
 
-### 2.1 Two-Stage Replay: Action IR & Semantic Equivalence
+### 2.1 Two-Stage Replay: Evidence-Based Action IR & Semantic Equivalence
 
 Kane's actual evidence pack (`.evidence` zip / `session_dir`) contains:
 - `logs/<n>-actions.ndjson`: Every atomic user action with timestamps, selectors, and bounding boxes.
@@ -245,11 +276,12 @@ export interface ReplayAction {
 
 export interface ActionIR {
   startUrl: string;
-  viewport: { width: number; height: number };
+  viewport: { width: number; height: number; deviceScaleFactor: number };
   actions: ReplayAction[];
   claims: Array<{ id: string; assertion: string }>;
 }
 ```
+*Rule:* Unsupported action types are explicitly rejected rather than silently skipped.
 
 #### Stage B: Cinematic Playwright Capture
 - Consumes `ActionIR` at 1920x1080 (30 fps).
@@ -333,7 +365,7 @@ export interface AuthoritativeTimeline {
 
 ### 3.2 Tamper-Evident Provenance Manifest (`run-manifest.json`)
 
-Autocast calculates and seals `run-manifest.json` after rendering:
+Autocast calculates and seals `run-manifest.json` after rendering, computing real SHA-256 hashes:
 
 ```json
 {
@@ -372,8 +404,8 @@ Autocast calculates and seals `run-manifest.json` after rendering:
     "status": "passed"
   },
   "artifacts": {
-    "video_sha256": "4a719c8f2b3e8a1d0...",
-    "poster_sha256": "8f3b2c1e9a4d701..."
+    "video_sha256": "4a719c8f2b3e8a1d0e5f6...",
+    "poster_sha256": "8f3b2c1e9a4d701a2b3..."
   }
 }
 ```
@@ -416,28 +448,28 @@ Supports local `npm link` and direct execution via `npx autocast` or `node dist/
 ## 5. Revised Implementation Schedule
 
 ```
-Mon Nov 16: FOUNDATION
+Mon Nov 16: FOUNDATION (P0)
   [x] Ledgerly SaaS target app built & baseline demo rendered (f3d9639)
   [ ] Implement KaneRunAdapter (--bug-detection stop, NDJSON stream, exit codes 0/1/2/3)
   [ ] Implement strict Loop 3 Visual QA re-review & abort gate (0 MP4 rendered on defect)
   [ ] Implement fail-closed OCR quarantine & secret redaction
   [ ] Create fixture tests for Kane result classifications
 
-Tue Nov 17: CLOSED LOOP (The Winning Differentiator)
+Tue Nov 17: CLOSED LOOP (P1 - The Winning Differentiator)
   [ ] Build src/agent/antigravity.ts wrapper (worktree isolation, --mode accept-edits, --output-format json)
   [ ] Build src/app/lifecycle.ts (Ledgerly restart, healthcheck poll, seed reset, DB check)
   [ ] Inject Ledgerly bug (APP_BUG=approve-noop)
   [ ] Execute end-to-end closed loop: Kane 740 catch -> agy patch -> restart -> Kane 100 pass
   [ ] Archive sanitized catch evidence in docs/catches/catch-ledgerly-approval/
 
-Wed Nov 18: CINEMATIC REPLAY & TIMELINE
+Wed Nov 18: CINEMATIC REPLAY & TIMELINE (P2)
   [ ] Implement Evidence Normalizer (extract actions.ndjson / step.json into Action IR)
   [ ] Replay executor with cubic-bezier cursor motion & semantic equivalence verification
   [ ] Build AuthoritativeTimeline compiler from Remotion composition logic
   [ ] Build local Visual QA Gallery endpoint & targeted StoryboardPatch module
   [ ] Generate tamper-evident run-manifest.json with real SHA-256 hashes
 
-Thu Nov 19: SUBMISSION FREEZE & DEMO
+Thu Nov 19: SUBMISSION FREEZE & DEMO (P3)
   [ ] Fresh clone clean checkout verification
   [ ] Validate .agents/skills/autocast/SKILL.md
   [ ] Record 3-5 minute presentation demo video highlighting the closed-loop catch
@@ -452,14 +484,14 @@ Thu Nov 19: SUBMISSION FREEZE & DEMO
 | Test ID | Module | Scenario | Expected Behavior |
 |---|---|---|---|
 | `TEST-01` | `KaneRunAdapter` | Kane returns exit 1 with `verdict.confirmed === true` (740) | Classified as `CONFIRMED_PRODUCT_BUG`; triggers Loop 1. |
-| `TEST-02` | `KaneRunAdapter` | Kane returns exit 1 without confirmed verdict (e.g. 720 checkpoint) | Classified as `UNCONFIRMED_FAILURE`; no auto source code patch. |
+| `TEST-02` | `KaneRunAdapter` | Kane returns exit 1 without confirmed verdict (e.g. checkpoint failure) | Classified as `UNCONFIRMED_FAILURE`; no auto source code patch. |
 | `TEST-03` | `KaneRunAdapter` | Kane exits code 2 without `run_end` | Classified as `CLI_CONFIGURATION_ERROR`; halts with diagnostic. |
 | `TEST-04` | `KaneRunAdapter` | Kane exits code 3 after duration limit | Classified as `TIMEOUT`. |
 | `TEST-05` | `Antigravity` | Agent attempts modifying protected file (`tests/**`) | Path guardrail aborts; worktree is reverted. |
 | `TEST-06` | `Antigravity` | Agent returns success but leaves `git diff` empty | Repair rejected; reports no changes made. |
 | `TEST-07` | `Antigravity` | Agent modifies source but `npm test` fails | Rejected; server is not restarted; no Kane re-run. |
 | `TEST-08` | `Lifecycle` | Server fails `/api/health` 200 OK after restart | Aborts with restart failure report. |
-| `TEST-09` | `Replay` | Replay final DOM state diverges from Kane `final_state` | Replay rejected for semantic non-equivalence. |
+| `TEST-09` | `Replay` | Replay final DOM state diverges from Kane `claims` | Replay rejected for semantic non-equivalence. |
 | `TEST-10` | `Replay` | Action IR encounters unsupported action type | Replay aborts cleanly rather than silently skipping. |
 | `TEST-11` | `Visual QA` | Preview frame fails Kane visual QA twice | Loop 2 aborts pipeline; zero MP4 rendered. |
 | `TEST-12` | `Safety OCR` | Injected fake API key (`sk_live_...`) in video frame | Video moved to `.quarantine/`; release halted. |
