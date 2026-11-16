@@ -3,8 +3,9 @@ node_modules/
 .env.*
 !.env.example
 out/
-.testmuai/evidence/
-.testmuai/tests/
+.testmuai/
+.worktrees/
+.quarantine/
 *.log
 *.ndjson
 dist/
