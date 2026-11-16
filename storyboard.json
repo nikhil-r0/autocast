@@ -15,8 +15,8 @@
     {
       "id": "s01",
       "step_ref": "step-1",
-      "caption": "Monitor Accounts Payable Key Metrics",
-      "narration": "Gain instant visibility into pending liabilities and processing bottlenecks across your entire organization seamlessly.",
+      "caption": "Three invoices waiting",
+      "narration": "INV-1001 from Acme is pending. Two more sit behind it.",
       "audio": null,
       "audio_sec": 4.2,
       "segments": [
@@ -52,8 +52,8 @@
     {
       "id": "s02",
       "step_ref": "step-2",
-      "caption": "Access Detailed Pending Invoice Breakdown",
-      "narration": "Accelerate verification by accessing comprehensive vendor data and line items directly from the main view.",
+      "caption": "Open INV-1001",
+      "narration": "The drawer lists Cloud Infrastructure, SSL testing, due Nov 24.",
       "audio": null,
       "audio_sec": 4.2,
       "segments": [
@@ -89,8 +89,8 @@
     {
       "id": "s03",
       "step_ref": "step-3",
-      "caption": "Audit Itemized Charges and Terms",
-      "narration": "Eliminate billing errors through automated matching of unit prices, payment terms, and contract agreements.",
+      "caption": "Acme, $4,850.00",
+      "narration": "Acme's bill is $4,850.00 for architecture hours and SSL testing.",
       "audio": null,
       "audio_sec": 4.2,
       "segments": [
@@ -126,8 +126,8 @@
     {
       "id": "s04",
       "step_ref": "step-4",
-      "caption": "Authorize Immediate Vendor Funds Disbursement",
-      "narration": "Secure prompt vendor payments with single-click authorization that enforces compliance rules and spending thresholds.",
+      "caption": "Approve Invoice",
+      "narration": "Approve Invoice. Kane checks the green seal before a video exists.",
       "audio": null,
       "audio_sec": 4.2,
       "segments": [
@@ -163,10 +163,10 @@
     {
       "id": "s05",
       "step_ref": "step-5",
-      "caption": "Verify Executive Approval Compliance Signoff",
-      "narration": "Ensure enterprise-grade audit readiness with cryptographic director signoffs applied instantly to every approved document.",
+      "caption": "Approved seal",
+      "narration": "The green Approved seal is the sign-off. No seal, no demo.",
       "audio": null,
-      "audio_sec": 4.2,
+      "audio_sec": 4.4,
       "segments": [
         {
           "kind": "idle",
@@ -200,8 +200,8 @@
     {
       "id": "s06",
       "step_ref": "step-6",
-      "caption": "Update General Ledger Balance Automatically",
-      "narration": "Maintain real-time financial accuracy as reconciled status and updated general ledger balances sync immediately.",
+      "caption": "INV-1001 is Approved",
+      "narration": "INV-1001 flips to Approved. The pending count drops.",
       "audio": null,
       "audio_sec": 4.966999999999999,
       "segments": [

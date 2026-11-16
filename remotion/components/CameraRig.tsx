@@ -8,6 +8,7 @@ interface CameraRigProps {
   zoom?: number;
   startFrame?: number;
   durationInFrames?: number;
+  punch?: boolean;
 }
 
 export const CameraRig: React.FC<CameraRigProps> = ({
@@ -16,6 +17,7 @@ export const CameraRig: React.FC<CameraRigProps> = ({
   zoom = 1.0,
   startFrame = 0,
   durationInFrames = 45,
+  punch = false,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -33,8 +35,15 @@ export const CameraRig: React.FC<CameraRigProps> = ({
     },
   });
 
-  // Calculate current zoom level
-  const currentZoom = interpolate(zoomProgress, [0, 1], [1.0, zoom]);
+  const punchAt = Math.floor(durationInFrames * 0.55);
+  const punchBump = punch
+    ? interpolate(relFrame, [punchAt, punchAt + 6, punchAt + 16], [0, 0.08, 0], {
+        extrapolateLeft: 'clamp',
+        extrapolateRight: 'clamp',
+      })
+    : 0;
+
+  const currentZoom = Math.min(2, interpolate(zoomProgress, [0, 1], [1.0, zoom]) + punchBump);
 
   // Center of target element
   const targetCenterX = target.x + target.w / 2;

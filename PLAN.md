@@ -20,6 +20,18 @@
 
 **Minimum that wins:** shoot loop with stop-on-bug, one Remotion template, narration or silent mode, one command. Everything else is extra.
 
+### Craft pass (Mon 16 Nov)
+
+Judges score Ships, Verified, Closed loop, and Craft at 25% each. Ties break on Verified, then Closed loop. Recordly and brag only inform Craft. The Kane loop stays the product.
+
+Take these three, and only these:
+
+1. **Click bounce and a short zoom punch** on scenes where `cursor.click` is true. The browser frame keeps its shadow and gains a 10px mat ring. Existing Remotion components only (`Cursor`, `CameraRig`, `BrowserFrame`).
+2. **Product words, held long enough to read.** Captions and narration name INV-1001, Acme, Approve Invoice, and the Approved seal. Shape is hook, reveal, two or three highlights, punchline. A line stays up for the whole scene. Banned: streamline, visibility, seamlessly, enterprise-grade.
+3. **`out/share-copy.txt`** written next to `demo.mp4` (title, one post, YouTube blurb) for the two required launch posts. A sample is committed at `examples/output/share-copy.txt`.
+
+Do not build Recordly's recorder, timeline, webcam, or marketplace. Its license is AGPL, so do not copy its code. Do not switch the renderer to Hyperframes, and do not add a music library or tone presets. None of that moves Verified or Closed loop. The Tuesday-night MP4 gate still comes first.
+
 ---
 
 ## 0. Do these first (30 minutes, today)
@@ -290,7 +302,7 @@ Kane's vision catches what DOM checks cannot: overlap, clipping, wrong highlight
 
 ### Camera
 
-- Zoom into `target` with an eased spring, finishing about 0.3 s before the click.
+- Zoom into `target` with an eased spring, finishing about 0.3 s before the click. On a click scene, add a short zoom punch (about +0.08) that returns. No punch above the 2.0 zoom cap.
 - Zoom cap around 1.6x to 1.8x unless the source is higher resolution (soft footage is the main quality risk).
 - Wide shot on page loads. Hold, then ease between targets; the camera move is the transition between steps.
 
@@ -302,11 +314,11 @@ Kane's vision catches what DOM checks cannot: overlap, clipping, wrong highlight
 
 ### Cursor
 
-- Synthesized (the real one may not be visible): smooth curved path between click points, click ripple on `click: true`.
+- Synthesized (the real one may not be visible): smooth path between click points, click ripple and a brief scale bounce on `click: true`.
 
 ### Narration and timing (audio first)
 
-1. LLM writes narration per scene: 10 to 15 words, present tense, benefit first, no "now we click".
+1. LLM writes narration per scene: 8 to 12 words, present tense, the product's own nouns (invoice id, button, seal). No "now we click". No generic SaaS lines (streamline, visibility, seamlessly). Scene 1 is the hook. The last scene is the punchline. The line stays on screen for the whole scene.
 2. Generate TTS per scene (cache by hash of text and voice). Measure with `ffprobe`.
 3. `scene_len = max(audio_sec + 0.4, action_len_after_speed)`.
 4. If the action is shorter than the narration: hold the last frame or slow down to no less than 0.75x. If longer: speed up idle first, then trim.

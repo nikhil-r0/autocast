@@ -46,6 +46,14 @@ export const Cursor: React.FC<CursorProps> = ({
 
   const rippleScale = interpolate(clickProgress, [0, 1], [0.5, 2.2]);
   const rippleOpacity = interpolate(clickProgress, [0, 0.2, 1], [0, 0.8, 0]);
+  const bounce = click
+    ? interpolate(
+        relFrame,
+        [clickStartFrame, clickStartFrame + 3, clickStartFrame + 10],
+        [1, 0.82, 1],
+        { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
+      )
+    : 1;
 
   return (
     <div
@@ -85,6 +93,7 @@ export const Cursor: React.FC<CursorProps> = ({
         xmlns="http://www.w3.org/2000/svg"
         style={{
           filter: 'drop-shadow(0px 3px 6px rgba(0, 0, 0, 0.5))',
+          scale: bounce,
         }}
       >
         <path

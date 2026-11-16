@@ -45,7 +45,9 @@ export function buildStoryboard(
       Math.round(targetRect.y + targetRect.h / 2),
     ];
 
-    const sceneDuration = Math.max(4.2, seg.srcEnd - seg.srcStart);
+    const words = narrationItem.narration.trim().split(/\s+/).filter(Boolean).length;
+    const readableSec = Math.round((words * 0.3 + 0.8) * 10) / 10;
+    const sceneDuration = Math.max(4.2, seg.srcEnd - seg.srcStart, readableSec);
     const zoom = zoomLevels[i] ?? 1.15;
 
     scenes.push({

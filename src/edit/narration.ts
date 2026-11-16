@@ -16,33 +16,33 @@ export interface SceneNarration {
 const DEFAULT_NARRATIONS: SceneNarration[] = [
   {
     stepIndex: 1,
-    caption: 'Accounts Payable Dashboard',
-    narration: 'Gain complete real-time visibility over vendor disbursements, pending authorizations, and processing SLAs in one centralized view.',
+    caption: 'Three invoices waiting',
+    narration: 'INV-1001 from Acme is pending. Two more sit behind it.',
   },
   {
     stepIndex: 2,
-    caption: 'Select Invoice for Review',
-    narration: 'Instantly surface flagged disbursements and initiate structured compliance reviews with a single click.',
+    caption: 'Open INV-1001',
+    narration: 'The drawer lists Cloud Infrastructure, SSL testing, due Nov 24.',
   },
   {
     stepIndex: 3,
-    caption: 'Verify Line Items & Terms',
-    narration: 'Thoroughly audit itemized infrastructure fees, net payment terms, and vendor billing contracts prior to disbursement.',
+    caption: 'Acme, $4,850.00',
+    narration: "Acme's bill is $4,850.00 for architecture hours and SSL testing.",
   },
   {
     stepIndex: 4,
-    caption: 'Authorize Disbursement',
-    narration: 'Release payments instantly to maintain vendor trust while enforcing corporate spending controls.',
+    caption: 'Approve Invoice',
+    narration: 'Approve Invoice. Kane checks the green seal before a video exists.',
   },
   {
     stepIndex: 5,
-    caption: 'Verified Digital Seal',
-    narration: 'A cryptographic approval seal confirms authorized signoff and locks the immutable audit trail.',
+    caption: 'Approved seal',
+    narration: 'The green Approved seal is the sign-off. No seal, no demo.',
   },
   {
     stepIndex: 6,
-    caption: 'Reconciled Ledger Update',
-    narration: 'Reconcile the accounts payable register immediately, synchronizing company books and SLA metrics.',
+    caption: 'INV-1001 is Approved',
+    narration: 'INV-1001 flips to Approved. The pending count drops.',
   },
 ];
 
@@ -62,21 +62,23 @@ export async function generateNarration(
 
   const prompt = `
 You are the Scriptwriter & Demo Director for Autocast AI.
-Write punchy, professional, benefit-driven captions and voiceover narration for a ${sceneCount}-scene demo video.
+Write captions and narration for a ${sceneCount}-scene demo of this exact app. Use the product's own words.
 
 Demo Title: "${demoTitle}"
 Scene Breakdown:
-1. Central accounts payable dashboard overview showing pending invoices and metrics.
-2. Clicking invoice INV-1001 "Review Invoice" to open the review drawer.
-3. Reviewing itemized charges and payment terms in the drawer.
-4. Clicking "Approve Invoice" to authorize disbursement.
-5. Verifying the green "Approved" seal stamp with director signoff.
-6. Dismissing the modal to show the updated table with approved status and reconciled ledger.
+1. Hook. Pending list: INV-1001 Acme $4,850.00, plus INV-1002 and INV-1003.
+2. Reveal. Open INV-1001. Drawer shows Cloud Infrastructure Architecture and Automated Penetration & SSL Testing, due Nov 24.
+3. Highlight. Line items total $4,850.00.
+4. Highlight. The button label is "Approve Invoice".
+5. Highlight. A green seal reads "Approved". This is the check Kane must see.
+6. Punchline. The row flips to Approved and the pending count drops.
 
 Rules:
 1. Provide exactly ${sceneCount} scene items.
-2. "caption": A concise UI sidebar label (3-6 words, title case, e.g. "Select Invoice for Review", "Authorize Disbursement").
-3. "narration": 12 to 18 words per scene. Present tense, benefit first. NEVER say "Now we click" or "Here the user clicks". State the user benefit and system outcome.
+2. "caption": 2-5 words a viewer can read in under a second. Use invoice ids and button labels, not slogans.
+3. "narration": 8 to 12 words. Present tense. Name INV-1001, Acme, Approve Invoice, or the Approved seal when that scene shows them.
+4. Scene 1 is the hook. The last scene is the punchline. Do not say "now we click".
+5. Banned words: streamline, visibility, seamlessly, enterprise-grade, leverage, unlock, centralized.
 
 Output JSON ONLY in this format:
 [
