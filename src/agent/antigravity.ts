@@ -114,11 +114,15 @@ IMPORTANT INSTRUCTIONS:
     exitCode = res.code;
   } else {
     const timeoutMs = 360000;
-    const agyProcess = spawn(agyBinary, ['-p', prompt, '--mode', 'accept-edits', '--output-format', 'json'], {
-      cwd: request.worktreeDir,
-      env: { ...process.env },
-      detached: true,
-    });
+    const agyProcess = spawn(
+      agyBinary,
+      ['-p', prompt, '--mode', 'accept-edits', '--output-format', 'json', '--dangerously-skip-permissions'],
+      {
+        cwd: request.worktreeDir,
+        env: { ...process.env },
+        detached: true,
+      }
+    );
 
     let timedOut = false;
     const timer = setTimeout(() => {
