@@ -85,7 +85,7 @@ Return JSON ONLY in this format:
   try {
     const generatePromise = model.generateContent(prompt);
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('Gemini API timeout (10s)')), 10000)
+      setTimeout(() => reject(new Error('Gemini API timeout (25s)')), 25000)
     );
     const result = await Promise.race([generatePromise, timeoutPromise]);
     const text = result.response.text();

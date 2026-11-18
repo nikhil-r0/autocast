@@ -32,7 +32,8 @@ dotenv.config();
 
 async function getServerHealth(url: string): Promise<{ ok: boolean; bug?: string | null; commit?: string } | null> {
   try {
-    const res = await fetch(`${url}/api/health`);
+    const origin = url.startsWith('http') ? new URL(url).origin : url;
+    const res = await fetch(`${origin}/api/health`);
     if (!res.ok) return null;
     const body: any = await res.json();
     return { ok: true, bug: body.bug || null, commit: body.commit };
@@ -344,7 +345,7 @@ async function main() {
             });
 
             // 5. Verify root server is healthy and serving the integrated commit
-            const rootHealth = await getServerHealth(appUrl);
+            const rootHealth = await getServerHealth(apiBase);
             if (!rootHealth?.ok) {
               console.error('[Closed Loop Repair] FATAL: Merged root application failed health check after restart.');
               process.exit(1);
