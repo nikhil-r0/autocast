@@ -8,9 +8,10 @@
     "autocast": "./bin/autocast.js"
   },
   "scripts": {
-    "app": "node examples/invoice-app/server.js",
+    "app": "node examples/ledgerly/server/index.js",
     "demo": "tsx src/cli.ts",
     "render": "remotion render Demo out/demo.mp4 --codec=h264",
+    "render:showcase": "remotion render AutoCastShowcase out/autocast-hackathon-demo.mp4 --codec=h264",
     "preview": "remotion preview remotion/index.ts",
     "lint:storyboard": "tsx src/edit/lint.ts",
     "test": "node --import tsx --test 'tests/**/*.test.ts'",

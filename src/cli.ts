@@ -354,7 +354,19 @@ async function main() {
         visualQaMetadata.flagged_frames = failedFrameNums;
       }
 
-      console.log(`[Visual QA] Retry budget is spent (1 retry maximum). Proceeding to render demo MP4.`);
+      if (visualQaMetadata.status !== 'passed') {
+        const allowUnverified = args.includes('--allow-unverified') || args.includes('--force');
+        if (!allowUnverified) {
+          console.error(`\n🚨 AUTOCAST RELEASE GATE HALT: Visual QA flagged unresolved defect(s) on frame(s): ${visualQaMetadata.flagged_frames?.join(', ')}.`);
+          console.error('As per Autocast policy: Demos cannot lie or ship visual defects. Rendering halted.');
+          console.error('(To render an unverified draft for inspection, supply --allow-unverified or --skip-review.)');
+          process.exit(1);
+        } else {
+          console.warn(`[Visual QA] --allow-unverified specified. Proceeding to render unverified draft MP4.`);
+        }
+      } else {
+        console.log(`[Visual QA] Visual QA passed. Proceeding to render verified demo MP4.`);
+      }
     }
   } else {
     console.log('\n[Visual QA] Skipped via --skip-review flag (STAMPED AS UNVERIFIED DRAFT).');
@@ -443,7 +455,7 @@ async function main() {
   } catch {}
 
   const manifest = generateRunManifest({
-    status: skipReview ? 'unverified_draft' : 'verified',
+    status: (skipReview || visualQaMetadata.status !== 'passed') ? 'unverified_draft' : 'verified',
     applicationUrl: appUrl,
     baselineCommit,
     testedCommit,

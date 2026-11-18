@@ -1,0 +1,16 @@
+--- a/examples/ledgerly/server/index.js
++++ b/examples/ledgerly/server/index.js
+@@ -137,10 +137,11 @@ app.post('/api/invoices/:id/approve', async (req, res) => {
+ 
+   // Bug Injection: approve-noop (returns success toast payload, but leaves status Pending)
+   if (process.env.APP_BUG === 'approve-noop') {
++    invoice.status = 'Approved';
+     return res.json({
+       success: true,
+       id,
+-      status: invoice.status, // stays Pending!
++      status: invoice.status,
+       message: `Invoice ${id} approved`,
+     });
+   }
+

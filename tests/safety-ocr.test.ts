@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import * as fs from 'fs';
+import * as path from 'path';
 import { DEFAULT_REDACTION_RULES, redactSecrets } from '../src/edit/redact.js';
+import { scanVideoPixelsForSecrets } from '../src/edit/ocrScan.js';
 
 test('TEST-12: Injected fake Stripe live key (sk_live_...) -> Detected and redacted', () => {
   const fakeSecret = 'sk_live_abc12345678901234567';
@@ -27,4 +30,23 @@ test('TEST-18: Secret in transition frame text / payload -> Detected across all 
     assert.equal(res.text.includes(s.val), false);
   }
 });
+
+test('TEST-20: Pixel Safety OCR fails closed when zero frames extracted', async () => {
+  // Create an empty dummy file that ffmpeg cannot extract frames from
+  const dummyVideo = path.join(process.cwd(), 'out', 'dummy-empty.mp4');
+  fs.mkdirSync(path.dirname(dummyVideo), { recursive: true });
+  fs.writeFileSync(dummyVideo, 'not a valid video');
+
+  try {
+    const result = await scanVideoPixelsForSecrets(dummyVideo, [100.0]);
+    assert.equal(result.passed, false, 'Must fail closed when no frames extracted');
+    assert.equal(result.framesScanned, 0);
+    assert.ok(result.error);
+  } finally {
+    if (fs.existsSync(dummyVideo)) {
+      fs.unlinkSync(dummyVideo);
+    }
+  }
+});
+
 

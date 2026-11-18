@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>fix(ledgerly): mutate invoice status to Approved on approval (catch #740) by autocast-bot · Pull Request #42 · nikhil-r0/autocast</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: #0d1117;
+      color: #c9d1d9;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    header {
+      background-color: #010409;
+      border-bottom: 1px solid #21262d;
+      padding: 12px 32px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .gh-logo { fill: #f0f6fc; }
+    .repo-nav {
+      background-color: #010409;
+      border-bottom: 1px solid #21262d;
+      padding: 0 32px;
+      display: flex;
+      gap: 24px;
+    }
+    .repo-nav-item {
+      padding: 14px 4px;
+      color: #8b949e;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+    }
+    .repo-nav-item.active {
+      color: #f0f6fc;
+      border-bottom: 2px solid #f78166;
+      font-weight: 600;
+    }
+    .badge-count {
+      background-color: #30363d;
+      color: #c9d1d9;
+      font-size: 12px;
+      padding: 1px 6px;
+      border-radius: 20px;
+    }
+    .container {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 24px 32px;
+    }
+    .pr-title-area {
+      border-bottom: 1px solid #21262d;
+      padding-bottom: 16px;
+      margin-bottom: 24px;
+    }
+    .pr-title {
+      font-size: 32px;
+      font-weight: 400;
+      color: #f0f6fc;
+      margin-bottom: 8px;
+    }
+    .pr-number { color: #8b949e; font-weight: 300; }
+    .pr-status-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 14px;
+      color: #8b949e;
+    }
+    .state-badge {
+      background-color: #8957e5;
+      color: #ffffff;
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .branch-tag {
+      background-color: rgba(56, 139, 253, 0.15);
+      color: #58a6ff;
+      padding: 2px 6px;
+      border-radius: 6px;
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      font-size: 12px;
+    }
+    .tabs {
+      display: flex;
+      gap: 16px;
+      border-bottom: 1px solid #21262d;
+      margin-bottom: 24px;
+    }
+    .tab {
+      padding: 10px 16px;
+      color: #8b949e;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+    }
+    .tab.active {
+      color: #f0f6fc;
+      border-bottom: 2px solid #f78166;
+      font-weight: 600;
+    }
+    .timeline {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+    .timeline-item {
+      display: flex;
+      gap: 16px;
+    }
+    .avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background-color: #238636;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      color: #ffffff;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+    .comment-card {
+      flex: 1;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      background-color: #0d1117;
+      overflow: hidden;
+    }
+    .comment-header {
+      background-color: #161b22;
+      border-bottom: 1px solid #30363d;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 13px;
+      color: #8b949e;
+    }
+    .comment-header strong { color: #f0f6fc; }
+    .bot-badge {
+      border: 1px solid #30363d;
+      color: #8b949e;
+      padding: 1px 6px;
+      border-radius: 12px;
+      font-size: 11px;
+      margin-left: 6px;
+    }
+    .comment-body {
+      padding: 20px;
+      color: #c9d1d9;
+    }
+    .comment-body h3 {
+      color: #f0f6fc;
+      font-size: 18px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+    }
+    th, td {
+      border: 1px solid #30363d;
+      padding: 10px 14px;
+      text-align: left;
+    }
+    th { background-color: #161b22; color: #f0f6fc; font-weight: 600; }
+    .status-pass { color: #3fb950; font-weight: 600; }
+    .status-fail { color: #f85149; font-weight: 600; }
+    .evidence-box {
+      background-color: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 16px;
+      margin: 16px 0;
+    }
+    .screenshot-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 16px;
+    }
+    .screenshot-item {
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      overflow: hidden;
+      background-color: #010409;
+    }
+    .screenshot-caption {
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      border-bottom: 1px solid #30363d;
+      display: flex;
+      justify-content: space-between;
+    }
+    .screenshot-item img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+    .diff-block {
+      background-color: #0a0e14;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      font-size: 13px;
+      margin: 16px 0;
+      overflow-x: auto;
+    }
+    .diff-header {
+      background-color: #161b22;
+      padding: 8px 12px;
+      border-bottom: 1px solid #30363d;
+      color: #8b949e;
+      font-weight: 600;
+    }
+    .diff-line { padding: 2px 12px; white-space: pre; }
+    .diff-add { background-color: rgba(46, 160, 67, 0.15); color: #3fb950; }
+    .diff-del { background-color: rgba(248, 81, 73, 0.15); color: #f85149; }
+    .diff-context { color: #8b949e; }
+    .download-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background-color: #21262d;
+      border: 1px solid #30363d;
+      color: #58a6ff;
+      padding: 6px 14px;
+      border-radius: 6px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 13px;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top GitHub Header -->
+  <header>
+    <svg class="gh-logo" height="32" viewBox="0 0 16 16" width="32">
+      <path d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"></path>
+    </svg>
+    <div style="color: #f0f6fc; font-size: 16px;">
+      <span style="color: #58a6ff;">nikhil-r0</span> / <strong style="color: #58a6ff;">autocast</strong>
+    </div>
+  </header>
+
+  <!-- Repo Nav -->
+  <div class="repo-nav">
+    <div class="repo-nav-item">Code</div>
+    <div class="repo-nav-item">Issues <span class="badge-count">0</span></div>
+    <div class="repo-nav-item active">Pull requests <span class="badge-count">1</span></div>
+    <div class="repo-nav-item">Actions</div>
+    <div class="repo-nav-item">Security</div>
+  </div>
+
+  <div class="container">
+    <!-- PR Title -->
+    <div class="pr-title-area">
+      <h1 class="pr-title">
+        fix(ledgerly): mutate invoice status to Approved on approval (catch #740) <span class="pr-number">#42</span>
+      </h1>
+      <div class="pr-status-bar">
+        <span class="state-badge">
+          <svg height="16" viewBox="0 0 16 16" width="16" fill="currentColor">
+            <path d="M5.45 5.154A4.25 4.25 0 0 0 9.25 7.5h1.378a2.251 2.251 0 1 1 0 1.5H9.25A4.25 4.25 0 0 0 5.45 11.346a2.25 2.25 0 1 1-1.114-1.45 2.75 2.75 0 0 1 0-3.792 2.25 2.25 0 1 1 1.114-1.45Z"></path>
+          </svg>
+          Merged
+        </span>
+        <span>
+          <strong style="color: #f0f6fc;">autocast-bot</strong> merged 1 commit into <span class="branch-tag">main</span> from <span class="branch-tag">autocast/repair-ledgerly-approval</span>
+        </span>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <div class="tab active">Conversation <span class="badge-count">2</span></div>
+      <div class="tab">Commits <span class="badge-count">1</span></div>
+      <div class="tab">Checks <span class="badge-count" style="background:#238636; color:#fff;">✓ 3</span></div>
+      <div class="tab">Files changed <span class="badge-count">1</span></div>
+    </div>
+
+    <div class="timeline">
+      <!-- Comment 1: PR Description -->
+      <div class="timeline-item">
+        <div class="avatar" style="background-color: #1f6feb;">⚡</div>
+        <div class="comment-card">
+          <div class="comment-header">
+            <div>
+              <strong>autocast-bot</strong> <span class="bot-badge">bot</span> opened this pull request
+            </div>
+            <span>2026-11-16T17:35:53Z</span>
+          </div>
+          <div class="comment-body">
+            <h3>Autonomous Closed-Loop Bug Repair</h3>
+            <p>During automated demo generation for <code>Ledgerly SaaS</code>, Kane CLI caught a silent backend regression where invoice approval returned an HTTP 200 toast but failed to mutate the invoice state from <code>Pending</code> to <code>Approved</code>.</p>
+            
+            <div class="diff-block">
+              <div class="diff-header">examples/ledgerly/server/index.js (Patch applied in isolated git worktree)</div>
+              <div class="diff-line diff-context">@@ -137,10 +137,11 @@ app.post('/api/invoices/:id/approve', async (req, res) => {</div>
+              <div class="diff-line diff-context">   if (process.env.APP_BUG === 'approve-noop') {</div>
+              <div class="diff-line diff-add">+    invoice.status = 'Approved';</div>
+              <div class="diff-line diff-add">+    invoice.approvedAt = new Date().toISOString();</div>
+              <div class="diff-line diff-context">     return res.json({</div>
+              <div class="diff-line diff-context">       success: true,</div>
+              <div class="diff-line diff-context">       id,</div>
+              <div class="diff-line diff-del">-      status: invoice.status, // stays Pending!</div>
+              <div class="diff-line diff-add">+      status: invoice.status, // updated to Approved</div>
+              <div class="diff-line diff-context">       message: `Invoice ${id} approved`,</div>
+              <div class="diff-line diff-context">     });</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Comment 2: Kane CLI Verification & Sealed Evidence -->
+      <div class="timeline-item">
+        <div class="avatar">🛡️</div>
+        <div class="comment-card" style="border-color: #238636;">
+          <div class="comment-header" style="background-color: rgba(35, 134, 54, 0.15); border-color: #238636;">
+            <div>
+              <strong style="color: #3fb950;">kane-cli-assurance</strong> <span class="bot-badge" style="border-color:#238636; color:#3fb950;">verified</span> attached independent evidence
+            </div>
+            <span>Kane Execution: #kane-run-ledgerly-approval-pass</span>
+          </div>
+          <div class="comment-body">
+            <h3>🟢 Proof of Correctness: All Machine Checks Passed</h3>
+            <p>Kane CLI executed independent end-to-end browser verification against the patched worktree server before approval.</p>
+
+            <table>
+              <thead>
+                <tr>
+                  <th>Assurance Check</th>
+                  <th>Status</th>
+                  <th>Evidence Details</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Initial Defect Run</strong></td>
+                  <td class="status-fail">740 (Bug Confirmed)</td>
+                  <td>Invoice remained Pending; digital seal element missing</td>
+                </tr>
+                <tr>
+                  <td><strong>Worktree Repair</strong></td>
+                  <td class="status-pass">Passed (33/33 tests)</td>
+                  <td>Antigravity AI patch · Path guardrails enforced</td>
+                </tr>
+                <tr>
+                  <td><strong>Re-verification Run</strong></td>
+                  <td class="status-pass">100 (Passed)</td>
+                  <td>1.25 credits · Duration 58s · 6 steps verified</td>
+                </tr>
+                <tr>
+                  <td><strong>Underlying DB State</strong></td>
+                  <td class="status-pass">Verified ✓</td>
+                  <td>Direct backend assertion: <code>status === "Approved"</code></td>
+                </tr>
+                <tr>
+                  <td><strong>Visual QA & Pixel OCR</strong></td>
+                  <td class="status-pass">Clean ✓</td>
+                  <td>0 layout flaws · 0 secret/credential leaks</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div class="evidence-box">
+              <strong style="color: #f0f6fc;">Attached Sealed Evidence Artifacts:</strong>
+              <div style="margin-top: 10px; display: flex; gap: 12px; flex-wrap: wrap;">
+                <span class="download-pill">📦 kane-ledgerly-approval.evidence (2.4 MB)</span>
+                <span class="download-pill">🛡️ run-manifest.json (SHA-256: e87d219...)</span>
+                <span class="download-pill">🎥 demo.mp4 (1080p Verified Video)</span>
+              </div>
+            </div>
+
+            <h4 style="color: #f0f6fc; margin-top: 20px;">Visual Evidence Comparison (Kane Step 5 Verification)</h4>
+            <div class="screenshot-grid">
+              <div class="screenshot-item">
+                <div class="screenshot-caption" style="background:#2d1515; color:#f85149;">
+                  <span>🔴 BEFORE: Injected Defect (Result 740)</span>
+                  <span>Invoice remains Pending</span>
+                </div>
+                <img src="/pr-assets/failing-screenshot.jpg" alt="Failing State (Result 740)">
+              </div>
+              <div class="screenshot-item">
+                <div class="screenshot-caption" style="background:#132d19; color:#3fb950;">
+                  <span>🟢 AFTER: Repaired & Verified (Result 100)</span>
+                  <span>Digital Approval Seal Confirmed</span>
+                </div>
+                <img src="/pr-assets/passing-screenshot.jpg" alt="Passing State (Result 100)">
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
+

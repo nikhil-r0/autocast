@@ -3,6 +3,7 @@ node_modules/
 .env.*
 !.env.example
 out/
+tools/
 .testmuai/
 .worktrees/
 .quarantine/
@@ -10,5 +11,6 @@ out/
 *.ndjson
 dist/
 public/raw-captures/
+public/raw-pr-captures/
 public/*.mp4
 *.traineddata

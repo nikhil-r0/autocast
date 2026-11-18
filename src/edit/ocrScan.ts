@@ -12,6 +12,20 @@ export interface OcrScanResult {
     ruleName: string;
     matchedText: string;
   }>;
+  error?: string;
+}
+
+function getVideoDurationSec(videoPath: string): number {
+  try {
+    const stdout = execSync(
+      `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${videoPath}"`,
+      { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }
+    ).trim();
+    const dur = parseFloat(stdout);
+    return isNaN(dur) || dur <= 0 ? 0 : dur;
+  } catch {
+    return 0;
+  }
 }
 
 /**
@@ -20,7 +34,7 @@ export interface OcrScanResult {
  */
 export async function scanVideoPixelsForSecrets(
   videoPath: string,
-  sampleTimestampsSec: number[] = [3.0, 10.0, 18.0, 24.0]
+  sampleTimestampsSec?: number[]
 ): Promise<OcrScanResult> {
   console.log(`\n[Pixel Safety OCR] Auditing rendered frames from ${path.basename(videoPath)}...`);
 
@@ -33,11 +47,22 @@ export async function scanVideoPixelsForSecrets(
     fs.mkdirSync(tmpDir, { recursive: true });
   }
 
+  let timestamps = sampleTimestampsSec;
+  if (!timestamps || timestamps.length === 0) {
+    const duration = getVideoDurationSec(videoPath);
+    if (duration > 4) {
+      const fractions = [0.15, 0.30, 0.45, 0.60, 0.75, 0.90];
+      timestamps = fractions.map((f) => Math.round(duration * f * 10) / 10);
+    } else {
+      timestamps = [1.0, 2.0, 3.0, 4.0];
+    }
+  }
+
   const detectedSecrets: OcrScanResult['detectedSecrets'] = [];
 
   // Extract frames using ffmpeg
   const framePaths: Array<{ timeSec: number; filePath: string }> = [];
-  for (const timeSec of sampleTimestampsSec) {
+  for (const timeSec of timestamps) {
     const framePath = path.join(tmpDir, `ocr-frame-${timeSec}s.jpg`);
     try {
       execSync(
@@ -53,11 +78,12 @@ export async function scanVideoPixelsForSecrets(
   }
 
   if (framePaths.length === 0) {
-    console.warn('[Pixel Safety OCR] No frames extracted for audit.');
-    return { passed: true, framesScanned: 0, detectedSecrets: [] };
+    console.error('[Pixel Safety OCR] ✗ FAILED: No frames could be extracted for security audit. Failing closed.');
+    return { passed: false, framesScanned: 0, detectedSecrets: [], error: 'No frames extracted for audit' };
   }
 
   let worker: any = null;
+  let ocrError: string | null = null;
   try {
     worker = await createWorker('eng');
 
@@ -89,7 +115,8 @@ export async function scanVideoPixelsForSecrets(
       } catch {}
     }
   } catch (err: any) {
-    console.warn('[Pixel Safety OCR] Worker warning (falling back to regex check):', err.message);
+    ocrError = err?.message || 'OCR worker execution failed';
+    console.error('[Pixel Safety OCR] ✗ OCR worker failure (failing closed):', ocrError);
   } finally {
     if (worker) {
       await worker.terminate();
@@ -101,17 +128,18 @@ export async function scanVideoPixelsForSecrets(
     } catch {}
   }
 
-  const passed = detectedSecrets.length === 0;
+  const passed = detectedSecrets.length === 0 && !ocrError;
   if (passed) {
     console.log(`[Pixel Safety OCR] ✓ All ${framePaths.length} sampled frames passed pixel redaction audit (0 secret leaks).`);
   } else {
-    console.error(`[Pixel Safety OCR] ✗ FAILED: ${detectedSecrets.length} secret leaks found in video pixels!`);
+    console.error(`[Pixel Safety OCR] ✗ FAILED: ${detectedSecrets.length} secret leaks found in video pixels!${ocrError ? ` (Error: ${ocrError})` : ''}`);
   }
 
   return {
     passed,
     framesScanned: framePaths.length,
     detectedSecrets,
+    ...(ocrError ? { error: ocrError } : {}),
   };
 }
 

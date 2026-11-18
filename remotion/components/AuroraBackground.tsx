@@ -56,8 +56,8 @@ export const AuroraBackground: React.FC<AuroraBackgroundProps> = ({
       <div
         style={{
           position: 'absolute',
-          inset: -100,
-          filter: 'blur(95px) saturate(150%)',
+          inset: -60,
+          filter: 'blur(35px)',
           transform: 'translateZ(0)',
           willChange: 'transform',
         }}

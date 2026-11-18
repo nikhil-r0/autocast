@@ -24,6 +24,15 @@ export interface ReplayResult {
   segments: ReplaySegment[];
 }
 
+/**
+ * Replays and records the verified browser workflow in 1080p using Playwright.
+ * 
+ * Note on Scope:
+ * While Action IR parsing and Machine OutcomeSpec verification are generalized,
+ * the cinematic camera choreography, cursor easing, and 6-scene sequence below
+ * are tailored specifically to the Ledgerly invoice approval flow for this demo.
+ * Arbitrary-app dynamic replay is on the post-hackathon roadmap.
+ */
 export async function replayAndRecord(
   steps: KaneStep[],
   startUrl: string = 'http://localhost:8080',
