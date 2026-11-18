@@ -145,16 +145,6 @@ app.post('/api/invoices/:id/approve', async (req, res) => {
     return res.status(404).json({ error: 'Invoice not found' });
   }
 
-  // Bug Injection: approve-noop (returns success toast payload, but leaves status Pending)
-  if (process.env.APP_BUG === 'approve-noop') {
-    return res.json({
-      success: true,
-      id,
-      status: invoice.status, // stays Pending!
-      message: `Invoice ${id} approved`,
-    });
-  }
-
   const prevStatus = invoice.status;
   invoice.status = 'Approved';
   invoice.approvalNote = note || 'Approved via standard executive authorization';
