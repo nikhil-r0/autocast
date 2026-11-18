@@ -110,10 +110,4 @@ export const ManifestBadge: React.FC<ManifestBadgeProps> = ({
     </div>
   );
 };
-          <span style={{ color: '#fbbf24' }}>{videoSha256}</span>
-        </div>
-      </div>
-    </div>
-  );
-};
 
