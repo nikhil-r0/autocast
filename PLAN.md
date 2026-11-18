@@ -577,8 +577,8 @@ flowchart TD
 ### Phase 0: Preflight & Environment Audit
 - Verify clean Git tree and branch synchronization with `origin/main`.
 - Verify port ownership: `src/app/lifecycle.ts` checks process cmdline before signaling termination.
-- Validate test suite: `npm run typecheck && npm test` (all 33 automated tests pass).
-- Ensure bug injection healthcheck readiness: `src/cli.ts` verifies `health.bug === 'approve-noop'` and restarts application if an unbugged instance is running.
+- Validate test suite: `npm run typecheck && npm test` (all 34 automated unit tests pass).
+- Ensure bug injection healthcheck readiness: `src/cli.ts` verifies `health.bug === 'approve-noop'` via `/api/health` and restarts application if an unbugged instance is running.
 
 ### Phase 1: Produce the Closed-Loop Self-Demonstration
 Execute the core AutoCast pipeline with bug injection:
@@ -586,12 +586,12 @@ Execute the core AutoCast pipeline with bug injection:
 APP_BUG=approve-noop npm run demo -- \
   "Create a cinematic product demo of the invoice approval workflow in Ledgerly. Show the pending approvals dashboard, open invoice INV-1042, inspect its line items, enter an approval note, approve the invoice, and verify the Approved status and digital approval seal."
 ```
-- **Kane Run 1**: Fails with `Result: 740 · Confirmed product bug` (`approve-noop`).
+- **Kane Run 1**: Fails with `Result: 740 · Confirmed product bug` (`approve-noop`). Genuine defect verdict saved to `out/initial-failure-summary.json`.
 - **Antigravity AI**: Clones isolated worktree `.worktrees/repair-*`, enforces read-only `tests/**`, runs worktree regression command `npm test`, applies verified patch to `examples/ledgerly/server/index.js`.
-- **Candidate Verification**: 33 unit regression tests pass; candidate server starts on commit `9ef4bade88e`.
+- **Candidate Verification**: 34 unit regression tests pass; candidate server starts on commit `9ef4bade88e`.
 - **Kane Run 2**: Re-executes full browser journey, certifies `Result: 100 · Passed`.
 - **State Check**: Independent backend verification (`/api/invoices/INV-1042`) confirms `status === 'Approved'` (hard-aborts if false).
-- **Playwright Capture**: Replays verified workflow in 1080p -> `public/source.mp4`.
+- **Playwright Capture**: Replays verified workflow in 1080p -> `out/demo.mp4` and copies to `public/source.mp4`.
 - **Visual QA & OCR Audit**: Checks rendered frames; generates `out/run-manifest.json` and Stage 1 base props `out/showcase-props.base.json`.
 
 ### Phase 2: Public Evidence Generation & Live GitHub PR Creation
@@ -599,7 +599,7 @@ APP_BUG=approve-noop npm run demo -- \
    ```bash
    npm run evidence:public
    ```
-   *(Regenerates `docs/catches/catch-ledgerly-approval/` with `README.md`, `failure-summary.json`, `success-summary.json`, `patch.diff`, and `run-manifest.json`)*
+   *(Fails closed if genuine Kane failure evidence, patch, or state verification is missing. Regenerates `docs/catches/catch-ledgerly-approval/` with `README.md`, `failure-summary.json`, `success-summary.json`, `patch.diff`, and `run-manifest.json`)*
 2. Integrate the verified candidate commit into the PR branch:
    ```bash
    git checkout -b fix/ledgerly-approve-noop
@@ -635,7 +635,7 @@ APP_BUG=approve-noop npm run demo -- \
    ```bash
    PR_URL="https://github.com/nikhil-r0/autocast/pull/<PR_ID>" npm run finalize:showcase
    ```
-   *(Validates `public/source.mp4` and `public/pr-recording.mp4` exist, computes their SHA-256 hashes, verifies `out/run-manifest.json`, and writes `out/showcase-props.json`)*
+   *(Validates `public/source.mp4` and `public/pr-recording.mp4` exist, computes their SHA-256 hashes, verifies `out/run-manifest.json`, and writes `out/showcase-props.json` with zero fallbacks)*
 2. Run the standalone auditor to enforce all mandatory release gates:
    ```bash
    npm run verify:provenance
@@ -646,7 +646,7 @@ APP_BUG=approve-noop npm run demo -- \
      3. `kane_verification.result_code === 100`
      4. `visual_qa.status === 'passed'`
      5. `security_scan.status === 'clean'`
-     6. `video.sha256` exact binary match with `out/demo.mp4`
+     6. `video.sha256` and `poster.sha256` exact binary match with rendered artifacts on disk
 
 ### Phase 5: Render Final 3:45 Showcase Presentation
 Render the Remotion composition dynamically bound to `out/showcase-props.json`:
@@ -658,6 +658,12 @@ npm run render:showcase
 ### Phase 6: Post-Render Technical Validation & Showcase Manifest Seal
 Audit the rendered 3:45 presentation:
 ```bash
+npm run verify:showcase
+```
+- Inspects technical properties via FFprobe: 1920x1080, H.264, probed 30 FPS (`r_frame_rate: 30/1`), decodable audio stream present, duration 225s ± 5s (220s - 230s).
+- Validates source demo run manifest and PR recording on disk and matches checksums.
+- Computes SHA-256 checksum of `out/autocast-hackathon-showcase.mp4`.
+- Emits and seals `out/showcase-manifest.json` with provenance links to the live PR URL, tested commit, and source video checksums (fails closed if any gate fails).
 npm run verify:showcase
 ```
 - Inspects technical properties via FFprobe (1920x1080, H.264, 30 FPS, audio stream present, 225s ± 5s duration).

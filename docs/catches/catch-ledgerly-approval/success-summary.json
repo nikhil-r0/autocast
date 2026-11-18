@@ -1,7 +1,7 @@
 {
   "result_code": 100,
   "status": "passed",
-  "steps_verified": 6,
+  "steps_verified": 3,
   "claims": [
     {
       "id": "c1",

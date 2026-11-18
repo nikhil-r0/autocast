@@ -37,12 +37,12 @@ async function finalizeShowcase() {
   // 2. Discover / Validate GitHub PR
   let prUrl = process.env.PR_URL;
   let prNumber: number | undefined = process.env.PR_NUMBER ? parseInt(process.env.PR_NUMBER, 10) : undefined;
-  let branch = process.env.PR_BRANCH || baseProps.branch || 'fix/ledgerly-approve-noop';
+  let branch = process.env.PR_BRANCH || baseProps.branch || null;
 
   if (!prUrl) {
     try {
-      console.log(`[Finalize] Querying GitHub CLI for PR on branch '${branch}'...`);
-      const prJsonRaw = execSync(`gh pr view ${branch} --json url,number,headRefName 2>/dev/null || true`, {
+      console.log(`[Finalize] Querying GitHub CLI for PR on branch '${branch || 'HEAD'}'...`);
+      const prJsonRaw = execSync(`gh pr view ${branch || ''} --json url,number,headRefName 2>/dev/null || true`, {
         encoding: 'utf-8',
       }).trim();
       if (prJsonRaw) {
@@ -68,9 +68,15 @@ async function finalizeShowcase() {
     console.warn('[Finalize] WARNING: No live PR_URL provided. Operating in unverified / staged PR mode.');
   }
 
-  // 3. Verify Artifacts
+  // 3. Verify Artifacts (sync from out/demo.mp4 to public/source.mp4 if needed)
   if (!fs.existsSync(publicSourceVideo)) {
-    throw new Error(`Source video missing: ${publicSourceVideo}. Run 'npm run demo' first.`);
+    const outDemoMp4 = path.join(process.cwd(), 'out', 'demo.mp4');
+    if (fs.existsSync(outDemoMp4)) {
+      console.log(`[Finalize] Syncing out/demo.mp4 -> ${publicSourceVideo}...`);
+      fs.copyFileSync(outDemoMp4, publicSourceVideo);
+    } else {
+      throw new Error(`Source video missing: ${publicSourceVideo}. Run 'npm run demo' first.`);
+    }
   }
   const sourceVideoSha256 = computeSha256(publicSourceVideo);
   console.log(`[Finalize] ✓ Source Video Verified: ${sourceVideoSha256.slice(0, 16)}...`);
@@ -81,36 +87,51 @@ async function finalizeShowcase() {
   const prRecordingSha256 = computeSha256(publicPrRecording);
   console.log(`[Finalize] ✓ PR Recording Verified: ${prRecordingSha256.slice(0, 16)}...`);
 
-  // 4. Verify Product Run Manifest if present
-  let isManifestVerified = false;
-  if (fs.existsSync(runManifestPath)) {
-    const manifestCheck = verifyRunManifest(runManifestPath, {
-      requireVerifiedStatus: true,
-      requireArtifacts: true,
-    });
-    isManifestVerified = manifestCheck.valid;
-    if (manifestCheck.valid) {
-      console.log('[Finalize] ✓ Product Run Manifest passed all release gates.');
-    } else {
-      console.warn('[Finalize] ⚠ Warning: Product Run Manifest has pending/flagged gates:');
-      manifestCheck.errors.forEach((e) => console.warn(`    - ${e}`));
-    }
+  // 4. Verify Product Run Manifest - Fail closed on missing or invalid release gates
+  if (!fs.existsSync(runManifestPath)) {
+    throw new Error(`Product run manifest missing: ${runManifestPath}. Run 'npm run demo' first.`);
   }
 
-  // 5. Assemble Final Showcase Props
+  const manifestCheck = verifyRunManifest(runManifestPath, {
+    requireVerifiedStatus: true,
+    requireArtifacts: true,
+  });
+  if (!manifestCheck.valid) {
+    throw new Error(
+      `Product Run Manifest failed release gates:\n${manifestCheck.errors.map((e) => `  - ${e}`).join('\n')}`
+    );
+  }
+  console.log('[Finalize] ✓ Product Run Manifest passed all release gates.');
+
+  // 5. Assemble Final Showcase Props (No fabricated fallbacks)
+  const isKanePass = baseProps.kaneResult === 100;
+  const isStateVerified = baseProps.stateVerified === true;
+  const isVisualQaPass = baseProps.visualQaPassed === true;
+  const isOcrPass = baseProps.ocrPassed === true;
+  const isVerified = Boolean(
+    baseProps.verified &&
+    manifestCheck.valid &&
+    isKanePass &&
+    isStateVerified &&
+    isVisualQaPass &&
+    isOcrPass &&
+    prUrl &&
+    prNumber
+  );
+
   const finalProps = {
     autocastVersion: baseProps.autocastVersion || '0.2.0',
     prUrl: prUrl || null,
     prNumber: prNumber || null,
-    branch: branch || 'fix/ledgerly-approve-noop',
+    branch: branch || null,
     candidateCommit: baseProps.candidateCommit || baseProps.testedCommit || null,
     testedCommit: baseProps.testedCommit || null,
     baselineCommit: baseProps.baselineCommit || null,
-    kaneResult: baseProps.kaneResult || 100,
-    verified: Boolean(baseProps.verified && isManifestVerified && prUrl && prNumber),
-    stateVerified: Boolean(baseProps.stateVerified),
-    visualQaPassed: Boolean(baseProps.visualQaPassed),
-    ocrPassed: Boolean(baseProps.ocrPassed),
+    kaneResult: typeof baseProps.kaneResult === 'number' ? baseProps.kaneResult : null,
+    verified: isVerified,
+    stateVerified: isStateVerified,
+    visualQaPassed: isVisualQaPass,
+    ocrPassed: isOcrPass,
     sourceVideo: 'source.mp4',
     prRecording: 'pr-recording.mp4',
     sourceVideoSha256,

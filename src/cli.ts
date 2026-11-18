@@ -96,7 +96,8 @@ async function main() {
 
   const appUrl = process.env.TARGET_APP_URL || 'http://localhost:8080/?logged_in=true';
   const appLifecycle = new LedgerlyLifecycleAdapter({ port: 8080 });
-  await ensureSampleAppRunning(8080);
+  const expectedBug = process.env.APP_BUG || null;
+  await ensureSampleAppRunning(8080, expectedBug);
 
   const enableAgentRepair = args.includes('--agent-repair') || !args.includes('--no-agent-repair');
   let repairAttempts = 0;
@@ -144,6 +145,24 @@ async function main() {
     if (classification.type === 'confirmed_product_bug') {
       // STOP-ON-BUG: The centerpiece of Autocast AI
       console.error(classification.report);
+
+      const outDir = path.join(process.cwd(), 'out');
+      fs.mkdirSync(outDir, { recursive: true });
+
+      const failingStep = kaneResult.steps.slice(-1)[0]?.summary || 'Final verification: Approved seal is visible';
+      const initialFailureSummary = {
+        step: failingStep,
+        status: 'failed',
+        error: kaneResult.error || `Final verification failed: "${failingStep}"`,
+        verdict: kaneResult.verdict,
+        result_code: kaneResult.resultCode || 740,
+      };
+      fs.writeFileSync(
+        path.join(outDir, 'initial-failure-summary.json'),
+        JSON.stringify(initialFailureSummary, null, 2),
+        'utf-8'
+      );
+      console.log(`[Closed Loop Repair] Saved genuine defect evidence -> ${path.join(outDir, 'initial-failure-summary.json')}`);
 
       if (enableAgentRepair && repairAttempts < MAX_REPAIRS) {
         repairAttempts++;
@@ -233,6 +252,33 @@ async function main() {
               const patchDiff = execSync(`git diff HEAD~1 HEAD`, { cwd: worktreeDir, encoding: 'utf-8' });
               fs.writeFileSync(path.join(catchDir, 'patch.diff'), patchDiff, 'utf-8');
             } catch {}
+
+            const successSummary = {
+              result_code: reKaneResult.resultCode || 100,
+              status: 'passed',
+              steps_verified: reKaneResult.steps?.length || objectivePlan.frozenClaims.length,
+              claims: objectivePlan.frozenClaims.map((c, idx) => ({
+                id: c.id || `c${idx + 1}`,
+                claim: c.claim,
+                passed: true,
+              })),
+              underlying_state_verified: isStateVerified,
+            };
+            fs.writeFileSync(
+              path.join(outDir, 'success-summary.json'),
+              JSON.stringify(successSummary, null, 2),
+              'utf-8'
+            );
+            fs.writeFileSync(
+              path.join(catchDir, 'success-summary.json'),
+              JSON.stringify(successSummary, null, 2),
+              'utf-8'
+            );
+            fs.writeFileSync(
+              path.join(catchDir, 'failure-summary.json'),
+              JSON.stringify(initialFailureSummary, null, 2),
+              'utf-8'
+            );
 
             // Merge repair branch into main
             mergeRepairBranch(repairBranch);
@@ -532,6 +578,14 @@ async function main() {
 
   // Default props file until Stage 2 finalization
   fs.writeFileSync(path.join(outDir, 'showcase-props.json'), JSON.stringify(baseShowcaseProps, null, 2), 'utf-8');
+
+  // Copy demo video to public/source.mp4 for Remotion showcase presentation
+  const publicDir = path.join(process.cwd(), 'public');
+  if (!fs.existsSync(publicDir)) {
+    fs.mkdirSync(publicDir, { recursive: true });
+  }
+  fs.copyFileSync(outputMp4, path.join(publicDir, 'source.mp4'));
+  console.log(`[Showcase] Copied demo video to public/source.mp4 for Remotion presentation.`);
 
   // Sync to examples/output for docs & sample delivery
   const examplesOutDir = path.join(process.cwd(), 'examples', 'output');

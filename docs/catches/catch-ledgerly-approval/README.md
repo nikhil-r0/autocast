@@ -5,7 +5,7 @@ This directory contains the machine-verifiable evidence artifacts for AutoCast's
 ## 1. Failure Evidence (Kane Run 1)
 - **Result Code**: `740 · Confirmed product bug`
 - **Defect Trigger**: `APP_BUG=approve-noop` on `examples/ledgerly/server/index.js`
-- **Failing Step**: Step 5 (Verify Approved status & digital seal)
+- **Failing Step**: 0-5
 - **Failure Summary**: [`failure-summary.json`](./failure-summary.json)
 - **Visual Evidence**: ![Failure Screenshot](./failing-screenshot.jpg)
 
@@ -16,7 +16,7 @@ This directory contains the machine-verifiable evidence artifacts for AutoCast's
 - **Git Patch**: [`patch.diff`](./patch.diff)
 
 ## 3. Independent Verification (Kane Run 2)
-- **Result Code**: `100 · Passed` (6/6 steps verified)
+- **Result Code**: `100 · Passed` (3/3 steps verified)
 - **Underlying Database State**: `invoice.status === 'Approved'` verified independently via backend API.
 - **Success Summary**: [`success-summary.json`](./success-summary.json)
 - **Visual Evidence**: ![Passing Screenshot](./passing-screenshot.jpg)

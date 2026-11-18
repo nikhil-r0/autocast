@@ -66,19 +66,21 @@ async function generatePublicEvidence() {
   console.log(`[Evidence] Reading run manifest from: ${manifestPath}`);
   const manifest: RunManifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
 
-  const testedCommit = manifest.application?.tested_commit || 'HEAD';
-  const baselineCommit = manifest.application?.baseline_commit || 'HEAD~1';
+  if (!manifest.application?.tested_commit) {
+    throw new Error('Manifest missing application.tested_commit. Cannot identify candidate repair commit.');
+  }
 
-  // 2. Extract or Compute Git Diff for the Repair
+  const testedCommit = manifest.application.tested_commit;
+  const baselineCommit = manifest.application.baseline_commit || 'HEAD~1';
+
+  // 2. Extract Genuine Git Diff for the Repair
   let diffContent = '';
   try {
-    // Try diffing against baseline
     diffContent = execSync(
       `git diff ${baselineCommit}..${testedCommit} -- examples/ledgerly/server/index.js 2>/dev/null || true`,
       { encoding: 'utf-8' }
     ).trim();
 
-    // If empty, try git show on testedCommit
     if (!diffContent) {
       diffContent = execSync(
         `git show ${testedCommit} -- examples/ledgerly/server/index.js 2>/dev/null || true`,
@@ -87,74 +89,72 @@ async function generatePublicEvidence() {
     }
   } catch {}
 
-  // Fallback if not found in git history
+  // Check if patch.diff was generated during the live repair loop in cli.ts
   if (!diffContent) {
     const existingPatchPath = path.join(catchDir, 'patch.diff');
     if (fs.existsSync(existingPatchPath)) {
       diffContent = fs.readFileSync(existingPatchPath, 'utf-8').trim();
-    } else {
-      diffContent = `diff --git a/examples/ledgerly/server/index.js b/examples/ledgerly/server/index.js
---- a/examples/ledgerly/server/index.js
-+++ b/examples/ledgerly/server/index.js
-@@ -107,3 +107,3 @@ app.post('/api/invoices/:id/approve', (req, res) => {
--  // Bug: No-op approval
-+  invoice.status = 'Approved';
-+  invoice.approvedAt = new Date().toISOString();`;
     }
+  }
+
+  if (!diffContent) {
+    throw new Error(
+      `No genuine git diff found on examples/ledgerly/server/index.js for candidate commit ${testedCommit}. Halting: AutoCast does not fabricate code diffs.`
+    );
   }
 
   // Write patch.diff
   const patchPath = path.join(catchDir, 'patch.diff');
   fs.writeFileSync(patchPath, diffContent + '\n', 'utf-8');
-  console.log(`[Evidence] ✓ Wrote repair patch -> ${patchPath}`);
+  console.log(`[Evidence] ✓ Wrote genuine repair patch -> ${patchPath}`);
 
-  // 3. Generate failure-summary.json
-  const failureSummary = {
-    step: '0-5',
-    status: 'failed',
-    error: 'Final verification failed: "Approved seal is visible"',
-    verdict: {
-      category: 'application_issue/ui_state_mismatch',
-      confidence: 0.93,
-      severity: 'major',
-      result_code: 740,
-      summary:
-        'Invoice approval was accepted by API but invoice status remained Pending without digital compliance seal.',
-    },
-  };
+  // 3. Genuine failure-summary.json
+  let failureSummary: any = null;
+  const initialFailurePath = path.join(outDir, 'initial-failure-summary.json');
+  const existingFailurePath = path.join(catchDir, 'failure-summary.json');
+
+  if (fs.existsSync(initialFailurePath)) {
+    failureSummary = JSON.parse(fs.readFileSync(initialFailurePath, 'utf-8'));
+  } else if (fs.existsSync(existingFailurePath)) {
+    failureSummary = JSON.parse(fs.readFileSync(existingFailurePath, 'utf-8'));
+  }
+
+  const failureResultCode = failureSummary?.result_code || failureSummary?.verdict?.result_code;
+  if (!failureSummary || !failureSummary.verdict || failureResultCode !== 740) {
+    throw new Error('No genuine Kane defect failure evidence (result_code: 740) found. Halting: cannot fabricate defect evidence.');
+  }
+  failureSummary.result_code = failureResultCode;
+
   const failurePath = path.join(catchDir, 'failure-summary.json');
   fs.writeFileSync(failurePath, JSON.stringify(failureSummary, null, 2) + '\n', 'utf-8');
-  console.log(`[Evidence] ✓ Wrote failure summary -> ${failurePath}`);
+  console.log(`[Evidence] ✓ Wrote genuine failure summary -> ${failurePath}`);
 
-  // 4. Generate success-summary.json
+  // 4. Genuine success-summary.json
+  if (manifest.application?.state_verified !== true) {
+    throw new Error('Underlying application state verification failed (state_verified !== true). Halting: cannot claim success.');
+  }
+
+  if (!manifest.kane_verification || manifest.kane_verification.result_code !== 100) {
+    throw new Error(`Kane verification failed or missing in run manifest (result_code: ${manifest.kane_verification?.result_code}). Expected 100.`);
+  }
+
+  if (!manifest.kane_verification.claims || manifest.kane_verification.claims.length === 0) {
+    throw new Error('No verified Kane claims found in manifest. Halting: cannot claim success without verified claims.');
+  }
+
   const successSummary = {
-    result_code: manifest.kane_verification?.result_code || 100,
+    result_code: manifest.kane_verification.result_code,
     status: 'passed',
-    steps_verified: 6,
-    claims: manifest.kane_verification?.claims || [
-      {
-        id: 'c1',
-        claim: 'Invoice INV-1042 state mutated to Approved',
-        passed: true,
-      },
-      {
-        id: 'c2',
-        claim: 'Ledger table reflects reconciled balance',
-        passed: true,
-      },
-      {
-        id: 'c3',
-        claim: 'Compliance audit trail seal confirmed visible',
-        passed: true,
-      },
-    ],
-    underlying_state_verified: Boolean(manifest.application?.state_verified ?? true),
+    steps_verified: manifest.kane_verification.claims.length,
+    claims: manifest.kane_verification.claims,
+    underlying_state_verified: true,
   };
+
   const successPath = path.join(catchDir, 'success-summary.json');
   fs.writeFileSync(successPath, JSON.stringify(successSummary, null, 2) + '\n', 'utf-8');
-  console.log(`[Evidence] ✓ Wrote success summary -> ${successPath}`);
+  console.log(`[Evidence] ✓ Wrote genuine success summary -> ${successPath}`);
 
-  // 5. Copy / Sanitize run-manifest.json
+  // 5. Copy run-manifest.json
   const manifestOutPath = path.join(catchDir, 'run-manifest.json');
   fs.writeFileSync(manifestOutPath, JSON.stringify(manifest, null, 2) + '\n', 'utf-8');
   console.log(`[Evidence] ✓ Wrote run-manifest -> ${manifestOutPath}`);
@@ -165,9 +165,9 @@ async function generatePublicEvidence() {
 This directory contains the machine-verifiable evidence artifacts for AutoCast's closed-loop repair of Ledgerly.
 
 ## 1. Failure Evidence (Kane Run 1)
-- **Result Code**: \`740 · Confirmed product bug\`
+- **Result Code**: \`${failureSummary.result_code} · Confirmed product bug\`
 - **Defect Trigger**: \`APP_BUG=approve-noop\` on \`examples/ledgerly/server/index.js\`
-- **Failing Step**: Step 5 (Verify Approved status & digital seal)
+- **Failing Step**: ${failureSummary.step}
 - **Failure Summary**: [\`failure-summary.json\`](./failure-summary.json)
 - **Visual Evidence**: ![Failure Screenshot](./failing-screenshot.jpg)
 
@@ -178,7 +178,7 @@ This directory contains the machine-verifiable evidence artifacts for AutoCast's
 - **Git Patch**: [\`patch.diff\`](./patch.diff)
 
 ## 3. Independent Verification (Kane Run 2)
-- **Result Code**: \`${manifest.kane_verification?.result_code || 100} · Passed\` (6/6 steps verified)
+- **Result Code**: \`${manifest.kane_verification.result_code} · Passed\` (${successSummary.steps_verified}/${successSummary.steps_verified} steps verified)
 - **Underlying Database State**: \`invoice.status === 'Approved'\` verified independently via backend API.
 - **Success Summary**: [\`success-summary.json\`](./success-summary.json)
 - **Visual Evidence**: ![Passing Screenshot](./passing-screenshot.jpg)
@@ -186,7 +186,7 @@ This directory contains the machine-verifiable evidence artifacts for AutoCast's
 ## 4. Hash-Verified Provenance Manifest
 - **Manifest File**: [\`run-manifest.json\`](./run-manifest.json)
 - **Verified Commit**: \`${testedCommit}\`
-- **Verification ID**: \`${manifest.kane_verification?.run_id || 'kane-run-ledgerly-approval-pass'}\`
+- **Verification ID**: \`${manifest.kane_verification.run_id}\`
 `;
 
   const readmePath = path.join(catchDir, 'README.md');

@@ -90,7 +90,7 @@ export function verifyRunManifest(
   }
 
   // Mandatory Release Gate: application state must be verified
-  if (options.requireVerifiedStatus && !manifest.application?.state_verified) {
+  if (options.requireVerifiedStatus && manifest.application?.state_verified !== true) {
     errors.push('Underlying application state was not verified (application.state_verified !== true)');
   }
 
@@ -121,9 +121,14 @@ export function verifyRunManifest(
     }
   }
 
-  // Mandatory Artifact: Video must exist if required
-  if (options.requireArtifacts && !manifest.artifacts?.video) {
-    errors.push('Manifest missing required video artifact entry');
+  // Mandatory Artifacts: Video and Poster must exist if requireArtifacts is enabled
+  if (options.requireArtifacts) {
+    if (!manifest.artifacts?.video) {
+      errors.push('Manifest missing required video artifact entry');
+    }
+    if (!manifest.artifacts?.poster) {
+      errors.push('Manifest missing required poster artifact entry');
+    }
   }
 
   // Verify video hash

@@ -46,6 +46,7 @@ async function verifyShowcase() {
   const videoStream = probeData.streams?.find((s: any) => s.codec_type === 'video');
   const audioStream = probeData.streams?.find((s: any) => s.codec_type === 'audio');
 
+  let actualFps = 0;
   if (!videoStream) {
     errors.push('No video stream found in showcase artifact.');
   } else {
@@ -62,9 +63,11 @@ async function verifyShowcase() {
     }
 
     // Frame rate
-    console.log(`✓ Check 3: Frame Rate -> ${videoStream.r_frame_rate} (Expected 30/1)`);
-    if (videoStream.r_frame_rate !== '30/1' && videoStream.r_frame_rate !== '30') {
-      errors.push(`Invalid frame rate: expected 30 fps, got ${videoStream.r_frame_rate}`);
+    const [num, den] = (videoStream.r_frame_rate || '0/1').split('/').map((n: string) => parseInt(n, 10));
+    actualFps = den ? Math.round(num / den) : 0;
+    console.log(`✓ Check 3: Frame Rate -> ${actualFps} FPS (${videoStream.r_frame_rate}) (Expected 30 FPS)`);
+    if (actualFps !== 30) {
+      errors.push(`Invalid frame rate: expected 30 fps, got ${actualFps} (${videoStream.r_frame_rate})`);
     }
   }
 
@@ -147,7 +150,7 @@ async function verifyShowcase() {
       duration_sec: durationSec,
       width: videoStream?.width || 0,
       height: videoStream?.height || 0,
-      fps: 30,
+      fps: actualFps,
     },
     provenance: {
       pr_url: props.prUrl || null,

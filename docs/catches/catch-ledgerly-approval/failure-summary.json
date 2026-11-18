@@ -8,5 +8,6 @@
     "severity": "major",
     "result_code": 740,
     "summary": "Invoice approval was accepted by API but invoice status remained Pending without digital compliance seal."
-  }
+  },
+  "result_code": 740
 }

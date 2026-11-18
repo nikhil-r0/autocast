@@ -82,3 +82,39 @@ test('TEST-19: MP4 bytes modified after manifest generation -> SHA-256 verificat
   fs.rmSync(tempManifest, { force: true });
 });
 
+test('TEST-21: Manifest missing required verification fields or artifacts fails closed', () => {
+  const tempManifest = path.resolve(process.cwd(), 'out', 'test-missing-fields-manifest.json');
+  fs.mkdirSync(path.dirname(tempManifest), { recursive: true });
+
+  // Incomplete manifest missing kane_verification, visual_qa, and security_scan
+  const incompleteManifest = {
+    autocast_version: '0.2.0',
+    generated_at: new Date().toISOString(),
+    status: 'verified',
+    application: {
+      url: 'http://localhost:8080',
+      baseline_commit: 'abc',
+      tested_commit: 'def',
+      state_verified: true,
+    },
+    artifacts: {
+      video: {
+        path: 'out/test-video.mp4',
+        sha256: 'a'.repeat(64),
+      },
+    },
+  };
+
+  fs.writeFileSync(tempManifest, JSON.stringify(incompleteManifest, null, 2), 'utf-8');
+
+  const check = verifyRunManifest(tempManifest, { requireVerifiedStatus: true, requireArtifacts: true });
+  assert.equal(check.valid, false);
+  assert.ok(check.errors.some((e) => e.includes('kane_verification')));
+  assert.ok(check.errors.some((e) => e.includes('visual_qa')));
+  assert.ok(check.errors.some((e) => e.includes('security_scan')));
+  assert.ok(check.errors.some((e) => e.includes('poster')));
+
+  fs.rmSync(tempManifest, { force: true });
+});
+
+
