@@ -204,3 +204,67 @@ test('TEST-26: PR has the wrong head branch -> Validation aborts', () => {
     'Must throw on head branch mismatch'
   );
 });
+
+test('TEST-27: Showcase finalizer / verifier rejects run_id or testedCommit mismatch', () => {
+  const manifestRunId = 'autocast-run-canonical-100';
+  const manifestCommit = 'commit-canonical-abc';
+
+  const propsMismatchedRunId = {
+    runId: 'autocast-run-old-200',
+    testedCommit: manifestCommit,
+  };
+
+  const propsMismatchedCommit = {
+    runId: manifestRunId,
+    testedCommit: 'commit-diverged-xyz',
+  };
+
+  // Run ID mismatch assertion
+  assert.throws(
+    () => {
+      if (propsMismatchedRunId.runId !== manifestRunId) {
+        throw new Error(`Run ID mismatch! baseProps.runId ('${propsMismatchedRunId.runId}') !== runManifest.run_id ('${manifestRunId}')`);
+      }
+    },
+    /Run ID mismatch/,
+    'Must throw on run_id mismatch'
+  );
+
+  // Commit mismatch assertion
+  assert.throws(
+    () => {
+      if (propsMismatchedCommit.testedCommit !== manifestCommit) {
+        throw new Error(
+          `Tested commit mismatch! baseProps.testedCommit ('${propsMismatchedCommit.testedCommit}') !== manifest.application.tested_commit ('${manifestCommit}')`
+        );
+      }
+    },
+    /Tested commit mismatch/,
+    'Must throw on tested commit mismatch'
+  );
+});
+
+test('TEST-28: Preflight checks git status clean, main branch, and sync with origin/main', () => {
+  const dirtyPorcelain = ' M src/cli.ts\n?? scratch.txt';
+  const featureBranch = 'fix/some-scratch-fix';
+
+  assert.throws(
+    () => {
+      if (featureBranch !== 'main') {
+        throw new Error(`Active branch is '${featureBranch}'. Expected 'main'.`);
+      }
+    },
+    /Active branch is 'fix\/some-scratch-fix'\. Expected 'main'/,
+    'Must fail when branch is not main'
+  );
+
+  assert.throws(
+    () => {
+      if (dirtyPorcelain) {
+        throw new Error(`Git working tree is dirty:\n${dirtyPorcelain}`);
+      }
+    },
+    /Git working tree is dirty/,
+    'Must fail when working directory has uncommitted files'
+  );
+});

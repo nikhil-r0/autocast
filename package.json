@@ -17,6 +17,7 @@
     "evidence:public": "tsx scripts/generate-public-evidence.ts",
     "verify:provenance": "tsx scripts/verify-provenance.ts",
     "verify:showcase": "tsx scripts/verify-showcase.ts",
+    "preflight": "tsx scripts/preflight.ts",
     "preview": "remotion preview remotion/index.ts",
     "lint:storyboard": "tsx src/edit/lint.ts",
     "test": "node --import tsx --test 'tests/**/*.test.ts'",

@@ -60,8 +60,13 @@ async function recordPrEvidence() {
     }
     console.log(`[Playwright PR Recorder] Target: LIVE GitHub Pull Request -> ${prUrl}`);
   } else {
-    console.warn('[Playwright PR Recorder] WARNING: PR_URL not provided. Falling back to local hermetic mockup.');
-    console.warn('[Playwright PR Recorder] To record the actual live GitHub PR, supply PR_URL=https://github.com/nikhil-r0/autocast/pull/<id>');
+    if (process.env.ALLOW_MOCK_PR !== 'true') {
+      throw new Error(
+        'PR_URL environment variable is required to record live GitHub PR evidence.\n' +
+        'Set PR_URL=https://github.com/nikhil-r0/autocast/pull/<id> or explicitly set ALLOW_MOCK_PR=true for development offline testing.'
+      );
+    }
+    console.warn('[Playwright PR Recorder] WARNING: PR_URL not provided. Falling back to local hermetic mockup (ALLOW_MOCK_PR=true).');
   }
 
   const publicDir = path.join(process.cwd(), 'public');

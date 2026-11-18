@@ -2,11 +2,7 @@ import path from 'path';
 import fs from 'fs';
 import { verifyRunManifest } from '../src/manifest.js';
 
-const manifestPath =
-  process.argv[2] ||
-  (fs.existsSync(path.join(process.cwd(), 'out', 'run-manifest.json'))
-    ? path.join(process.cwd(), 'out', 'run-manifest.json')
-    : path.join(process.cwd(), 'examples', 'output', 'run-manifest.json'));
+const manifestPath = process.argv[2] || path.join(process.cwd(), 'out', 'run-manifest.json');
 
 console.log('================================================================');
 console.log('🛡️  AUTOCAST HASH-VERIFIED PROVENANCE MANIFEST AUDITOR');

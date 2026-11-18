@@ -22,19 +22,50 @@ async function finalizeShowcase() {
   const publicSourceVideo = path.join(process.cwd(), 'public', 'source.mp4');
   const publicPrRecording = path.join(process.cwd(), 'public', 'pr-recording.mp4');
 
-  // 1. Read Stage 1 Base Props
-  let baseProps: any = {};
-  if (fs.existsSync(basePropsPath)) {
-    try {
-      baseProps = JSON.parse(fs.readFileSync(basePropsPath, 'utf-8'));
-    } catch {}
-  } else if (fs.existsSync(finalPropsPath)) {
-    try {
-      baseProps = JSON.parse(fs.readFileSync(finalPropsPath, 'utf-8'));
-    } catch {}
+  // 1. Verify Product Run Manifest - Fail closed on missing or invalid release gates
+  if (!fs.existsSync(runManifestPath)) {
+    throw new Error(`Product run manifest missing: ${runManifestPath}. Run 'npm run demo' first.`);
   }
 
-  // 2. Discover / Validate GitHub PR
+  const manifestCheck = verifyRunManifest(runManifestPath, {
+    requireVerifiedStatus: true,
+    requireArtifacts: true,
+  });
+  if (!manifestCheck.valid) {
+    throw new Error(
+      `Product Run Manifest failed release gates:\n${manifestCheck.errors.map((e) => `  - ${e}`).join('\n')}`
+    );
+  }
+  const runManifest = JSON.parse(fs.readFileSync(runManifestPath, 'utf-8'));
+  console.log('[Finalize] ✓ Product Run Manifest passed all release gates.');
+
+  // 2. Read Stage 1 Base Props (No fallback to older final props; fail closed)
+  if (!fs.existsSync(basePropsPath)) {
+    throw new Error(`Stage 1 base props missing: ${basePropsPath}. Run 'npm run demo' first.`);
+  }
+
+  let baseProps: any = {};
+  try {
+    baseProps = JSON.parse(fs.readFileSync(basePropsPath, 'utf-8'));
+  } catch (err: any) {
+    throw new Error(`Failed to parse Stage 1 base props at ${basePropsPath}: ${err.message}`);
+  }
+
+  // Strict run-id and commit consistency assertions
+  if (!baseProps.runId || baseProps.runId !== runManifest.run_id) {
+    throw new Error(
+      `Run ID mismatch! baseProps.runId ('${baseProps.runId}') !== runManifest.run_id ('${runManifest.run_id}'). Contaminated execution rejected.`
+    );
+  }
+
+  if (!baseProps.testedCommit || baseProps.testedCommit !== runManifest.application?.tested_commit) {
+    throw new Error(
+      `Tested commit mismatch! baseProps.testedCommit ('${baseProps.testedCommit}') !== runManifest.application.tested_commit ('${runManifest.application?.tested_commit}'). Mismatched candidate rejected.`
+    );
+  }
+  console.log(`[Finalize] ✓ Confirmed matching run_id ('${baseProps.runId}') and tested_commit ('${baseProps.testedCommit}')`);
+
+  // 3. Discover / Validate GitHub PR
   let prUrl = process.env.PR_URL;
   let prNumber: number | undefined = process.env.PR_NUMBER ? parseInt(process.env.PR_NUMBER, 10) : undefined;
   let branch = process.env.PR_BRANCH || baseProps.branch || null;
@@ -87,23 +118,7 @@ async function finalizeShowcase() {
   const prRecordingSha256 = computeSha256(publicPrRecording);
   console.log(`[Finalize] ✓ PR Recording Verified: ${prRecordingSha256.slice(0, 16)}...`);
 
-  // 4. Verify Product Run Manifest - Fail closed on missing or invalid release gates
-  if (!fs.existsSync(runManifestPath)) {
-    throw new Error(`Product run manifest missing: ${runManifestPath}. Run 'npm run demo' first.`);
-  }
-
-  const manifestCheck = verifyRunManifest(runManifestPath, {
-    requireVerifiedStatus: true,
-    requireArtifacts: true,
-  });
-  if (!manifestCheck.valid) {
-    throw new Error(
-      `Product Run Manifest failed release gates:\n${manifestCheck.errors.map((e) => `  - ${e}`).join('\n')}`
-    );
-  }
-  console.log('[Finalize] ✓ Product Run Manifest passed all release gates.');
-
-  // 5. Assemble Final Showcase Props (No fabricated fallbacks)
+  // 4. Assemble Final Showcase Props (No fabricated fallbacks)
   const isKanePass = baseProps.kaneResult === 100;
   const isStateVerified = baseProps.stateVerified === true;
   const isVisualQaPass = baseProps.visualQaPassed === true;

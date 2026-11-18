@@ -155,6 +155,17 @@ async function verifyShowcase() {
       errors.push(`Source product manifest failed verification: ${runManifestCheck.errors.join('; ')}`);
     } else {
       console.log('✓ Check 9: Source Product Run Manifest -> Passed all 6 release gates');
+      const runManifestContent = JSON.parse(fs.readFileSync(runManifestPath, 'utf-8'));
+      if (!props.runId || props.runId !== runManifestContent.run_id) {
+        errors.push(
+          `Showcase props runId ('${props.runId}') does not match product run manifest run_id ('${runManifestContent.run_id}')`
+        );
+      }
+      if (!props.testedCommit || props.testedCommit !== runManifestContent.application?.tested_commit) {
+        errors.push(
+          `Showcase props testedCommit ('${props.testedCommit}') does not match product run manifest tested_commit ('${runManifestContent.application?.tested_commit}')`
+        );
+      }
     }
   } else {
     errors.push(`Source product run manifest missing at ${runManifestPath}`);
@@ -176,6 +187,7 @@ async function verifyShowcase() {
       fps: actualFps,
     },
     provenance: {
+      run_id: props.runId || null,
       pr_url: props.prUrl || null,
       pr_number: props.prNumber || null,
       branch: props.branch || null,

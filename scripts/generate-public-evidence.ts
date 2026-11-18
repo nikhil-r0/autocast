@@ -55,18 +55,18 @@ async function generatePublicEvidence() {
     fs.mkdirSync(catchDir, { recursive: true });
   }
 
-  // 1. Locate Run Manifest
-  let manifestPath = path.join(outDir, 'run-manifest.json');
+  // 1. Mandatory Manifest for the Current Run (No fallback to sample output)
+  const manifestPath = path.join(outDir, 'run-manifest.json');
   if (!fs.existsSync(manifestPath)) {
-    manifestPath = path.join(rootDir, 'examples', 'output', 'run-manifest.json');
-  }
-
-  if (!fs.existsSync(manifestPath)) {
-    throw new Error('No run-manifest.json found in out/ or examples/output/. Run demo first.');
+    throw new Error(`Current run manifest missing at ${manifestPath}. Run 'npm run demo' first.`);
   }
 
   console.log(`[Evidence] Reading run manifest from: ${manifestPath}`);
   const manifest: RunManifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+
+  if (!manifest.run_id) {
+    throw new Error('Run manifest is missing mandatory run_id. Every genuine run must be stamped with a unique run_id.');
+  }
 
   if (!manifest.application?.tested_commit) {
     throw new Error('Manifest missing application.tested_commit. Cannot identify candidate repair commit.');
@@ -76,7 +76,7 @@ async function generatePublicEvidence() {
   const testedCommit = manifest.application.tested_commit;
   const baselineCommit = manifest.application.baseline_commit || 'HEAD~1';
 
-  // 2. Extract Genuine Git Diff for the Repair
+  // 2. Extract Genuine Git Diff for the Repair (No fallback to older catchDir/patch.diff)
   let diffContent = '';
   try {
     diffContent = execSync(
@@ -92,14 +92,6 @@ async function generatePublicEvidence() {
     }
   } catch {}
 
-  // Check if patch.diff was generated during the live repair loop in cli.ts
-  if (!diffContent) {
-    const existingPatchPath = path.join(catchDir, 'patch.diff');
-    if (fs.existsSync(existingPatchPath)) {
-      diffContent = fs.readFileSync(existingPatchPath, 'utf-8').trim();
-    }
-  }
-
   if (!diffContent) {
     throw new Error(
       `No genuine git diff found on examples/ledgerly/server/index.js for candidate commit ${testedCommit}. Halting: AutoCast does not fabricate code diffs.`
@@ -111,25 +103,23 @@ async function generatePublicEvidence() {
   fs.writeFileSync(patchPath, diffContent + '\n', 'utf-8');
   console.log(`[Evidence] ✓ Wrote genuine repair patch -> ${patchPath}`);
 
-  // 3. Genuine failure-summary.json - Never fall back to older catch directory to avoid contamination
-  let failureSummary: any = null;
-  const runSpecificFailurePath = runId ? path.join(outDir, 'runs', runId, 'initial-failure-summary.json') : null;
+  // 3. Genuine failure-summary.json - Strictly from the current run
+  const runSpecificFailurePath = path.join(outDir, 'runs', runId, 'initial-failure-summary.json');
   const initialFailurePath = path.join(outDir, 'initial-failure-summary.json');
 
-  if (runSpecificFailurePath && fs.existsSync(runSpecificFailurePath)) {
+  let failureSummary: any = null;
+  if (fs.existsSync(runSpecificFailurePath)) {
     failureSummary = JSON.parse(fs.readFileSync(runSpecificFailurePath, 'utf-8'));
   } else if (fs.existsSync(initialFailurePath)) {
     failureSummary = JSON.parse(fs.readFileSync(initialFailurePath, 'utf-8'));
+  } else {
+    throw new Error(`Current run failure evidence missing at ${runSpecificFailurePath}. Halting: cannot fabricate defect evidence.`);
   }
 
-  if (!failureSummary) {
-    throw new Error('No genuine failure summary found for the current run. Halting: cannot fabricate defect evidence.');
-  }
-
-  // Verify runId match to prevent stale contamination
-  if (runId && failureSummary.run_id && failureSummary.run_id !== runId) {
+  // Enforce exact run_id matching - never permit an old summary without matching run_id
+  if (!failureSummary.run_id || failureSummary.run_id !== runId) {
     throw new Error(
-      `Failure evidence run_id mismatch! Failure artifact is from '${failureSummary.run_id}', but manifest is from '${runId}'. Contaminated execution rejected.`
+      `Failure evidence run_id mismatch! Failure artifact has run_id '${failureSummary.run_id}', but manifest has '${runId}'. Contaminated execution rejected.`
     );
   }
 
@@ -174,15 +164,43 @@ async function generatePublicEvidence() {
   fs.writeFileSync(manifestOutPath, JSON.stringify(manifest, null, 2) + '\n', 'utf-8');
   console.log(`[Evidence] ✓ Wrote run-manifest -> ${manifestOutPath}`);
 
-  // 6. Dynamically Count Unit Tests
-  let unitTestCount = 34;
+  // 6. Execute Unit Regression Tests & Capture Actual Evidence
+  console.log('[Evidence] Executing unit regression suite to record verified test count...');
+  let testOut = '';
   try {
-    const testOut = execSync('npm test 2>&1', { encoding: 'utf-8' });
-    const match = testOut.match(/ℹ pass (\d+)/);
-    if (match) {
-      unitTestCount = parseInt(match[1], 10);
-    }
-  } catch {}
+    testOut = execSync('npm test 2>&1', { encoding: 'utf-8' });
+  } catch (err: any) {
+    throw new Error(`Unit tests failed during evidence generation: ${err.message}\n${err.stdout || ''}`);
+  }
+
+  const passMatch = testOut.match(/ℹ pass (\d+)/);
+  const totalMatch = testOut.match(/ℹ tests (\d+)/);
+  const failMatch = testOut.match(/ℹ fail (\d+)/);
+
+  if (!passMatch || !totalMatch) {
+    throw new Error('Failed to parse test execution metrics from test runner output.');
+  }
+
+  const passedTests = parseInt(passMatch[1], 10);
+  const totalTests = parseInt(totalMatch[1], 10);
+  const failedTests = failMatch ? parseInt(failMatch[1], 10) : 0;
+
+  if (failedTests > 0 || passedTests !== totalTests || passedTests === 0) {
+    throw new Error(
+      `Test suite has failing or incomplete tests (${passedTests}/${totalTests} passed, ${failedTests} failed). Release aborted.`
+    );
+  }
+
+  console.log(`[Evidence] ✓ Verified unit regression results: ${passedTests}/${totalTests} passed (0 failures)`);
+
+  // Archive execution test report
+  const testReportPath = path.join(catchDir, 'test-report.txt');
+  fs.writeFileSync(testReportPath, testOut, 'utf-8');
+
+  // Also archive in run directory
+  const runReportPath = path.join(outDir, 'runs', runId, 'test-report.txt');
+  fs.mkdirSync(path.dirname(runReportPath), { recursive: true });
+  fs.writeFileSync(runReportPath, testOut, 'utf-8');
 
   // 7. Generate README.md
   const readmeContent = `# Kane CLI Assurance Evidence: Ledgerly Invoice Approval Defect & Autonomous Repair
@@ -199,7 +217,8 @@ This directory contains the machine-verifiable evidence artifacts for AutoCast's
 ## 2. Autonomous Repair by Antigravity AI
 - **Isolated Worktree**: \`.worktrees/repair-*\`
 - **Target File**: \`examples/ledgerly/server/index.js\`
-- **Guardrails**: \`tests/**\` enforced read-only. ${unitTestCount}/${unitTestCount} unit regression tests passed (\`npm test\`).
+- **Guardrails**: \`tests/**\` enforced read-only. ${passedTests}/${totalTests} unit regression tests passed (\`npm test\`).
+- **Test Report**: [\`test-report.txt\`](./test-report.txt)
 - **Git Patch**: [\`patch.diff\`](./patch.diff)
 
 ## 3. Independent Verification (Kane Run 2)
@@ -210,6 +229,7 @@ This directory contains the machine-verifiable evidence artifacts for AutoCast's
 
 ## 4. Hash-Verified Provenance Manifest
 - **Manifest File**: [\`run-manifest.json\`](./run-manifest.json)
+- **Run ID**: \`${runId}\`
 - **Verified Commit**: \`${testedCommit}\`
 - **Verification ID**: \`${manifest.kane_verification.run_id}\`
 `;

@@ -575,9 +575,10 @@ flowchart TD
 ```
 
 ### Phase 0: Preflight & Environment Audit
-- Verify clean Git tree and branch synchronization with `origin/main`.
+- Run preflight auditor: `npm run preflight`.
+- Verifies active branch is `main`, git working tree is clean (`git status --porcelain === ''`), and local `main` is synchronized with `origin/main`.
 - Verify port ownership: `src/app/lifecycle.ts` checks process cmdline before signaling termination.
-- Validate test suite: `npm run typecheck && npm test` (all 39 automated unit tests pass, TEST-01 through TEST-26).
+- Validate test suite: `npm run typecheck && npm test` (all 41 automated unit tests pass, `TEST-01` through `TEST-28`).
 - Ensure bug injection healthcheck readiness: `src/cli.ts` verifies `health.bug === 'approve-noop'` via `/api/health` and restarts application if an unbugged instance is running.
 
 ### Phase 1: Produce the Closed-Loop Self-Demonstration
@@ -587,9 +588,9 @@ APP_BUG=approve-noop npm run demo -- \
   "Create a cinematic product demo of the invoice approval workflow in Ledgerly. Show the pending approvals dashboard, open invoice INV-1042, inspect its line items, enter an approval note, approve the invoice, and verify the Approved status and digital approval seal."
 ```
 - **Run Isolation**: Every execution initializes a unique `run_id` and isolates output in `out/runs/<run_id>/`.
-- **Kane Run 1**: Fails with `Result: 740 · Confirmed product bug` (`approve-noop`). Genuine defect verdict saved with `run_id` to `out/initial-failure-summary.json`.
+- **Kane Run 1**: Fails with `Result: 740 · Confirmed product bug` (`approve-noop`). Genuine defect verdict saved with `run_id` to `out/runs/<run_id>/initial-failure-summary.json`.
 - **Antigravity AI**: Clones isolated worktree `.worktrees/repair-*`, enforces read-only `tests/**`, runs worktree regression command `npm test`, applies verified patch to `examples/ledgerly/server/index.js`.
-- **Candidate Verification**: 39 unit regression tests pass; candidate server starts on candidate commit (`9ef4bade88e`).
+- **Candidate Verification**: Unit regression tests pass; candidate server starts on candidate commit (`9ef4bade88e`).
 - **Kane Run 2**: Re-executes full browser journey, certifies `Result: 100 · Passed`.
 - **State Check**: Independent backend verification (`/api/invoices/INV-1042`) confirms `status === 'Approved'` (hard-aborts if false).
 - **Candidate Lifecycle Handoff**: Merges candidate branch to main, records `integration_commit`, cleanly stops candidate server in worktree, cleans up worktree, restarts application server from merged main checkout, and verifies health.
@@ -601,7 +602,7 @@ APP_BUG=approve-noop npm run demo -- \
    ```bash
    npm run evidence:public
    ```
-   *(Fails closed if genuine Kane failure evidence, patch, or state verification is missing. Regenerates `docs/catches/catch-ledgerly-approval/` with `README.md`, `failure-summary.json`, `success-summary.json`, `patch.diff`, and `run-manifest.json`)*
+   *(Fails closed if genuine Kane failure evidence, patch, or state verification is missing or if `run_id` diverges. Runs `npm test 2>&1`, asserts 100% pass, and archives `test-report.txt`. Regenerates `docs/catches/catch-ledgerly-approval/` with `README.md`, `failure-summary.json`, `success-summary.json`, `patch.diff`, `test-report.txt`, and `run-manifest.json`)*
 2. Integrate the verified candidate commit into the PR branch:
    ```bash
    git checkout -b fix/ledgerly-approve-noop
@@ -637,7 +638,7 @@ APP_BUG=approve-noop npm run demo -- \
    ```bash
    PR_URL="https://github.com/nikhil-r0/autocast/pull/<PR_ID>" npm run finalize:showcase
    ```
-   *(Validates `public/source.mp4` and `public/pr-recording.mp4` exist, computes their SHA-256 hashes, verifies `out/run-manifest.json`, and writes `out/showcase-props.json` with zero fallbacks)*
+   *(Requires `out/showcase-props.base.json`, asserts `baseProps.runId === manifest.run_id` and testedCommit match, validates `public/source.mp4` and `public/pr-recording.mp4` exist, computes their SHA-256 hashes, verifies `out/run-manifest.json`, and writes `out/showcase-props.json` with zero fallbacks)*
 2. Run the standalone auditor to enforce all mandatory release gates:
    ```bash
    npm run verify:provenance
@@ -664,11 +665,6 @@ npm run verify:showcase
 ```
 - Inspects technical properties via FFprobe: 1920x1080, H.264, probed 30 FPS (`r_frame_rate: 30/1`), decodable audio stream present, duration 225s ± 5s (220s - 230s).
 - Validates source demo run manifest and PR recording on disk and matches checksums.
+- Asserts showcase props `runId` and `testedCommit` match `run-manifest.json`.
 - Computes SHA-256 checksum of `out/autocast-hackathon-showcase.mp4`.
-- Emits and seals `out/showcase-manifest.json` with provenance links to the live PR URL, tested commit, and source video checksums (fails closed if any gate fails).
-npm run verify:showcase
-```
-- Inspects technical properties via FFprobe (1920x1080, H.264, 30 FPS, audio stream present, 225s ± 5s duration).
-- Validates source demo run manifest and PR recording.
-- Computes SHA-256 checksum of `out/autocast-hackathon-showcase.mp4`.
-- Emits and seals `out/showcase-manifest.json` with provenance links to the live PR URL, tested commit, and source video checksums.
+- Emits and seals `out/showcase-manifest.json` with provenance links to the live PR URL, run ID, tested commit, and source video checksums (fails closed if any gate fails).
