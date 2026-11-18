@@ -186,22 +186,21 @@ export async function executeReviewLoop(
       })
     : allDefaultFrames;
 
-  // Run visual review in parallel across the sampled frames
-  const reviews = await Promise.all(
-    sampleFrames.map(async (item) => {
-      console.log(`\n[Loop 3 QA Sample] Inspecting: ${item.desc}...`);
-      const result = await reviewFrameWithKane(item.frame, baseReviewUrl, item.isBoundary);
-      if (result.passed) {
-        console.log(`✓ Frame ${item.frame} PASSED Visual QA: ${result.summary}`);
-      } else {
-        console.warn(`✗ Frame ${item.frame} FLAGGED VISUAL FLAW: ${result.summary}`);
-        if (result.kaneTestUrl) {
-          console.warn(`  Kane Evidence: ${result.kaneTestUrl}`);
-        }
+  // Run visual review sequentially across the sampled frames
+  const reviews: VisualReviewResult[] = [];
+  for (const item of sampleFrames) {
+    console.log(`\n[Loop 3 QA Sample] Inspecting: ${item.desc}...`);
+    const result = await reviewFrameWithKane(item.frame, baseReviewUrl, item.isBoundary);
+    if (result.passed) {
+      console.log(`✓ Frame ${item.frame} PASSED Visual QA: ${result.summary}`);
+    } else {
+      console.warn(`✗ Frame ${item.frame} FLAGGED VISUAL FLAW: ${result.summary}`);
+      if (result.kaneTestUrl) {
+        console.warn(`  Kane Evidence: ${result.kaneTestUrl}`);
       }
-      return result;
-    })
-  );
+    }
+    reviews.push(result);
+  }
 
   const allPassed = reviews.every((r) => r.passed);
   return { passed: allPassed, reviews };
