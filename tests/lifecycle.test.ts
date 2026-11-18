@@ -52,3 +52,30 @@ test('TEST-08b: Server connection refused (offline server) -> Healthcheck return
   assert.equal(isHealthy, false, 'Health check must return false when server is completely down');
 });
 
+test('TEST-22: Candidate server running while worktree cleanup begins -> Server stopped before worktree removed', async () => {
+  const port = 8093;
+  let serverClosed = false;
+  const server = http.createServer((req, res) => {
+    if (req.url === '/api/health') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'ok', commit: 'candidate-999' }));
+    }
+  });
+
+  await new Promise<void>((resolve) => server.listen(port, resolve));
+
+  const adapter = new LedgerlyLifecycleAdapter({ port });
+  const beforeStop = await adapter.healthCheck('candidate-999');
+  assert.equal(beforeStop, true, 'Server should initially be healthy on candidate commit');
+
+  // Stop server simulating worktree teardown sequence
+  await new Promise<void>((resolve) => server.close(() => {
+    serverClosed = true;
+    resolve();
+  }));
+
+  const afterStop = await adapter.healthCheck('candidate-999');
+  assert.equal(afterStop, false, 'Candidate server must be stopped so port is clean before worktree removal');
+  assert.equal(serverClosed, true);
+});
+

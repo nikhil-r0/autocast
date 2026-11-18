@@ -13,9 +13,11 @@ export function computeFileSha256(filePath: string): string {
 export function generateRunManifest(params: {
   outputPath?: string;
   status?: RunManifest['status'];
+  runId?: string;
   applicationUrl: string;
   baselineCommit?: string;
   testedCommit?: string;
+  integrationCommit?: string;
   stateVerified: boolean;
   kaneVerification?: RunManifest['kane_verification'];
   closedLoopRepair?: RunManifest['closed_loop_repair'];
@@ -47,12 +49,14 @@ export function generateRunManifest(params: {
 
   const manifest: RunManifest = {
     autocast_version: '0.2.0',
+    run_id: params.runId,
     generated_at: new Date().toISOString(),
     status: params.status || 'verified',
     application: {
       url: params.applicationUrl,
       baseline_commit: params.baselineCommit,
       tested_commit: params.testedCommit,
+      integration_commit: params.integrationCommit,
       state_verified: params.stateVerified,
     },
     kane_verification: params.kaneVerification,

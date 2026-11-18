@@ -97,9 +97,22 @@ async function verifyShowcase() {
   if (fs.existsSync(propsPath)) {
     try {
       props = JSON.parse(fs.readFileSync(propsPath, 'utf-8'));
-    } catch {}
+    } catch {
+      errors.push(`Showcase props at ${propsPath} is invalid JSON.`);
+    }
   } else {
     errors.push(`Showcase props file not found at ${propsPath}. Run 'npm run finalize:showcase' first.`);
+  }
+
+  // Strict Showcase Props Assertions: No unverified presentation may pass
+  if (props.verified !== true) {
+    errors.push('Showcase props are not verified (props.verified !== true)');
+  }
+  if (!props.prUrl || !props.prNumber || !props.branch) {
+    errors.push('Live GitHub PR metadata missing in showcase-props.json (prUrl, prNumber, or branch is null/missing)');
+  }
+  if (!props.testedCommit) {
+    errors.push('Tested commit missing in showcase-props.json');
   }
 
   // Verify PR Recording artifact
@@ -110,6 +123,11 @@ async function verifyShowcase() {
   } else {
     prRecordingSha = computeSha256(publicPrRecording);
     console.log(`✓ Check 7: PR Recording Artifact -> Verified (${prRecordingSha.slice(0, 16)}...)`);
+    if (props.prRecordingSha256 && prRecordingSha !== props.prRecordingSha256) {
+      errors.push(`PR recording hash mismatch! Disk: ${prRecordingSha}, Props: ${props.prRecordingSha256}`);
+    } else if (!props.prRecordingSha256) {
+      errors.push('PR recording SHA-256 missing in showcase-props.json');
+    }
   }
 
   // Verify Source Video artifact
@@ -120,6 +138,11 @@ async function verifyShowcase() {
   } else {
     sourceVideoSha = computeSha256(publicSourceVideo);
     console.log(`✓ Check 8: Source Demo Video Artifact -> Verified (${sourceVideoSha.slice(0, 16)}...)`);
+    if (props.sourceVideoSha256 && sourceVideoSha !== props.sourceVideoSha256) {
+      errors.push(`Source video hash mismatch! Disk: ${sourceVideoSha}, Props: ${props.sourceVideoSha256}`);
+    } else if (!props.sourceVideoSha256) {
+      errors.push('Source video SHA-256 missing in showcase-props.json');
+    }
   }
 
   // Verify Product Run Manifest

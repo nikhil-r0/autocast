@@ -94,6 +94,21 @@ async function main() {
   console.log('================================================================');
   console.log(`User Prompt: "${userPrompt}"\n`);
 
+  const runId = process.env.RUN_ID || `autocast-run-${Date.now()}`;
+  const outDir = path.join(process.cwd(), 'out');
+  fs.mkdirSync(outDir, { recursive: true });
+
+  // Clean stale single-run artifacts so previous executions cannot contaminate
+  fs.rmSync(path.join(outDir, 'initial-failure-summary.json'), { force: true });
+  fs.rmSync(path.join(outDir, 'success-summary.json'), { force: true });
+  fs.rmSync(path.join(outDir, 'run-manifest.json'), { force: true });
+  fs.rmSync(path.join(outDir, 'showcase-props.base.json'), { force: true });
+  fs.rmSync(path.join(outDir, 'showcase-props.json'), { force: true });
+
+  const runDir = path.join(outDir, 'runs', runId);
+  fs.mkdirSync(runDir, { recursive: true });
+  console.log(`Execution Run ID: ${runId}`);
+
   const appUrl = process.env.TARGET_APP_URL || 'http://localhost:8080/?logged_in=true';
   const appLifecycle = new LedgerlyLifecycleAdapter({ port: 8080 });
   const expectedBug = process.env.APP_BUG || null;
@@ -151,12 +166,19 @@ async function main() {
 
       const failingStep = kaneResult.steps.slice(-1)[0]?.summary || 'Final verification: Approved seal is visible';
       const initialFailureSummary = {
+        run_id: runId,
         step: failingStep,
         status: 'failed',
         error: kaneResult.error || `Final verification failed: "${failingStep}"`,
         verdict: kaneResult.verdict,
         result_code: kaneResult.resultCode || 740,
+        timestamp: new Date().toISOString(),
       };
+      fs.writeFileSync(
+        path.join(runDir, 'initial-failure-summary.json'),
+        JSON.stringify(initialFailureSummary, null, 2),
+        'utf-8'
+      );
       fs.writeFileSync(
         path.join(outDir, 'initial-failure-summary.json'),
         JSON.stringify(initialFailureSummary, null, 2),
@@ -254,6 +276,7 @@ async function main() {
             } catch {}
 
             const successSummary = {
+              run_id: runId,
               result_code: reKaneResult.resultCode || 100,
               status: 'passed',
               steps_verified: reKaneResult.steps?.length || objectivePlan.frozenClaims.length,
@@ -263,7 +286,13 @@ async function main() {
                 passed: true,
               })),
               underlying_state_verified: isStateVerified,
+              timestamp: new Date().toISOString(),
             };
+            fs.writeFileSync(
+              path.join(runDir, 'success-summary.json'),
+              JSON.stringify(successSummary, null, 2),
+              'utf-8'
+            );
             fs.writeFileSync(
               path.join(outDir, 'success-summary.json'),
               JSON.stringify(successSummary, null, 2),
@@ -280,9 +309,35 @@ async function main() {
               'utf-8'
             );
 
-            // Merge repair branch into main
+            // 1. Merge repair branch into main working checkout
             mergeRepairBranch(repairBranch);
+            const integrationCommit = execSync('git rev-parse HEAD', { encoding: 'utf-8' }).trim();
+            console.log(`[Closed Loop Repair] Merged repair candidate into main -> integration commit: ${integrationCommit}`);
+
+            // 2. Stop candidate server running in the worktree BEFORE cleaning up directory
+            console.log('[Closed Loop Repair] Stopping candidate server in worktree...');
+            await worktreeAdapter.stop();
+
+            // 3. Clean up the isolated worktree directory safely
             cleanupWorktree(worktreeDir, repairBranch, false);
+
+            // 4. Start application server from the merged root checkout
+            console.log('[Closed Loop Repair] Restarting application server from merged main checkout...');
+            await appLifecycle.start({
+              commit: integrationCommit,
+              env: { APP_BUG: '' },
+            });
+
+            // 5. Verify root server is healthy and serving the integrated commit
+            const rootHealth = await getServerHealth(appUrl);
+            if (!rootHealth?.ok) {
+              console.error('[Closed Loop Repair] FATAL: Merged root application failed health check after restart.');
+              process.exit(1);
+            }
+            console.log(`[Closed Loop Repair] ✓ Merged server live & serving commit: ${rootHealth.commit || integrationCommit}`);
+
+            // 6. Reset seed data for cinematic Playwright replay
+            await appLifecycle.resetSeedData();
 
             kaneResult = reKaneResult;
             closedLoopMetadata = {
@@ -290,6 +345,7 @@ async function main() {
               initial_failure: `result_code: 740 (confirmed_product_bug)`,
               agent: 'Antigravity CLI (agy 2.0 accept-edits)',
               candidate_commit: repairResult.candidateCommit,
+              integration_commit: integrationCommit,
               repair_branch: repairBranch,
               patch_file: 'docs/catches/catch-ledgerly-approval/patch.diff',
               re_verification_run_id: reKaneResult.sessionDir,
@@ -460,7 +516,6 @@ async function main() {
 
   // 6. RENDER PHASE: Remotion Render
   console.log('\n--- PHASE 6: DETERMINISTIC REMOTION RENDER ---');
-  const outDir = path.join(process.cwd(), 'out');
   if (!fs.existsSync(outDir)) {
     fs.mkdirSync(outDir, { recursive: true });
   }
@@ -530,17 +585,22 @@ async function main() {
 
   // Provenance Manifest Generation
   let baselineCommit = 'development';
-  let testedCommit = 'development';
+  let integrationCommit = 'development';
   try {
     baselineCommit = execSync('git rev-parse HEAD~1 2>/dev/null || git rev-parse HEAD', { encoding: 'utf-8' }).trim();
-    testedCommit = execSync('git rev-parse HEAD', { encoding: 'utf-8' }).trim();
+    integrationCommit = execSync('git rev-parse HEAD', { encoding: 'utf-8' }).trim();
   } catch {}
 
+  // Tested commit is the exact commit tested by Kane (candidate commit if repaired, else baseline)
+  const testedCommit = closedLoopMetadata?.candidate_commit || baselineCommit;
+
   const manifest = generateRunManifest({
+    runId,
     status: (skipReview || visualQaMetadata.status !== 'passed' || !isStateVerified) ? 'unverified_draft' : 'verified',
     applicationUrl: appUrl,
     baselineCommit,
     testedCommit,
+    integrationCommit,
     stateVerified: isStateVerified,
     kaneVerification: {
       run_id: kaneResult.sessionDir || 'kane-run',
@@ -561,9 +621,11 @@ async function main() {
   // Stage 1: Generate base showcase props from live execution
   const baseShowcaseProps = {
     autocastVersion: '0.2.0',
-    candidateCommit: closedLoopMetadata?.candidate_commit || testedCommit,
-    testedCommit: testedCommit,
-    baselineCommit: baselineCommit,
+    runId,
+    candidateCommit: closedLoopMetadata?.candidate_commit || null,
+    testedCommit,
+    integrationCommit,
+    baselineCommit,
     branch: closedLoopMetadata?.occurred ? (closedLoopMetadata as any).repair_branch || 'fix/ledgerly-approve-noop' : 'main',
     kaneResult: kaneResult.resultCode || 100,
     verified: isStateVerified && visualQaMetadata.status === 'passed' && !skipReview,

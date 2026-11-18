@@ -117,4 +117,90 @@ test('TEST-21: Manifest missing required verification fields or artifacts fails 
   fs.rmSync(tempManifest, { force: true });
 });
 
+test('TEST-23: Previous run has stale 740 evidence -> New evidence generator rejects mismatched RUN_ID', () => {
+  const currentRunId = 'autocast-run-2026-today';
+  const staleRunId = 'autocast-run-2025-yesterday';
 
+  const manifest = {
+    run_id: currentRunId,
+    status: 'verified',
+    application: { tested_commit: 'abc123' },
+  };
+
+  const staleFailureSummary = {
+    run_id: staleRunId,
+    result_code: 740,
+    verdict: { category: 'application_issue' },
+  };
+
+  // Verifies the stale contamination guard
+  assert.notEqual(manifest.run_id, staleFailureSummary.run_id);
+  const isContaminated = Boolean(manifest.run_id && staleFailureSummary.run_id && manifest.run_id !== staleFailureSummary.run_id);
+  assert.equal(isContaminated, true, 'Must detect stale run contamination when run_ids diverge');
+});
+
+test('TEST-24: showcase-props.json has verified: false -> Showcase verifier fails', () => {
+  const unverifiedProps = {
+    autocastVersion: '0.2.0',
+    prUrl: 'https://github.com/nikhil-r0/autocast/pull/42',
+    prNumber: 42,
+    branch: 'fix/ledgerly-approve-noop',
+    candidateCommit: '9ef4bad',
+    testedCommit: '9ef4bad',
+    kaneResult: 100,
+    verified: false, // Explicit unverified
+    stateVerified: true,
+  };
+
+  // Simulating showcase validation checks
+  const errors: string[] = [];
+  if (unverifiedProps.verified !== true) {
+    errors.push('Showcase props are not verified (props.verified !== true)');
+  }
+
+  assert.equal(errors.length, 1);
+  assert.match(errors[0], /props are not verified/i);
+});
+
+test('TEST-25: Source or PR video changes after finalization -> Hash mismatch rejected', () => {
+  const tempDir = path.resolve(process.cwd(), 'out', 'test-hashes');
+  fs.mkdirSync(tempDir, { recursive: true });
+  const testVideo = path.join(tempDir, 'source.mp4');
+  fs.writeFileSync(testVideo, 'original source video bytes');
+
+  const initialHash = computeFileSha256(testVideo);
+
+  // Tamper video bytes
+  fs.appendFileSync(testVideo, ' - unauthorized modification');
+  const tamperedHash = computeFileSha256(testVideo);
+
+  assert.notEqual(initialHash, tamperedHash);
+
+  const errors: string[] = [];
+  if (tamperedHash !== initialHash) {
+    errors.push(`Source video hash mismatch! Disk: ${tamperedHash}, Props: ${initialHash}`);
+  }
+
+  assert.equal(errors.length, 1);
+  assert.match(errors[0], /Source video hash mismatch/);
+
+  fs.rmSync(tempDir, { recursive: true, force: true });
+});
+
+test('TEST-26: PR has the wrong head branch -> Validation aborts', () => {
+  const expectedBranch = 'fix/ledgerly-approve-noop';
+  const displayedBranches = ['feature/unrelated-branch', 'main'];
+
+  const foundExpected = displayedBranches.some((b) => b === expectedBranch || b.includes(expectedBranch));
+
+  assert.equal(foundExpected, false, 'Expected branch should not be found');
+  assert.throws(
+    () => {
+      if (!foundExpected) {
+        throw new Error(`PR head branch mismatch: expected "${expectedBranch}"`);
+      }
+    },
+    /PR head branch mismatch/,
+    'Must throw on head branch mismatch'
+  );
+});

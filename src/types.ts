@@ -198,12 +198,14 @@ export interface AppLifecycleAdapter {
 
 export interface RunManifest {
   autocast_version: string;
+  run_id?: string;
   generated_at: string;
   status: 'verified' | 'unverified_draft' | 'quarantined' | 'failed';
   application: {
     url: string;
     baseline_commit?: string;
     tested_commit?: string;
+    integration_commit?: string;
     state_verified: boolean;
   };
   kane_verification?: {

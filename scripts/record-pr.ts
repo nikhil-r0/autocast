@@ -102,37 +102,38 @@ async function recordPrEvidence() {
     const title = await page.title();
     console.log(`[Playwright PR Recorder] Confirmed PR Title: "${title}"`);
 
-    // 2. Validate Head Branch Name
+    // 2. Strict Head Branch Verification - Must match expected branch
+    const expectedBranch = process.env.PR_BRANCH || 'fix/ledgerly-approve-noop';
     const branchLocator = page.locator('.commit-ref.head-ref, span.commit-ref, a.commit-ref');
     const branchCount = await branchLocator.count();
     let foundBranch = false;
     for (let i = 0; i < branchCount; i++) {
       const txt = await branchLocator.nth(i).textContent();
-      if (txt && (txt.includes('fix/') || txt.includes('ledgerly') || txt.includes('approve-noop'))) {
+      if (txt && (txt.trim() === expectedBranch || txt.includes(expectedBranch))) {
         foundBranch = true;
         console.log(`[Playwright PR Recorder] ✓ Confirmed Head Branch in UI: "${txt.trim()}"`);
         break;
       }
     }
-    if (!foundBranch && branchCount > 0) {
-      console.warn('[Playwright PR Recorder] Note: Exact branch name substring not matched in commit-ref badges.');
+    if (!foundBranch) {
+      throw new Error(`PR head branch mismatch: expected branch "${expectedBranch}" not found on live PR page: ${prUrl}`);
     }
 
-    // 3. Mandatory Kane Assurance Content Verification
+    // 3. Mandatory Genuine Kane Assurance Content Verification
     const bodyLocator = page.locator('#issue-body, .comment-body, .markdown-body').first();
     const bodyText = (await bodyLocator.textContent({ timeout: 10000 })) || '';
-    const hasKaneAssurance =
-      bodyText.includes('Kane') ||
-      bodyText.includes('Assurance') ||
-      bodyText.includes('Verification') ||
-      bodyText.includes('autocast-bot') ||
-      bodyText.includes('740') ||
-      bodyText.includes('100');
+    
+    const hasKaneResult740 = bodyText.includes('740') || bodyText.includes('Confirmed product bug') || bodyText.includes('approve-noop');
+    const hasKaneResult100 = bodyText.includes('100') || bodyText.includes('Passed');
+    const hasTargetFile = bodyText.includes('examples/ledgerly/server/index.js') || bodyText.includes('server/index.js');
+    const hasAutonomousRepair = bodyText.includes('Antigravity') || bodyText.includes('Kane');
 
-    if (!hasKaneAssurance) {
-      throw new Error(`Live PR description does not contain Kane verification evidence or assurance report: ${prUrl}`);
+    if (!hasKaneResult740 || !hasKaneResult100 || !hasTargetFile || !hasAutonomousRepair) {
+      throw new Error(
+        `Live PR description does not contain genuine Kane assurance evidence (expected 740, 100, server/index.js, Antigravity/Kane): ${prUrl}`
+      );
     }
-    console.log('[Playwright PR Recorder] ✓ Verified Kane assurance report content present in PR body.');
+    console.log('[Playwright PR Recorder] ✓ Verified genuine Kane assurance report content present in PR body.');
 
     // Smooth scroll down through Kane report and PR description
     console.log('[Playwright PR Recorder] Scrolling PR overview & Kane assurance report...');

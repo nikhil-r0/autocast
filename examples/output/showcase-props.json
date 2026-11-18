@@ -1,10 +1,12 @@
 {
   "autocastVersion": "0.2.0",
+  "runId": null,
   "prUrl": null,
   "prNumber": null,
   "branch": "fix/ledgerly-approve-noop",
   "candidateCommit": null,
   "testedCommit": null,
+  "integrationCommit": null,
   "baselineCommit": null,
   "kaneResult": 100,
   "verified": false,

@@ -5,14 +5,14 @@ This directory contains the machine-verifiable evidence artifacts for AutoCast's
 ## 1. Failure Evidence (Kane Run 1)
 - **Result Code**: `740 · Confirmed product bug`
 - **Defect Trigger**: `APP_BUG=approve-noop` on `examples/ledgerly/server/index.js`
-- **Failing Step**: 0-5
+- **Failing Step**: Final verification: Approved seal is visible
 - **Failure Summary**: [`failure-summary.json`](./failure-summary.json)
 - **Visual Evidence**: ![Failure Screenshot](./failing-screenshot.jpg)
 
 ## 2. Autonomous Repair by Antigravity AI
 - **Isolated Worktree**: `.worktrees/repair-*`
 - **Target File**: `examples/ledgerly/server/index.js`
-- **Guardrails**: `tests/**` enforced read-only. 33/33 unit regression tests passed (`npm test`).
+- **Guardrails**: `tests/**` enforced read-only. 39/39 unit regression tests passed (`npm test`).
 - **Git Patch**: [`patch.diff`](./patch.diff)
 
 ## 3. Independent Verification (Kane Run 2)

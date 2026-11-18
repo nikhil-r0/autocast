@@ -577,7 +577,7 @@ flowchart TD
 ### Phase 0: Preflight & Environment Audit
 - Verify clean Git tree and branch synchronization with `origin/main`.
 - Verify port ownership: `src/app/lifecycle.ts` checks process cmdline before signaling termination.
-- Validate test suite: `npm run typecheck && npm test` (all 34 automated unit tests pass).
+- Validate test suite: `npm run typecheck && npm test` (all 39 automated unit tests pass, TEST-01 through TEST-26).
 - Ensure bug injection healthcheck readiness: `src/cli.ts` verifies `health.bug === 'approve-noop'` via `/api/health` and restarts application if an unbugged instance is running.
 
 ### Phase 1: Produce the Closed-Loop Self-Demonstration
@@ -586,13 +586,15 @@ Execute the core AutoCast pipeline with bug injection:
 APP_BUG=approve-noop npm run demo -- \
   "Create a cinematic product demo of the invoice approval workflow in Ledgerly. Show the pending approvals dashboard, open invoice INV-1042, inspect its line items, enter an approval note, approve the invoice, and verify the Approved status and digital approval seal."
 ```
-- **Kane Run 1**: Fails with `Result: 740 · Confirmed product bug` (`approve-noop`). Genuine defect verdict saved to `out/initial-failure-summary.json`.
+- **Run Isolation**: Every execution initializes a unique `run_id` and isolates output in `out/runs/<run_id>/`.
+- **Kane Run 1**: Fails with `Result: 740 · Confirmed product bug` (`approve-noop`). Genuine defect verdict saved with `run_id` to `out/initial-failure-summary.json`.
 - **Antigravity AI**: Clones isolated worktree `.worktrees/repair-*`, enforces read-only `tests/**`, runs worktree regression command `npm test`, applies verified patch to `examples/ledgerly/server/index.js`.
-- **Candidate Verification**: 34 unit regression tests pass; candidate server starts on commit `9ef4bade88e`.
+- **Candidate Verification**: 39 unit regression tests pass; candidate server starts on candidate commit (`9ef4bade88e`).
 - **Kane Run 2**: Re-executes full browser journey, certifies `Result: 100 · Passed`.
 - **State Check**: Independent backend verification (`/api/invoices/INV-1042`) confirms `status === 'Approved'` (hard-aborts if false).
+- **Candidate Lifecycle Handoff**: Merges candidate branch to main, records `integration_commit`, cleanly stops candidate server in worktree, cleans up worktree, restarts application server from merged main checkout, and verifies health.
 - **Playwright Capture**: Replays verified workflow in 1080p -> `out/demo.mp4` and copies to `public/source.mp4`.
-- **Visual QA & OCR Audit**: Checks rendered frames; generates `out/run-manifest.json` and Stage 1 base props `out/showcase-props.base.json`.
+- **Visual QA & OCR Audit**: Checks rendered frames; generates `out/run-manifest.json` (tracking `baseline_commit`, `tested_commit`, `integration_commit`) and Stage 1 base props `out/showcase-props.base.json`.
 
 ### Phase 2: Public Evidence Generation & Live GitHub PR Creation
 1. Generate sanitized machine evidence pack from the current run:

@@ -121,11 +121,13 @@ async function finalizeShowcase() {
 
   const finalProps = {
     autocastVersion: baseProps.autocastVersion || '0.2.0',
+    runId: baseProps.runId || null,
     prUrl: prUrl || null,
     prNumber: prNumber || null,
     branch: branch || null,
-    candidateCommit: baseProps.candidateCommit || baseProps.testedCommit || null,
+    candidateCommit: baseProps.candidateCommit || null,
     testedCommit: baseProps.testedCommit || null,
+    integrationCommit: baseProps.integrationCommit || null,
     baselineCommit: baseProps.baselineCommit || null,
     kaneResult: typeof baseProps.kaneResult === 'number' ? baseProps.kaneResult : null,
     verified: isVerified,
