@@ -91,14 +91,15 @@ export async function renderStillFrame(frameNumber: number): Promise<string> {
 export async function reviewFrameWithKane(
   frameNumber: number,
   reviewUrl: string = 'http://localhost:8080/review',
-  isTransitionBoundary: boolean = false
+  isTransitionBoundary: boolean = false,
+  hasSidebar: boolean = true
 ): Promise<VisualReviewResult> {
   // Render the still frame first
   const imagePath = await renderStillFrame(frameNumber);
 
   // Compute image content hash for smart caching
   const imageHash = crypto.createHash('sha256').update(fs.readFileSync(imagePath)).digest('hex');
-  const cacheKey = `${imageHash}:${isTransitionBoundary ? 'boundary' : 'standard'}`;
+  const cacheKey = `${imageHash}:${isTransitionBoundary ? 'boundary' : 'standard'}:${hasSidebar ? 'sidebar' : 'nosidebar'}`;
   const cache = loadReviewCache();
 
   if (cache[cacheKey] && cache[cacheKey].passed) {
@@ -112,7 +113,9 @@ export async function reviewFrameWithKane(
   const targetUrl = `${reviewUrl}?frame=${frameNumber}`;
   const objective = isTransitionBoundary
     ? `Open ${targetUrl} and inspect the scene transition boundary frame: verify that the viewport layout is properly contained without element clipping, and verify the workflow sidebar on the right renders clearly without overlapping text.`
-    : `Open ${targetUrl} and verify that the application layout is properly contained inside the browser window without being cropped off at the edges, and verify the workflow sidebar on the right shows the step title without text overlap.`;
+    : hasSidebar
+    ? `Open ${targetUrl} and verify that the application layout is properly contained inside the browser window without being cropped off at the edges, and verify the workflow sidebar on the right shows the step title without text overlap.`
+    : `Open ${targetUrl} and verify that the application layout is properly contained inside the browser window without being cropped off at the edges.`;
 
   console.log(`\n[Loop 3 Review] Executing Kane Vision QA on frame ${frameNumber} (transitionBoundary=${isTransitionBoundary})...`);
   console.log(`  Objective: "${objective}"`);
@@ -170,19 +173,19 @@ export async function executeReviewLoop(
   }
 
   // Baseline Sample frames:
-  // 1. Frame 115: Scene 1 Dashboard Overview (Settled Wide Shot)
+  // 1. Frame 115: Scene 1 Dashboard Overview (Hero Wide Opening, no sidebar)
   // 2. Mid-transition Boundary Frame (Transition cut point)
-  // 3. Frame 260: Scene 3 Invoice Line Items Review (Detail View)
+  // 3. Frame 260: Scene 3 Invoice Line Items Review (Detail View with sidebar)
   const allDefaultFrames = [
-    { frame: 115, isBoundary: false, desc: 'Scene 1 Dashboard Overview' },
-    { frame: transitionBoundaryFrame, isBoundary: true, desc: `Scene Transition Boundary (Frame ${transitionBoundaryFrame})` },
-    { frame: 260, isBoundary: false, desc: 'Scene 3 Modal Line Items Detail' },
+    { frame: 115, isBoundary: false, hasSidebar: false, desc: 'Scene 1 Dashboard Overview (Hero Wide)' },
+    { frame: transitionBoundaryFrame, isBoundary: true, hasSidebar: true, desc: `Scene Transition Boundary (Frame ${transitionBoundaryFrame})` },
+    { frame: 260, isBoundary: false, hasSidebar: true, desc: 'Scene 3 Modal Line Items Detail' },
   ];
 
   const sampleFrames = framesToCheck && framesToCheck.length > 0
     ? framesToCheck.map((f) => {
         const found = allDefaultFrames.find((df) => df.frame === f);
-        return found || { frame: f, isBoundary: f === transitionBoundaryFrame, desc: `Preview Frame ${f}` };
+        return found || { frame: f, isBoundary: f === transitionBoundaryFrame, hasSidebar: f !== 115, desc: `Preview Frame ${f}` };
       })
     : allDefaultFrames;
 
@@ -190,7 +193,7 @@ export async function executeReviewLoop(
   const reviews: VisualReviewResult[] = [];
   for (const item of sampleFrames) {
     console.log(`\n[Loop 3 QA Sample] Inspecting: ${item.desc}...`);
-    const result = await reviewFrameWithKane(item.frame, baseReviewUrl, item.isBoundary);
+    const result = await reviewFrameWithKane(item.frame, baseReviewUrl, item.isBoundary, item.hasSidebar);
     if (result.passed) {
       console.log(`✓ Frame ${item.frame} PASSED Visual QA: ${result.summary}`);
     } else {
