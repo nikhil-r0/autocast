@@ -189,11 +189,12 @@ test('TEST-25: Source or PR video changes after finalization -> Hash mismatch re
 
 test('TEST-26: PR has the wrong head branch -> Validation aborts', () => {
   const expectedBranch = 'fix/ledgerly-approve-noop';
-  const displayedBranches = ['feature/unrelated-branch', 'main'];
+  const displayedBranches = ['feature/unrelated-branch', 'main', 'prefix-fix/ledgerly-approve-noop'];
 
-  const foundExpected = displayedBranches.some((b) => b === expectedBranch || b.includes(expectedBranch));
+  // Exact normalized match required - substrings must be rejected
+  const foundExpected = displayedBranches.some((b) => b.trim() === expectedBranch);
 
-  assert.equal(foundExpected, false, 'Expected branch should not be found');
+  assert.equal(foundExpected, false, 'Expected branch should not be found with exact matching');
   assert.throws(
     () => {
       if (!foundExpected) {
@@ -247,6 +248,8 @@ test('TEST-27: Showcase finalizer / verifier rejects run_id or testedCommit mism
 test('TEST-28: Preflight checks git status clean, main branch, and sync with origin/main', () => {
   const dirtyPorcelain = ' M src/cli.ts\n?? scratch.txt';
   const featureBranch = 'fix/some-scratch-fix';
+  const localCommit = '1111111111111111111111111111111111111111';
+  const remoteCommit = '2222222222222222222222222222222222222222';
 
   assert.throws(
     () => {
@@ -266,5 +269,15 @@ test('TEST-28: Preflight checks git status clean, main branch, and sync with ori
     },
     /Git working tree is dirty/,
     'Must fail when working directory has uncommitted files'
+  );
+
+  assert.throws(
+    () => {
+      if (localCommit !== remoteCommit) {
+        throw new Error(`Local commit (${localCommit}) differs from origin/main (${remoteCommit}). Please sync with remote.`);
+      }
+    },
+    /Local commit .* differs from origin\/main/,
+    'Must fail when local commit is not in sync with origin/main'
   );
 });

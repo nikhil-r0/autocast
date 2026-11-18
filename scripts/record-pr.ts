@@ -114,7 +114,7 @@ async function recordPrEvidence() {
     let foundBranch = false;
     for (let i = 0; i < branchCount; i++) {
       const txt = await branchLocator.nth(i).textContent();
-      if (txt && (txt.trim() === expectedBranch || txt.includes(expectedBranch))) {
+      if (txt && txt.trim() === expectedBranch) {
         foundBranch = true;
         console.log(`[Playwright PR Recorder] ✓ Confirmed Head Branch in UI: "${txt.trim()}"`);
         break;

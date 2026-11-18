@@ -111,6 +111,9 @@ async function verifyShowcase() {
   if (!props.prUrl || !props.prNumber || !props.branch) {
     errors.push('Live GitHub PR metadata missing in showcase-props.json (prUrl, prNumber, or branch is null/missing)');
   }
+  if (!props.runId) {
+    errors.push('Run ID missing in showcase-props.json');
+  }
   if (!props.testedCommit) {
     errors.push('Tested commit missing in showcase-props.json');
   }

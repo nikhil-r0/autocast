@@ -103,18 +103,13 @@ async function generatePublicEvidence() {
   fs.writeFileSync(patchPath, diffContent + '\n', 'utf-8');
   console.log(`[Evidence] ✓ Wrote genuine repair patch -> ${patchPath}`);
 
-  // 3. Genuine failure-summary.json - Strictly from the current run
+  // 3. Genuine failure-summary.json - Exclusively from the current run directory (zero fallbacks)
   const runSpecificFailurePath = path.join(outDir, 'runs', runId, 'initial-failure-summary.json');
-  const initialFailurePath = path.join(outDir, 'initial-failure-summary.json');
-
-  let failureSummary: any = null;
-  if (fs.existsSync(runSpecificFailurePath)) {
-    failureSummary = JSON.parse(fs.readFileSync(runSpecificFailurePath, 'utf-8'));
-  } else if (fs.existsSync(initialFailurePath)) {
-    failureSummary = JSON.parse(fs.readFileSync(initialFailurePath, 'utf-8'));
-  } else {
+  if (!fs.existsSync(runSpecificFailurePath)) {
     throw new Error(`Current run failure evidence missing at ${runSpecificFailurePath}. Halting: cannot fabricate defect evidence.`);
   }
+
+  const failureSummary = JSON.parse(fs.readFileSync(runSpecificFailurePath, 'utf-8'));
 
   // Enforce exact run_id matching - never permit an old summary without matching run_id
   if (!failureSummary.run_id || failureSummary.run_id !== runId) {

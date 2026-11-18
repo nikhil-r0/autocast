@@ -23,6 +23,7 @@ import {
 import { LedgerlyLifecycleAdapter } from './app/lifecycle.js';
 import { generateRunManifest } from './manifest.js';
 import { RunManifest } from './types.js';
+import { runPreflightAudit } from './preflight.js';
 
 import dns from 'dns';
 
@@ -94,33 +95,17 @@ async function main() {
   console.log('================================================================');
   console.log(`User Prompt: "${userPrompt}"\n`);
 
-  // Preflight Git Integrity Check
+  // Preflight Integrity Audit (Fails closed on dirty tree, wrong branch, or unpushed commits)
   const allowDirty = args.includes('--allow-dirty') || process.env.ALLOW_DIRTY === 'true';
   try {
-    const branch = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf-8' }).trim();
-    if (branch !== 'main' && !allowDirty) {
-      throw new Error(`Active branch is '${branch}'. Expected 'main'. AutoCast demo must start from clean 'main'.`);
-    }
-
-    const porcelain = execSync('git status --porcelain', { encoding: 'utf-8' }).trim();
-    if (porcelain && !allowDirty) {
-      throw new Error(`Working directory is not clean. Uncommitted changes:\n${porcelain}\nCommit or stash before running demo.`);
-    }
-
-    const localCommit = execSync('git rev-parse HEAD', { encoding: 'utf-8' }).trim();
-    const remoteCommit = execSync('git rev-parse origin/main 2>/dev/null || true', { encoding: 'utf-8' }).trim();
-    if (remoteCommit && localCommit !== remoteCommit && !allowDirty) {
-      throw new Error(
-        `Local branch 'main' (${localCommit.slice(0, 8)}) is not synchronized with origin/main (${remoteCommit.slice(0, 8)}).`
-      );
-    }
+    runPreflightAudit({ allowDirty, runTests: true });
   } catch (err: any) {
     if (!allowDirty) {
       console.error(`\n❌ PREFLIGHT INTEGRITY CHECK FAILED: ${err.message}`);
       console.error('To override in development offline mode, pass --allow-dirty or ALLOW_DIRTY=true\n');
       process.exit(1);
     } else {
-      console.warn(`[Preflight] Git audit warning (bypassed via --allow-dirty): ${err.message}`);
+      console.warn(`[Preflight] Preflight warning (bypassed via --allow-dirty): ${err.message}`);
     }
   }
 
