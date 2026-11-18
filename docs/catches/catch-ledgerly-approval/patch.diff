@@ -13,4 +13,3 @@
        message: `Invoice ${id} approved`,
      });
    }
-

@@ -12,7 +12,7 @@ This directory contains the machine-verifiable evidence artifacts for AutoCast's
 ## 2. Autonomous Repair by Antigravity AI
 - **Isolated Worktree**: `.worktrees/repair-*`
 - **Target File**: `examples/ledgerly/server/index.js`
-- **Guardrails**: `tests/**` enforced read-only. 33/33 unit regression tests passed.
+- **Guardrails**: `tests/**` enforced read-only. 33/33 unit regression tests passed (`npm test`).
 - **Git Patch**: [`patch.diff`](./patch.diff)
 
 ## 3. Independent Verification (Kane Run 2)

@@ -29,38 +29,55 @@ import dns from 'dns';
 dns.setDefaultResultOrder('ipv4first');
 dotenv.config();
 
-async function isServerRunning(url: string): Promise<boolean> {
+async function getServerHealth(url: string): Promise<{ ok: boolean; bug?: string | null; commit?: string } | null> {
   try {
     const res = await fetch(`${url}/api/health`);
-    return res.ok;
+    if (!res.ok) return null;
+    const body: any = await res.json();
+    return { ok: true, bug: body.bug || null, commit: body.commit };
   } catch {
-    return false;
+    return null;
   }
 }
 
-async function ensureSampleAppRunning(port: number = 8080): Promise<void> {
+async function ensureSampleAppRunning(port: number = 8080, expectedBug: string | null = process.env.APP_BUG || null): Promise<void> {
   const url = `http://localhost:${port}`;
-  if (await isServerRunning(url)) {
-    return;
-  }
+  const health = await getServerHealth(url);
 
-  console.log(`[Setup] Starting bundled sample app at ${url}...`);
-  const serverScript = path.join(process.cwd(), 'examples', 'ledgerly', 'server', 'index.js');
-  const serverProc = spawn('node', [serverScript], {
-    detached: true,
-    stdio: 'ignore',
-    env: { ...process.env, PORT: String(port) },
-  });
-  serverProc.unref();
-
-  // Wait for health endpoint
-  for (let i = 0; i < 20; i++) {
-    await new Promise((r) => setTimeout(r, 200));
-    if (await isServerRunning(url)) {
-      console.log(`[Setup] Sample app is live at ${url}`);
+  if (health?.ok) {
+    if (expectedBug !== undefined && expectedBug !== null && health.bug !== expectedBug) {
+      console.log(`[Setup] Detected running server on port ${port} with bug='${health.bug}', but expected='${expectedBug}'. Restarting application...`);
+      const adapter = new LedgerlyLifecycleAdapter({ port });
+      await adapter.stop();
+    } else {
+      console.log(`[Setup] Application server confirmed running on ${url} (bug: ${health.bug || 'none'}, commit: ${health.commit || 'development'})`);
       return;
     }
   }
+
+  console.log(`[Setup] Starting bundled sample app at ${url} with APP_BUG=${expectedBug || 'none'}...`);
+  const serverScript = path.join(process.cwd(), 'examples', 'ledgerly', 'server', 'index.js');
+  const serverProc = spawn(process.execPath, [serverScript], {
+    detached: true,
+    stdio: 'ignore',
+    env: { ...process.env, PORT: String(port), APP_BUG: expectedBug || '' },
+  });
+  serverProc.unref();
+
+  // Wait for health endpoint and verify expected bug injection
+  let confirmedHealth: { ok: boolean; bug?: string | null; commit?: string } | null = null;
+  for (let i = 0; i < 30; i++) {
+    await new Promise((r) => setTimeout(r, 200));
+    confirmedHealth = await getServerHealth(url);
+    if (confirmedHealth?.ok) {
+      if (!expectedBug || confirmedHealth.bug === expectedBug) {
+        console.log(`[Setup] Sample app is live at ${url} (confirmed bug: ${confirmedHealth.bug || 'none'})`);
+        return;
+      }
+    }
+  }
+
+  throw new Error(`[Setup] Fatal: Sample app failed to become healthy with expected bug='${expectedBug}' on ${url}`);
 }
 
 async function main() {
@@ -139,23 +156,28 @@ async function main() {
         const { worktreeDir, repairBranch } = createRepairWorktree(repairId);
 
         try {
-          const repairResult = await invokeAntigravityRepair({
-            worktreeDir,
-            appRelativePath: 'examples/ledgerly',
-            objective: objectivePlan.objective,
-            verdict: kaneResult.verdict,
-            failingStep: kaneResult.steps.slice(-1)[0]?.summary,
-            evidence: {
-              sessionDir: kaneResult.sessionDir || '',
-              consoleLogs: kaneResult.rawEvents?.map((e: any) => e.message).filter(Boolean),
-              failureScreenshot: kaneResult.steps.slice(-1)[0]?.url,
+          const repairResult = await invokeAntigravityRepair(
+            {
+              worktreeDir,
+              appRelativePath: 'examples/ledgerly',
+              objective: objectivePlan.objective,
+              verdict: kaneResult.verdict,
+              failingStep: kaneResult.steps.slice(-1)[0]?.summary,
+              evidence: {
+                sessionDir: kaneResult.sessionDir || '',
+                consoleLogs: kaneResult.rawEvents?.map((e: any) => e.message).filter(Boolean),
+                failureScreenshot: kaneResult.steps.slice(-1)[0]?.url,
+              },
+              constraints: {
+                allowedDirectories: ['examples/ledgerly/**'],
+                protectedPaths: ['tests/**', 'examples/ledgerly/tests/**'],
+                maxRepairAttempts: 2,
+              },
             },
-            constraints: {
-              allowedDirectories: ['examples/ledgerly/**'],
-              protectedPaths: ['tests/**', 'examples/ledgerly/tests/**'],
-              maxRepairAttempts: 2,
-            },
-          });
+            {
+              testCommand: 'npm test',
+            }
+          );
 
           if (!repairResult.success) {
             console.error(`\n[Closed Loop Repair] Agent repair failed: ${repairResult.error}`);
@@ -490,22 +512,26 @@ async function main() {
     posterPath: posterPath,
   });
 
-  // Generate showcase props for Remotion presentation render
-  const showcaseProps = {
-    prUrl: process.env.PR_URL || '',
-    prNumber: process.env.PR_NUMBER ? parseInt(process.env.PR_NUMBER, 10) : undefined,
-    branch: closedLoopMetadata.occurred ? (closedLoopMetadata as any).repair_branch || 'fix/ledgerly-approve-noop' : 'main',
-    candidateCommit: closedLoopMetadata.candidate_commit || testedCommit,
+  // Stage 1: Generate base showcase props from live execution
+  const baseShowcaseProps = {
+    autocastVersion: '0.2.0',
+    candidateCommit: closedLoopMetadata?.candidate_commit || testedCommit,
     testedCommit: testedCommit,
     baselineCommit: baselineCommit,
+    branch: closedLoopMetadata?.occurred ? (closedLoopMetadata as any).repair_branch || 'fix/ledgerly-approve-noop' : 'main',
     kaneResult: kaneResult.resultCode || 100,
     verified: isStateVerified && visualQaMetadata.status === 'passed' && !skipReview,
+    stateVerified: isStateVerified,
+    visualQaPassed: visualQaMetadata.status === 'passed',
+    ocrPassed: ocrResult.passed,
     sourceVideo: 'source.mp4',
-    prRecording: 'pr-recording.mp4',
     manifestPath: 'out/run-manifest.json',
   };
-  fs.writeFileSync(path.join(outDir, 'showcase-props.json'), JSON.stringify(showcaseProps, null, 2), 'utf-8');
-  console.log(`[Showcase] Generated showcase composition props -> ${path.join(outDir, 'showcase-props.json')}`);
+  fs.writeFileSync(path.join(outDir, 'showcase-props.base.json'), JSON.stringify(baseShowcaseProps, null, 2), 'utf-8');
+  console.log(`[Showcase] Staged base showcase props -> ${path.join(outDir, 'showcase-props.base.json')}`);
+
+  // Default props file until Stage 2 finalization
+  fs.writeFileSync(path.join(outDir, 'showcase-props.json'), JSON.stringify(baseShowcaseProps, null, 2), 'utf-8');
 
   // Sync to examples/output for docs & sample delivery
   const examplesOutDir = path.join(process.cwd(), 'examples', 'output');

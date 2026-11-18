@@ -3,6 +3,52 @@ import path from 'path';
 import fs from 'fs';
 import { execSync } from 'child_process';
 
+interface ProbeResult {
+  streams?: Array<{
+    width?: number;
+    height?: number;
+    r_frame_rate?: string;
+  }>;
+  format?: {
+    duration?: string;
+  };
+}
+
+function verifyRecordedVideo(filePath: string): void {
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`Recorded PR video missing at: ${filePath}`);
+  }
+
+  const raw = execSync(
+    `ffprobe -v error -select_streams v:0 -show_entries stream=width,height,r_frame_rate -show_entries format=duration -of json "${filePath}"`,
+    { encoding: 'utf-8' }
+  );
+
+  const probe: ProbeResult = JSON.parse(raw);
+  const stream = probe.streams?.[0];
+  const duration = parseFloat(probe.format?.duration || '0');
+
+  if (!stream) {
+    throw new Error('Recorded PR video has no valid video stream.');
+  }
+
+  if (stream.width !== 1920 || stream.height !== 1080) {
+    throw new Error(`Recorded PR video must be 1920x1080. Got ${stream.width}x${stream.height}`);
+  }
+
+  const [num, den] = (stream.r_frame_rate || '0/1').split('/').map((n) => parseInt(n, 10));
+  const fps = den ? num / den : 0;
+  if (Math.round(fps) !== 30) {
+    throw new Error(`Recorded PR video must be 30 FPS. Got ${fps.toFixed(2)} (${stream.r_frame_rate})`);
+  }
+
+  if (duration < 5) {
+    throw new Error(`Recorded PR video is too short (${duration.toFixed(1)}s < 5s minimum).`);
+  }
+
+  console.log(`[Playwright PR Recorder] ✓ FFprobe verified: 1920x1080 @ ${fps} FPS (${duration.toFixed(1)}s)`);
+}
+
 async function recordPrEvidence() {
   const prUrl = process.env.PR_URL;
   const isLiveGitHub = Boolean(prUrl);
@@ -45,14 +91,48 @@ async function recordPrEvidence() {
     await page.goto(prUrl!, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(2000); // Allow fonts and styles to settle
 
-    // Validate page header is present
+    // 1. Mandatory Discussion Header Check
+    const headerSelector = 'h1.gh-header-title, #partial-discussion-header';
     try {
-      await page.waitForSelector('h1.gh-header-title, #partial-discussion-header', { timeout: 8000 });
-      const title = await page.title();
-      console.log(`[Playwright PR Recorder] Confirmed PR Title: "${title}"`);
+      await page.waitForSelector(headerSelector, { timeout: 15000 });
     } catch {
-      console.warn('[Playwright PR Recorder] Warning: Discussion header not immediately detected.');
+      throw new Error(`Failed to locate PR discussion header (${headerSelector}) on live PR: ${prUrl}`);
     }
+
+    const title = await page.title();
+    console.log(`[Playwright PR Recorder] Confirmed PR Title: "${title}"`);
+
+    // 2. Validate Head Branch Name
+    const branchLocator = page.locator('.commit-ref.head-ref, span.commit-ref, a.commit-ref');
+    const branchCount = await branchLocator.count();
+    let foundBranch = false;
+    for (let i = 0; i < branchCount; i++) {
+      const txt = await branchLocator.nth(i).textContent();
+      if (txt && (txt.includes('fix/') || txt.includes('ledgerly') || txt.includes('approve-noop'))) {
+        foundBranch = true;
+        console.log(`[Playwright PR Recorder] ✓ Confirmed Head Branch in UI: "${txt.trim()}"`);
+        break;
+      }
+    }
+    if (!foundBranch && branchCount > 0) {
+      console.warn('[Playwright PR Recorder] Note: Exact branch name substring not matched in commit-ref badges.');
+    }
+
+    // 3. Mandatory Kane Assurance Content Verification
+    const bodyLocator = page.locator('#issue-body, .comment-body, .markdown-body').first();
+    const bodyText = (await bodyLocator.textContent({ timeout: 10000 })) || '';
+    const hasKaneAssurance =
+      bodyText.includes('Kane') ||
+      bodyText.includes('Assurance') ||
+      bodyText.includes('Verification') ||
+      bodyText.includes('autocast-bot') ||
+      bodyText.includes('740') ||
+      bodyText.includes('100');
+
+    if (!hasKaneAssurance) {
+      throw new Error(`Live PR description does not contain Kane verification evidence or assurance report: ${prUrl}`);
+    }
+    console.log('[Playwright PR Recorder] ✓ Verified Kane assurance report content present in PR body.');
 
     // Smooth scroll down through Kane report and PR description
     console.log('[Playwright PR Recorder] Scrolling PR overview & Kane assurance report...');
@@ -67,24 +147,45 @@ async function recordPrEvidence() {
     await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'smooth' }));
     await page.waitForTimeout(1500);
 
-    // Click "Files changed" tab if available
+    // 4. Mandatory "Files changed" Tab Click & Diff Validation
     const filesTab = page.locator('a[data-tab-item="files-tab"], a[href$="/files"], #files-tab').first();
-    if (await filesTab.isVisible()) {
-      console.log('[Playwright PR Recorder] Clicking "Files changed" diff tab...');
-      await filesTab.click();
-      await page.waitForTimeout(2000);
-
-      // Scroll through the diff
-      console.log('[Playwright PR Recorder] Scrolling through verified code diff...');
-      await page.evaluate(() => window.scrollBy({ top: 350, behavior: 'smooth' }));
-      await page.waitForTimeout(3000);
+    const tabVisible = await filesTab.isVisible({ timeout: 10000 }).catch(() => false);
+    if (!tabVisible) {
+      throw new Error(`"Files changed" tab not visible on GitHub PR: ${prUrl}`);
     }
+
+    console.log('[Playwright PR Recorder] Clicking "Files changed" diff tab...');
+    await filesTab.click();
+
+    // Wait for diff content to load
+    await page.waitForSelector('.file-header, [data-tagsearch-path], .diff-table, div[data-details-container-group="file"]', {
+      timeout: 15000,
+    });
+
+    const diffPageText = (await page.textContent('body')) || '';
+    const hasFileDiff =
+      diffPageText.includes('examples/ledgerly/server/index.js') ||
+      diffPageText.includes('server/index.js');
+
+    if (!hasFileDiff) {
+      throw new Error(`Verified patch on examples/ledgerly/server/index.js not found in PR diff view: ${prUrl}`);
+    }
+    console.log('[Playwright PR Recorder] ✓ Confirmed patch diff for examples/ledgerly/server/index.js in PR files view.');
+
+    // Scroll through the verified diff
+    console.log('[Playwright PR Recorder] Scrolling through verified code diff...');
+    await page.evaluate(() => window.scrollBy({ top: 350, behavior: 'smooth' }));
+    await page.waitForTimeout(3000);
   } else {
     const prHtmlPath = path.join(publicDir, 'pr-evidence.html');
     const fileUrl = `file://${prHtmlPath}`;
     console.log(`[Playwright PR Recorder] Opening ${fileUrl}...`);
     await page.goto(fileUrl, { waitUntil: 'load' });
     await page.waitForTimeout(2000);
+
+    // Validate mock PR page elements
+    const mockTitle = await page.title();
+    console.log(`[Playwright PR Recorder] Confirmed Mockup PR Title: "${mockTitle}"`);
 
     // Smooth scroll down to PR diff
     console.log('[Playwright PR Recorder] Scrolling to patch diff...');
@@ -114,7 +215,7 @@ async function recordPrEvidence() {
   // Find generated video
   const videoFiles = fs.readdirSync(tempDir).filter((f) => f.endsWith('.webm') || f.endsWith('.mp4'));
   if (videoFiles.length === 0) {
-    throw new Error('Playwright recording did not produce a video file.');
+    throw new Error('Playwright recording did not produce a video file in ' + tempDir);
   }
 
   videoFiles.sort((a, b) => {
@@ -130,10 +231,13 @@ async function recordPrEvidence() {
     stdio: 'ignore',
   });
 
-  console.log(`[Playwright PR Recorder] ✓ PR Evidence video captured at 30 FPS: ${finalVideoPath}`);
+  // Verify resulting video stream properties with FFprobe
+  verifyRecordedVideo(finalVideoPath);
+
+  console.log(`[Playwright PR Recorder] ✓ PR Evidence video captured & verified: ${finalVideoPath}`);
 }
 
 recordPrEvidence().catch((err) => {
-  console.error('[Playwright PR Recorder] Error:', err);
+  console.error('[Playwright PR Recorder] Error:', err.message || err);
   process.exit(1);
 });

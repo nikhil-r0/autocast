@@ -246,9 +246,10 @@ IMPORTANT INSTRUCTIONS:
   const testCommand =
     options?.testCommand ||
     (fs.existsSync(path.join(appDir, 'server/index.js')) ? 'node -c server/index.js' : 'npm test');
-  console.log(`[Antigravity Repair] Running regression verification ('${testCommand}') in ${appDir}...`);
+  const testCwd = options?.testCommand ? request.worktreeDir : appDir;
+  console.log(`[Antigravity Repair] Running regression verification ('${testCommand}') in ${testCwd}...`);
   try {
-    execSync(testCommand, { cwd: appDir, stdio: 'pipe', encoding: 'utf-8' });
+    execSync(testCommand, { cwd: testCwd, stdio: 'pipe', encoding: 'utf-8' });
   } catch (err: any) {
     const failureMsg = err.stderr || err.stdout || err.message;
     return {

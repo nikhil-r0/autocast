@@ -13,6 +13,8 @@
     "render": "remotion render Demo out/demo.mp4 --codec=h264",
     "render:showcase": "remotion render AutoCastShowcase out/autocast-hackathon-showcase.mp4 --codec=h264",
     "record:pr": "tsx scripts/record-pr.ts",
+    "finalize:showcase": "tsx scripts/finalize-showcase.ts",
+    "evidence:public": "tsx scripts/generate-public-evidence.ts",
     "verify:provenance": "tsx scripts/verify-provenance.ts",
     "verify:showcase": "tsx scripts/verify-showcase.ts",
     "preview": "remotion preview remotion/index.ts",

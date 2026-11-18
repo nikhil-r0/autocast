@@ -16,22 +16,26 @@ import { TerminalCard } from './components/TerminalCard';
 import { DiffCard } from './components/DiffCard';
 import { KaneCard } from './components/KaneCard';
 import { ManifestBadge } from './components/ManifestBadge';
-import runManifest from '../examples/output/run-manifest.json';
 
 export const SHOWCASE_TOTAL_FRAMES = 6750; // 3 minutes 45 seconds at 30 fps
 
 export interface ShowcaseProps {
-  prUrl?: string;
-  prNumber?: number;
-  branch?: string;
-  candidateCommit?: string;
-  testedCommit?: string;
-  baselineCommit?: string;
-  kaneResult?: number;
-  verified?: boolean;
-  sourceVideo?: string;
-  prRecording?: string;
-  manifestPath?: string;
+  prUrl?: string | null;
+  prNumber?: number | null;
+  branch?: string | null;
+  candidateCommit?: string | null;
+  testedCommit?: string | null;
+  baselineCommit?: string | null;
+  kaneResult?: number | null;
+  verified?: boolean | null;
+  stateVerified?: boolean | null;
+  visualQaPassed?: boolean | null;
+  ocrPassed?: boolean | null;
+  sourceVideo?: string | null;
+  prRecording?: string | null;
+  sourceVideoSha256?: string | null;
+  prRecordingSha256?: string | null;
+  autocastVersion?: string | null;
 }
 
 export const ShowcaseDataContext = React.createContext<ShowcaseProps>({});
@@ -536,10 +540,10 @@ const Act6DemoVideo: React.FC = () => {
 // ==========================================
 const Act7SubPR: React.FC = () => {
   const data = useContext(ShowcaseDataContext);
-  const prNum = data.prNumber || 2;
-  const branch = data.branch || 'fix/ledgerly-approve-noop';
+  const prNumText = data.prNumber ? `#${data.prNumber}` : '[PR PENDING]';
+  const branchText = data.branch || 'fix/ledgerly-approve-noop';
   const prRecording = data.prRecording || 'pr-recording.mp4';
-  const commit = data.testedCommit || data.candidateCommit || runManifest.application?.tested_commit || 'verified';
+  const commit = data.testedCommit || data.candidateCommit || '[UNVERIFIED COMMIT]';
 
   return (
     <div
@@ -555,10 +559,10 @@ const Act7SubPR: React.FC = () => {
     >
       <ChapterHeader
         act="ACT 06.1 // MACHINE PROOF"
-        title={`Automated GitHub PR #${prNum} & Verified Evidence`}
-        subtitle={`Antigravity created branch '${branch}' and submitted Pull Request #${prNum} to nikhil-r0/autocast. Kane CLI test matrix and machine evidence attached.`}
-        badge={`GITHUB PR #${prNum} · VERIFIED`}
-        badgeColor="#a855f7"
+        title={`Automated GitHub PR ${prNumText} & Verified Evidence`}
+        subtitle={`Antigravity created branch '${branchText}' and submitted Pull Request ${prNumText} to nikhil-r0/autocast. Kane CLI test matrix and machine evidence attached.`}
+        badge={`GITHUB PR ${prNumText} · ${data.prNumber ? 'VERIFIED' : 'PENDING'}`}
+        badgeColor={data.prNumber ? '#a855f7' : '#eab308'}
       />
 
       <div
@@ -595,9 +599,9 @@ const Act7SubPR: React.FC = () => {
             fontFamily: 'sans-serif',
           }}
         >
-          <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#22c55e' }} />
+          <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: data.prNumber ? '#22c55e' : '#eab308' }} />
           <span style={{ color: '#f8fafc', fontSize: 13, fontWeight: 600 }}>
-            Machine Evidence: PR #{prNum} · Commit {commit.slice(0, 11)}
+            Machine Evidence: PR {prNumText} · Commit {commit.slice(0, 11)}
           </span>
         </div>
       </div>
@@ -608,12 +612,19 @@ const Act7SubPR: React.FC = () => {
 const Act7SubProvenance: React.FC = () => {
   const data = useContext(ShowcaseDataContext);
 
-  const isVerified = (data.verified ?? true) && (runManifest.status === 'verified');
+  const isVerified = Boolean(
+    data.verified === true &&
+    data.stateVerified === true &&
+    data.kaneResult === 100 &&
+    data.testedCommit &&
+    data.prUrl &&
+    data.prNumber
+  );
   const manifestStatus = isVerified ? 'VERIFIED & RELEASED' : 'UNVERIFIED DRAFT';
   const badgeColor = isVerified ? '#4ade80' : '#ef4444';
-  const testedCommit = data.testedCommit || runManifest.application?.tested_commit || '[UNKNOWN COMMIT]';
-  const videoSha256 = runManifest.artifacts?.video?.sha256 || (isVerified ? '[CALCULATING HASH]' : '[UNVERIFIED DRAFT - NO HASH]');
-  const stateVerified = data.verified ?? runManifest.application?.state_verified ?? false;
+  const testedCommit = data.testedCommit || '[UNVERIFIED COMMIT]';
+  const videoSha256 = data.sourceVideoSha256 || (isVerified ? '[CALCULATING HASH]' : '[UNVERIFIED DRAFT - NO HASH]');
+  const stateVerified = data.stateVerified ?? false;
 
   return (
     <div
@@ -638,7 +649,7 @@ const Act7SubProvenance: React.FC = () => {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 24, alignItems: 'center' }}>
         <ManifestBadge
-          version={runManifest.autocast_version || '0.2.0'}
+          version={data.autocastVersion || '0.2.0'}
           status={manifestStatus}
           commitHash={testedCommit}
           videoSha256={videoSha256}
@@ -657,7 +668,7 @@ const Act7SubProvenance: React.FC = () => {
               fontSize: 14,
             }}
           >
-            🔍 <strong style={{ color: '#f8fafc' }}>Loop 2 Visual QA:</strong> {isVerified ? 'Zero clipping, typography flaws, or overlaps' : 'Visual QA review pending or flagged'}
+            🔍 <strong style={{ color: '#f8fafc' }}>Loop 2 Visual QA:</strong> {data.visualQaPassed ? 'Zero clipping, typography flaws, or overlaps' : 'Visual QA review pending or flagged'}
           </div>
           <div
             style={{
@@ -669,7 +680,7 @@ const Act7SubProvenance: React.FC = () => {
               fontSize: 14,
             }}
           >
-            🔒 <strong style={{ color: '#f8fafc' }}>Pixel Safety OCR:</strong> {isVerified ? '0 secrets or credentials exposed across frames' : 'Security audit pending'}
+            🔒 <strong style={{ color: '#f8fafc' }}>Pixel Safety OCR:</strong> {data.ocrPassed ? '0 secrets or credentials exposed across frames' : 'Security audit pending'}
           </div>
           <div
             style={{

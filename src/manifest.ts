@@ -95,22 +95,28 @@ export function verifyRunManifest(
   }
 
   // Mandatory Release Gate: Kane verification result code must be 100
-  if (options.requireVerifiedStatus && manifest.kane_verification) {
-    if (manifest.kane_verification.result_code !== undefined && manifest.kane_verification.result_code !== 100) {
+  if (options.requireVerifiedStatus) {
+    if (!manifest.kane_verification) {
+      errors.push('Manifest missing required kane_verification entry');
+    } else if (manifest.kane_verification.result_code !== 100) {
       errors.push(`Kane verification result code is not 100 (got: ${manifest.kane_verification.result_code})`);
     }
   }
 
-  // Mandatory Release Gate: Visual QA must be passed if present
-  if (options.requireVerifiedStatus && manifest.visual_qa) {
-    if (manifest.visual_qa.status !== 'passed') {
+  // Mandatory Release Gate: Visual QA must be passed
+  if (options.requireVerifiedStatus) {
+    if (!manifest.visual_qa) {
+      errors.push('Manifest missing required visual_qa entry');
+    } else if (manifest.visual_qa.status !== 'passed') {
       errors.push(`Visual QA is not passed (status: '${manifest.visual_qa.status}')`);
     }
   }
 
   // Mandatory Release Gate: Security OCR scan must be clean
-  if (options.requireVerifiedStatus && manifest.security_scan) {
-    if (manifest.security_scan.status !== 'clean') {
+  if (options.requireVerifiedStatus) {
+    if (!manifest.security_scan) {
+      errors.push('Manifest missing required security_scan entry');
+    } else if (manifest.security_scan.status !== 'clean') {
       errors.push(`Security scan detected issues (status: '${manifest.security_scan.status}')`);
     }
   }

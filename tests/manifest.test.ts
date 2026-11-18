@@ -58,6 +58,9 @@ test('TEST-19: MP4 bytes modified after manifest generation -> SHA-256 verificat
     outputPath: tempManifest,
     applicationUrl: 'http://localhost:8080',
     stateVerified: true,
+    kaneVerification: { run_id: 'kane-test', result_code: 100 },
+    visualQa: { status: 'passed', attempts: 1 },
+    securityScan: { status: 'clean', ocr_frames_scanned: 1 },
     videoPath: tempVideo,
   });
 
