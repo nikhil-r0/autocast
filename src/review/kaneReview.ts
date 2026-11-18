@@ -111,7 +111,7 @@ export async function reviewFrameWithKane(
 
   const targetUrl = `${reviewUrl}?frame=${frameNumber}`;
   const objective = isTransitionBoundary
-    ? `Open ${targetUrl} and inspect the scene transition boundary frame: verify that the viewport layout is properly contained without element clipping or visual tearing, and verify the workflow sidebar on the right renders clearly without overlapping text.`
+    ? `Open ${targetUrl} and inspect the scene transition boundary frame: verify that the viewport layout is properly contained without element clipping, and verify the workflow sidebar on the right renders clearly without overlapping text.`
     : `Open ${targetUrl} and verify that the application layout is properly contained inside the browser window without being cropped off at the edges, and verify the workflow sidebar on the right shows the step title without text overlap.`;
 
   console.log(`\n[Loop 3 Review] Executing Kane Vision QA on frame ${frameNumber} (transitionBoundary=${isTransitionBoundary})...`);

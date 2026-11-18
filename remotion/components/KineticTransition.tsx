@@ -23,13 +23,7 @@ export const KineticTransition: React.FC<KineticTransitionProps> = ({
   if (!isCutIn && !isCutOut) return null;
 
   if (isCutIn) {
-    const progress = interpolate(frame, [0, leadFrames], [0, 1], {
-      extrapolateRight: 'clamp',
-    });
-
     const flareOpacity = interpolate(frame, [0, 2, leadFrames], [0.85, 0.6, 0]);
-    const flareWidth = interpolate(frame, [0, leadFrames], [1920 * 0.4, 1920 * 1.2]);
-    const sweepX = interpolate(frame, [0, leadFrames], [-200, 2120]);
 
     return (
       <div
@@ -47,21 +41,6 @@ export const KineticTransition: React.FC<KineticTransitionProps> = ({
             position: 'absolute',
             inset: 0,
             background: `radial-gradient(ellipse at 50% 50%, rgba(56, 189, 248, ${flareOpacity * 0.25}) 0%, transparent 70%)`,
-          }}
-        />
-
-        {/* Anamorphic horizontal light flare streak */}
-        <div
-          style={{
-            position: 'absolute',
-            top: '50%',
-            left: sweepX - flareWidth / 2,
-            width: flareWidth,
-            height: 2,
-            background: `linear-gradient(90deg, transparent, ${flareColor}, #ffffff, #c084fc, transparent)`,
-            boxShadow: `0 0 16px 4px ${flareColor}, 0 0 32px 8px rgba(192, 132, 252, 0.5)`,
-            opacity: flareOpacity,
-            transform: 'translateY(-50%)',
           }}
         />
       </div>
