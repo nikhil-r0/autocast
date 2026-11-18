@@ -1,0 +1,90 @@
+
+> autocast@0.1.0 test
+> node --import tsx --test 'tests/**/*.test.ts'
+
+✔ parseActionsLogToActionIR successfully parses supported action types and skips assertions to outcomeSpecs (6.346684ms)
+✔ TEST-10: Action IR encounters unsupported action type -> Throws error (1.713293ms)
+✔ TEST-09: Replay final state diverges from OutcomeSpec -> Returns failure (6.799633ms)
+✔ OutcomeSpec passes when conditions are satisfied (3.113772ms)
+✔ TEST-01: Kane returns exit 1 with verdict.confirmed === true (740 confirmed product bug) (7.979431ms)
+✔ TEST-02: Kane returns exit 1 without confirmed verdict (unconfirmed failure) (0.688631ms)
+✔ TEST-03: Kane exits code 2 without run_end (CLI configuration / auth error) (4.036859ms)
+✔ TEST-04: Kane exits code 3 after duration limit (Timeout) (0.609839ms)
+✔ Kane returns exit 0 with status passed (Complete) (0.625914ms)
+✔ TEST-17: Closed loop halts after configured max repair attempts (max 2) (2.466307ms)
+[Visual QA Gallery] Server live at http://localhost:8089/qa-gallery
+✔ startVisualQAGallery serves HTML gallery and health check on port 8089 (287.064053ms)
+[Lifecycle] Health check commit mismatch: got 'old-commit-123', expected 'candidate-commit-456'
+✔ TEST-16: Candidate server returns HTTP 200 but serves old commit hash -> Rejected (171.392114ms)
+✔ TEST-08: Server fails /api/health with non-200 OK -> Healthcheck returns false (75.499298ms)
+✔ TEST-08b: Server connection refused (offline server) -> Healthcheck returns false (46.622695ms)
+✔ TEST-22: Candidate server running while worktree cleanup begins -> Server stopped before worktree removed (57.876571ms)
+[Provenance] Sealed tamper-evident run-manifest.json -> /mnt/extra-maal/autocast/out/unverified-manifest.json
+[Provenance] Sealed tamper-evident run-manifest.json -> /mnt/extra-maal/autocast/out/test-manifest.json
+✔ computeFileSha256 computes valid 64-char hex string (17.151822ms)
+✔ TEST-13: --skip-review flag enabled -> manifest stamped UNVERIFIED DRAFT and visual_qa status is flagged (17.472122ms)
+✔ TEST-19: MP4 bytes modified after manifest generation -> SHA-256 verification detects tampering (16.915733ms)
+✔ TEST-21: Manifest missing required verification fields or artifacts fails closed (17.171581ms)
+✔ TEST-23: Previous run has stale 740 evidence -> New evidence generator rejects mismatched RUN_ID (1.164362ms)
+✔ TEST-24: showcase-props.json has verified: false -> Showcase verifier fails (0.791862ms)
+✔ TEST-25: Source or PR video changes after finalization -> Hash mismatch rejected (4.860136ms)
+✔ TEST-26: PR has the wrong head branch -> Validation aborts (1.886414ms)
+✔ TEST-27: Showcase finalizer / verifier rejects run_id or testedCommit mismatch (4.584102ms)
+✔ TEST-28: Preflight checks git status clean, main branch, and sync with origin/main (1.652513ms)
+
+[Pixel Safety OCR] Auditing rendered frames from dummy-empty.mp4...
+[Pixel Safety OCR] Failed to extract frame at 100s: Error: Command failed: ffmpeg -y -ss 100 -i "/mnt/extra-maal/autocast/out/dummy-empty.mp4" -vframes 1 -q:v 2 "/mnt/extra-maal/autocast/out/ocr-tmp/ocr-frame-100s.jpg"
+    at genericNodeError (node:internal/errors:985:15)
+    at wrappedFn (node:internal/errors:539:14)
+    at checkExecSyncError (node:child_process:925:11)
+    at execSync (node:child_process:997:15)
+    at scanVideoPixelsForSecrets (/mnt/extra-maal/autocast/src/edit/ocrScan.ts:68:7)
+    at TestContext.<anonymous> (/mnt/extra-maal/autocast/tests/safety-ocr.test.ts:41:26)
+    at Test.runInAsyncScope (node:async_hooks:228:14)
+    at Test.run (node:internal/test_runner/test:1118:25)
+    at Test.processPendingSubtests (node:internal/test_runner/test:787:18)
+    at Test.postRun (node:internal/test_runner/test:1247:19) {
+  status: 183,
+  signal: null,
+  output: [ null, null, null ],
+  pid: 177362,
+  stdout: null,
+  stderr: null
+}
+[Pixel Safety OCR] ✗ FAILED: No frames could be extracted for security audit. Failing closed.
+✔ TEST-12: Injected fake Stripe live key (sk_live_...) -> Detected and redacted (7.813345ms)
+✔ TEST-18: Secret in transition frame text / payload -> Detected across all rules (1.024579ms)
+✔ TEST-20: Pixel Safety OCR fails closed when zero frames extracted (342.90256ms)
+[Lint Loop] ✓ Storyboard passed all lint checks.
+[Lint Loop] ❌ Storyboard lint failed with 1 error(s):
+  - [Scene 1 (s01)] target rect x/width out of bounds: (1950, 500) max 1920
+[Visual QA Patch] ❌ Lint failed after applying patch to s01:
+   - [Scene 1 (s01)] target rect x/width out of bounds: (1950, 500) max 1920
+[Visual QA Patch] ↩ Reverting scene s01 to original snapshot.
+[Lint Loop] ✓ Storyboard passed all lint checks.
+✔ classifyVisualFlaw maps summaries to deterministic categories (3.448318ms)
+✔ createStoryboardPatch handles clipping by shrinking target 8% inward and stepping zoom down 0.15 (floor 1.2) (3.902157ms)
+✔ createStoryboardPatch respects zoom floor 1.2 (0.556371ms)
+✔ createStoryboardPatch shortens caption to first 8 words for sidebar overlap (0.636167ms)
+✔ createStoryboardPatch centers cursor on target rect when cursor is off target (0.520955ms)
+✔ applyStoryboardPatchAndLint applies valid patch and passes lint (10.139604ms)
+✔ applyStoryboardPatchAndLint reverts scene and skips retry if patch causes lint failure (2.231115ms)
+✔ TEST-11: Preview frame fails Kane visual QA, patch is linted, and retry still fails -> MP4 still rendered, visual_qa.status is flagged (1.363076ms)
+[Antigravity Repair] Invoking Antigravity AI agent in /mnt/extra-maal/autocast/.worktrees/test-wt-empty...
+[Antigravity Repair] Invoking Antigravity AI agent in /mnt/extra-maal/autocast/.worktrees/test-wt-prot...
+[Antigravity Repair] Invoking Antigravity AI agent in /mnt/extra-maal/autocast/.worktrees/test-wt-untracked...
+[Antigravity Repair] Invoking Antigravity AI agent in /mnt/extra-maal/autocast/.worktrees/test-wt-testfail...
+[Antigravity Repair] Running regression verification ('node -e "process.exit(1)"') in /mnt/extra-maal/autocast/.worktrees/test-wt-testfail...
+✔ matchesPattern utility tests (2.946253ms)
+✔ TEST-06: Agent returns success but leaves git diff empty -> Rejected (961.923587ms)
+✔ TEST-05: Agent attempts modifying protected file (tests/**) -> Path guardrail aborts (303.434383ms)
+✔ TEST-15: Agent creates untracked file outside allowed scope -> Rejected by status check (163.549699ms)
+✔ TEST-07: Agent modifies source but testCommand fails -> Rejected (298.024887ms)
+ℹ tests 41
+ℹ suites 0
+ℹ pass 41
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4568.0065

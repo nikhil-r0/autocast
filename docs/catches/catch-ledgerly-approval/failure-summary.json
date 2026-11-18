@@ -1,14 +1,18 @@
 {
-  "step": "Final verification: Approved seal is visible",
+  "run_id": "autocast-run-1795006674594",
+  "session_id": "/home/home/.testmuai/kaneai/sessions/589866e2-b272-4c91-b088-bb5baab5a321",
+  "step": "wait: PRIMARY: wait for the drawer status badge to show Approved",
   "status": "failed",
-  "error": "Final verification failed: \"Approved seal is visible\"",
+  "error": "Final verification failed: \"wait: PRIMARY: wait for the drawer status badge to show Approved\"",
   "verdict": {
-    "category": "application_issue/ui_state_mismatch",
-    "confidence": 0.93,
+    "confirmed": true,
+    "family": "application_issue",
+    "category": "ui_state_mismatch",
     "severity": "major",
-    "result_code": 740,
-    "summary": "Invoice approval was accepted by API but invoice status remained Pending without digital compliance seal."
+    "oneLiner": "INV-1042 reports a successful approval, but its open drawer still shows Pending.",
+    "confidence": 0.97
   },
   "result_code": 740,
-  "timestamp": "2026-11-16T17:35:53.389Z"
+  "share_url": "https://test-manager.lambdatest.com/projects/01M7G731FR81J5BGBWP3Y53FHF/test-cases/01M7QBRZR4FRVMB943TNRAG5PV/dashboard/share/US_DI4N4K9JKH8XJIJV21PI9C1O8S14VK91Q077F66Q6H6O7CBY8G3Q2Z1GZ0IR6PFJ?type=summary&agentView=true&fqdn=summary-page",
+  "timestamp": "2026-11-18T13:00:49.583Z"
 }

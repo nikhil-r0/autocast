@@ -18,12 +18,12 @@
       "caption": "12 invoices waiting",
       "narration": "Twelve invoices await executive review, led by INV-1042.",
       "audio": null,
-      "audio_sec": 7.679,
+      "audio_sec": 6.688,
       "segments": [
         {
           "kind": "idle",
-          "src_start": 0,
-          "src_end": 7.679,
+          "src_start": 0.005,
+          "src_end": 6.693,
           "speed": 1
         }
       ],
@@ -59,8 +59,8 @@
       "segments": [
         {
           "kind": "action",
-          "src_start": 7.679,
-          "src_end": 11.604,
+          "src_start": 6.694,
+          "src_end": 10.746,
           "speed": 1
         }
       ],
@@ -92,12 +92,12 @@
       "caption": "Apex, $4,850.00",
       "narration": "Production compute and multi-AZ data transfer total $4,850.00.",
       "audio": null,
-      "audio_sec": 4.468,
+      "audio_sec": 4.2,
       "segments": [
         {
           "kind": "idle",
-          "src_start": 11.604,
-          "src_end": 16.072,
+          "src_start": 10.746,
+          "src_end": 14.877,
           "speed": 1
         }
       ],
@@ -129,12 +129,12 @@
       "caption": "Approve Invoice",
       "narration": "Approve Invoice with required budget verification note.",
       "audio": null,
-      "audio_sec": 8.368000000000002,
+      "audio_sec": 7.079999999999998,
       "segments": [
         {
           "kind": "action",
-          "src_start": 16.072,
-          "src_end": 24.44,
+          "src_start": 14.878,
+          "src_end": 21.958,
           "speed": 1
         }
       ],
@@ -166,12 +166,12 @@
       "caption": "Approved seal",
       "narration": "The green Approved compliance seal stamps into document preview.",
       "audio": null,
-      "audio_sec": 4.385999999999999,
+      "audio_sec": 4.4289999999999985,
       "segments": [
         {
           "kind": "idle",
-          "src_start": 24.442,
-          "src_end": 28.828,
+          "src_start": 21.965,
+          "src_end": 26.394,
           "speed": 1
         }
       ],
@@ -203,12 +203,12 @@
       "caption": "Pending drops to 11",
       "narration": "INV-1042 is approved and pending approvals drops to 11.",
       "audio": null,
-      "audio_sec": 5.201999999999998,
+      "audio_sec": 5.104000000000003,
       "segments": [
         {
           "kind": "action",
-          "src_start": 28.829,
-          "src_end": 34.031,
+          "src_start": 26.394,
+          "src_end": 31.498,
           "speed": 1
         }
       ],

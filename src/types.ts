@@ -212,15 +212,31 @@ export interface RunManifest {
     run_id: string;
     result_code?: number;
     credits_consumed?: number;
+    share_url?: string;
+    test_url?: string;
     claims?: Array<{ id: string; claim: string; passed: boolean }>;
+    initial_failure?: {
+      result_code: number;
+      share_url?: string;
+      session_id?: string;
+    };
+    post_repair?: {
+      result_code: number;
+      share_url?: string;
+      session_id?: string;
+    };
   };
   closed_loop_repair?: {
     occurred: boolean;
     initial_failure?: string;
+    initial_share_url?: string;
     agent?: string;
     candidate_commit?: string;
+    integration_commit?: string;
+    repair_branch?: string;
     patch_file?: string;
     re_verification_run_id?: string;
+    re_verification_share_url?: string;
   };
   visual_qa?: {
     status: 'passed' | 'flagged';

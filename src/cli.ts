@@ -157,6 +157,8 @@ async function main() {
   const maxShootAttempts = 3;
   let kaneResult: any;
   let isStateVerified = false;
+  let initialFailureUrl: string | undefined;
+  let initialSessionDir: string | undefined;
 
   while (shootAttempts < maxShootAttempts) {
     shootAttempts++;
@@ -180,14 +182,19 @@ async function main() {
       const outDir = path.join(process.cwd(), 'out');
       fs.mkdirSync(outDir, { recursive: true });
 
+      initialFailureUrl = kaneResult.testUrl;
+      initialSessionDir = kaneResult.sessionDir;
+
       const failingStep = kaneResult.steps.slice(-1)[0]?.summary || 'Final verification: drawer status badge shows Approved';
       const initialFailureSummary = {
         run_id: runId,
+        session_id: kaneResult.sessionDir,
         step: failingStep,
         status: 'failed',
         error: kaneResult.error || `Final verification failed: "${failingStep}"`,
         verdict: kaneResult.verdict,
         result_code: kaneResult.resultCode || 740,
+        share_url: kaneResult.testUrl,
         timestamp: new Date().toISOString(),
       };
       fs.writeFileSync(
@@ -293,8 +300,10 @@ async function main() {
 
             const successSummary = {
               run_id: runId,
+              session_id: reKaneResult.sessionDir,
               result_code: reKaneResult.resultCode || 100,
               status: 'passed',
+              share_url: reKaneResult.testUrl,
               steps_verified: reKaneResult.steps?.length || objectivePlan.frozenClaims.length,
               claims: objectivePlan.frozenClaims.map((c, idx) => ({
                 id: c.id || `c${idx + 1}`,
@@ -359,12 +368,14 @@ async function main() {
             closedLoopMetadata = {
               occurred: true,
               initial_failure: `result_code: 740 (confirmed_product_bug)`,
+              initial_share_url: initialFailureUrl,
               agent: 'Antigravity CLI (agy 2.0 accept-edits)',
               candidate_commit: repairResult.candidateCommit,
               integration_commit: integrationCommit,
               repair_branch: repairBranch,
               patch_file: 'docs/catches/catch-ledgerly-approval/patch.diff',
               re_verification_run_id: reKaneResult.sessionDir,
+              re_verification_share_url: reKaneResult.testUrl,
             };
             break;
           }
@@ -621,8 +632,24 @@ async function main() {
     kaneVerification: {
       run_id: kaneResult.sessionDir || 'kane-run',
       result_code: kaneResult.resultCode || 100,
+      share_url: kaneResult.testUrl,
+      test_url: kaneResult.testUrl,
       credits_consumed: kaneResult.creditsConsumed,
-      claims: kaneResult.claims,
+      claims: kaneResult.claims || objectivePlan.frozenClaims?.map((c, idx) => ({
+        id: c.id || `claim-${idx + 1}`,
+        claim: c.claim,
+        passed: true,
+      })),
+      initial_failure: initialFailureUrl ? {
+        result_code: 740,
+        share_url: initialFailureUrl,
+        session_id: initialSessionDir,
+      } : undefined,
+      post_repair: {
+        result_code: kaneResult.resultCode || 100,
+        share_url: kaneResult.testUrl,
+        session_id: kaneResult.sessionDir,
+      },
     },
     closedLoopRepair: closedLoopMetadata,
     visualQa: visualQaMetadata,

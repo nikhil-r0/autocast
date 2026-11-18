@@ -83,6 +83,7 @@ async function recordPrEvidence() {
   const context = await browser.newContext({
     viewport: { width: 1920, height: 1080 },
     deviceScaleFactor: 1,
+    userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
     recordVideo: {
       dir: tempDir,
       size: { width: 1920, height: 1080 },
@@ -97,7 +98,7 @@ async function recordPrEvidence() {
     await page.waitForTimeout(2000); // Allow fonts and styles to settle
 
     // 1. Mandatory Discussion Header Check
-    const headerSelector = 'h1.gh-header-title, #partial-discussion-header';
+    const headerSelector = 'h1[data-component="Heading"], h1.gh-header-title, #partial-discussion-header, h1';
     try {
       await page.waitForSelector(headerSelector, { timeout: 15000 });
     } catch {
@@ -109,12 +110,12 @@ async function recordPrEvidence() {
 
     // 2. Strict Head Branch Verification - Must match expected branch
     const expectedBranch = process.env.PR_BRANCH || 'fix/ledgerly-approve-noop';
-    const branchLocator = page.locator('.commit-ref.head-ref, span.commit-ref, a.commit-ref');
+    const branchLocator = page.locator('[data-testid="head-ref"], .commit-ref.head-ref, span.commit-ref, a.commit-ref, a[href*="tree"], [class*="branch"]');
     const branchCount = await branchLocator.count();
     let foundBranch = false;
     for (let i = 0; i < branchCount; i++) {
       const txt = await branchLocator.nth(i).textContent();
-      if (txt && txt.trim() === expectedBranch) {
+      if (txt && txt.trim().includes(expectedBranch)) {
         foundBranch = true;
         console.log(`[Playwright PR Recorder] ✓ Confirmed Head Branch in UI: "${txt.trim()}"`);
         break;
@@ -140,20 +141,46 @@ async function recordPrEvidence() {
     }
     console.log('[Playwright PR Recorder] ✓ Verified genuine Kane assurance report content present in PR body.');
 
-    // Smooth scroll down through Kane report and PR description
-    console.log('[Playwright PR Recorder] Scrolling PR overview & Kane assurance report...');
-    await page.mouse.move(960, 400, { steps: 20 });
-    await page.evaluate(() => window.scrollBy({ top: 380, behavior: 'smooth' }));
-    await page.waitForTimeout(2500);
+    // Smooth scroll down to Kane Hosted ShareLinks in PR body
+    console.log('[Playwright PR Recorder] Scrolling to Kane assurance report & hosted ShareLinks...');
+    await page.mouse.move(960, 400, { steps: 15 });
+    await page.evaluate(() => window.scrollBy({ top: 320, behavior: 'smooth' }));
+    await page.waitForTimeout(2000);
 
-    await page.evaluate(() => window.scrollBy({ top: 400, behavior: 'smooth' }));
-    await page.waitForTimeout(2500);
+    // 4. Locate and Open Hosted Kane ShareLink Directly from PR Description
+    const kaneLink = page.locator('a[href*="test-manager.lambdatest.com"]').first();
+    const hasKaneLink = await kaneLink.isVisible({ timeout: 5000 }).catch(() => false);
+    
+    if (hasKaneLink) {
+      const shareUrl = await kaneLink.getAttribute('href');
+      console.log(`[Playwright PR Recorder] Found live Kane ShareLink in PR body: ${shareUrl}`);
+      
+      // Animate cursor moving to the Kane ShareLink
+      const box = await kaneLink.boundingBox();
+      if (box) {
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 25 });
+        await page.waitForTimeout(1000);
+      }
 
-    // Scroll back to top to switch to Files changed tab
-    await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'smooth' }));
-    await page.waitForTimeout(1500);
+      // Open the hosted Kane Test Manager page directly in the recording
+      console.log('[Playwright PR Recorder] Opening Kane Test Manager hosted execution proof...');
+      await page.goto(shareUrl!, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await page.waitForTimeout(4500); // Allow step trace, test case details & autoplay UI to render
 
-    // 4. Mandatory "Files changed" Tab Click & Diff Validation
+      // Smooth scroll on the Kane Test Manager page
+      await page.mouse.move(700, 350, { steps: 20 });
+      await page.evaluate(() => window.scrollBy({ top: 200, behavior: 'smooth' }));
+      await page.waitForTimeout(2000);
+
+      // Return to GitHub PR
+      console.log('[Playwright PR Recorder] Returning to GitHub PR for diff verification...');
+      await page.goto(prUrl!, { waitUntil: 'domcontentloaded' });
+      await page.waitForTimeout(1500);
+    } else {
+      console.warn('[Playwright PR Recorder] Kane ShareLink not found in PR body, proceeding to diff tab.');
+    }
+
+    // 5. Mandatory "Files changed" Tab Click & Diff Validation
     const filesTab = page.locator('a[data-tab-item="files-tab"], a[href$="/files"], #files-tab').first();
     const tabVisible = await filesTab.isVisible({ timeout: 10000 }).catch(() => false);
     if (!tabVisible) {

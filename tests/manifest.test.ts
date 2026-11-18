@@ -281,3 +281,50 @@ test('TEST-28: Preflight checks git status clean, main branch, and sync with ori
     'Must fail when local commit is not in sync with origin/main'
   );
 });
+
+test('TEST-29: Manifest preserves and verifies Kane hosted ShareLinks for initial failure and post-repair verification', () => {
+  const tempManifest = path.resolve(process.cwd(), 'out', 'test-sharelinks-manifest.json');
+  fs.mkdirSync(path.dirname(tempManifest), { recursive: true });
+
+  const shareUrl740 = 'https://test-manager.lambdatest.com/projects/01M/test-cases/01M/dashboard/share/US_FAIL?type=summary';
+  const shareUrl100 = 'https://test-manager.lambdatest.com/projects/01M/test-cases/01M/dashboard/share/US_PASS?type=summary';
+
+  const manifest = generateRunManifest({
+    outputPath: tempManifest,
+    applicationUrl: 'http://localhost:8080',
+    stateVerified: true,
+    kaneVerification: {
+      run_id: 'kane-session-pass',
+      result_code: 100,
+      share_url: shareUrl100,
+      test_url: shareUrl100,
+      initial_failure: {
+        result_code: 740,
+        share_url: shareUrl740,
+      },
+      post_repair: {
+        result_code: 100,
+        share_url: shareUrl100,
+      },
+    },
+    closedLoopRepair: {
+      occurred: true,
+      initial_failure: 'result_code: 740',
+      initial_share_url: shareUrl740,
+      re_verification_share_url: shareUrl100,
+    },
+    visualQa: { status: 'passed', attempts: 1 },
+    securityScan: { status: 'clean', ocr_frames_scanned: 1 },
+  });
+
+  assert.equal(manifest.kane_verification?.share_url, shareUrl100);
+  assert.equal(manifest.kane_verification?.initial_failure?.share_url, shareUrl740);
+  assert.equal(manifest.kane_verification?.post_repair?.share_url, shareUrl100);
+  assert.equal(manifest.closed_loop_repair?.initial_share_url, shareUrl740);
+  assert.equal(manifest.closed_loop_repair?.re_verification_share_url, shareUrl100);
+
+  const check = verifyRunManifest(tempManifest);
+  assert.equal(check.valid, true);
+
+  fs.rmSync(tempManifest, { force: true });
+});

@@ -16,6 +16,7 @@ import { TerminalCard } from './components/TerminalCard';
 import { DiffCard } from './components/DiffCard';
 import { KaneCard } from './components/KaneCard';
 import { ManifestBadge } from './components/ManifestBadge';
+import { ArchitectureFlowchart } from './components/ArchitectureFlowchart';
 
 export const SHOWCASE_TOTAL_FRAMES = 6750; // 3 minutes 45 seconds at 30 fps
 
@@ -117,9 +118,14 @@ export const AutoCastShowcase: React.FC<ShowcaseProps> = (props) => {
             <Act4Repair />
           </Series.Sequence>
 
-          {/* ACT 5: INDEPENDENT VERIFICATION (1:55 - 2:15 = 600 frames) */}
-          <Series.Sequence durationInFrames={600}>
+          {/* ACT 5: INDEPENDENT VERIFICATION (1:55 - 2:04 = 270 frames) */}
+          <Series.Sequence durationInFrames={270}>
             <Act5Verification />
+          </Series.Sequence>
+
+          {/* SYSTEM ARCHITECTURE FLOWCHART (2:04 - 2:15 = 330 frames) */}
+          <Series.Sequence durationInFrames={330}>
+            <ArchitectureFlowchart durationInFrames={330} />
           </Series.Sequence>
 
           {/* ACT 6: THE CINEMATIC PRODUCT DEMO (2:15 - 3:05 = 1500 frames) */}
@@ -400,9 +406,11 @@ const Act4Repair: React.FC = () => {
 // ACT 5: INDEPENDENT VERIFICATION (KANE 100)
 // ==========================================
 const Act5Verification: React.FC = () => {
+  const frame = useCurrentFrame();
   const data = useContext(ShowcaseDataContext);
   const resultCode = data.kaneResult || runManifest.kane_verification?.result_code || 100;
   const isPassed = resultCode === 100;
+  const opacity = interpolate(frame, [0, 15, 255, 270], [0, 1, 1, 0]);
 
   return (
     <div
@@ -414,6 +422,7 @@ const Act5Verification: React.FC = () => {
         alignItems: 'center',
         justifyContent: 'center',
         padding: '0 80px',
+        opacity,
       }}
     >
       <Audio src={staticFile('sfx-stamp.wav')} startFrom={0} volume={0.6} />
@@ -559,9 +568,9 @@ const Act7SubPR: React.FC = () => {
     >
       <ChapterHeader
         act="ACT 06.1 // MACHINE PROOF"
-        title={`Automated GitHub PR ${prNumText} & Verified Evidence`}
-        subtitle={`Antigravity created branch '${branchText}' and submitted Pull Request ${prNumText} to nikhil-r0/autocast. Kane CLI test matrix and machine evidence attached.`}
-        badge={`GITHUB PR ${prNumText} · ${data.prNumber ? 'VERIFIED' : 'PENDING'}`}
+        title={`Automated GitHub PR ${prNumText} & Hosted Kane Evidence`}
+        subtitle={`Antigravity created branch '${branchText}' and opened Pull Request ${prNumText}. Reviewers can click through directly into Kane's hosted test execution trace and code diff.`}
+        badge={`GITHUB PR ${prNumText} · KANE HOSTED`}
         badgeColor={data.prNumber ? '#a855f7' : '#eab308'}
       />
 
@@ -579,6 +588,7 @@ const Act7SubPR: React.FC = () => {
       >
         <OffthreadVideo
           src={staticFile(prRecording)}
+          playbackRate={1.75}
           style={{ width: '100%', height: '100%', objectFit: 'contain' }}
         />
 
@@ -601,7 +611,7 @@ const Act7SubPR: React.FC = () => {
         >
           <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: data.prNumber ? '#22c55e' : '#eab308' }} />
           <span style={{ color: '#f8fafc', fontSize: 13, fontWeight: 600 }}>
-            Machine Evidence: PR {prNumText} · Commit {commit.slice(0, 11)}
+            Live PR {prNumText} · Hosted Kane Test Manager Trace &amp; Verified Diff
           </span>
         </div>
       </div>
@@ -703,10 +713,10 @@ const Act7SubProvenance: React.FC = () => {
 const Act7VisualQaAndRelease: React.FC = () => {
   return (
     <Series>
-      <Series.Sequence durationInFrames={390}>
+      <Series.Sequence durationInFrames={480}>
         <Act7SubPR />
       </Series.Sequence>
-      <Series.Sequence durationInFrames={360}>
+      <Series.Sequence durationInFrames={270}>
         <Act7SubProvenance />
       </Series.Sequence>
     </Series>

@@ -1,34 +1,29 @@
 {
   "autocast_version": "0.2.0",
-  "generated_at": "2026-11-16T17:35:53.389Z",
+  "run_id": "autocast-run-1795006674594",
+  "generated_at": "2026-11-18T13:28:03.013Z",
   "status": "verified",
   "application": {
-    "url": "http://localhost:8080/invoices",
-    "baseline_commit": "33920679f9eacd4d79c7ac31009b8d78df3a00ba",
-    "tested_commit": "9ef4bade88e764c20ff9e47d40f86c23a0988bc1",
+    "url": "http://localhost:8080/?logged_in=true",
+    "baseline_commit": "295b7b126cc8681cfb83bfadcb350ec8495d1079",
+    "tested_commit": "adc6a772bfbedc1c0b6a37a1efa836a21c86a7ff",
+    "integration_commit": "fd90ab8180da14f77600dbb5ace388da10feb6be",
     "state_verified": true
   },
   "kane_verification": {
-    "run_id": "kane-run-ledgerly-approval-pass",
+    "run_id": "/home/home/.testmuai/kaneai/sessions/3117b3b1-46db-44ea-b6a0-732dfa24b749",
     "result_code": 100,
-    "credits_consumed": 1.25,
-    "claims": [
-      {
-        "id": "c1",
-        "claim": "Invoice INV-1042 state mutated to Approved",
-        "passed": true
-      },
-      {
-        "id": "c2",
-        "claim": "Ledger table reflects reconciled balance",
-        "passed": true
-      },
-      {
-        "id": "c3",
-        "claim": "Compliance audit trail seal confirmed visible",
-        "passed": true
-      }
-    ]
+    "credits_consumed": 7.92266
+  },
+  "closed_loop_repair": {
+    "occurred": true,
+    "initial_failure": "result_code: 740 (confirmed_product_bug)",
+    "agent": "Antigravity CLI (agy 2.0 accept-edits)",
+    "candidate_commit": "adc6a772bfbedc1c0b6a37a1efa836a21c86a7ff",
+    "integration_commit": "fd90ab8180da14f77600dbb5ace388da10feb6be",
+    "repair_branch": "autocast/repair-1795006849586",
+    "patch_file": "docs/catches/catch-ledgerly-approval/patch.diff",
+    "re_verification_run_id": "/home/home/.testmuai/kaneai/sessions/3117b3b1-46db-44ea-b6a0-732dfa24b749"
   },
   "visual_qa": {
     "status": "passed",
@@ -36,17 +31,17 @@
   },
   "security_scan": {
     "status": "clean",
-    "ocr_frames_scanned": 4
+    "ocr_frames_scanned": 6
   },
   "artifacts": {
     "video": {
       "path": "out/demo.mp4",
-      "sha256": "e87d2193453adf71053fa4f96f068d4f8a4b94001dfaf075b9c3a62cc05c30b3",
-      "size_bytes": 9537756
+      "sha256": "92d8b6de822825b8a552055694b154312b9ee37368fe42c68e539b6687726f99",
+      "size_bytes": 9060359
     },
     "poster": {
       "path": "out/poster.jpg",
-      "sha256": "2758f7945e564d724c0e439de5a0157ce9555d058b91fa13d89ca272cf2260db"
+      "sha256": "ce6efd5a00c84b384e52923d8c993d9d3c7c348b0a7cbb604b42153db5a2725f"
     }
   }
 }

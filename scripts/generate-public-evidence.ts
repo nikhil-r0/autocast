@@ -197,13 +197,34 @@ async function generatePublicEvidence() {
   fs.mkdirSync(path.dirname(runReportPath), { recursive: true });
   fs.writeFileSync(runReportPath, testOut, 'utf-8');
 
-  // 7. Generate README.md
+  // 7. Generate README.md with Hosted Kane ShareLinks
+  const initialShareUrl =
+    failureSummary.share_url ||
+    (manifest.kane_verification as any)?.initial_failure?.share_url ||
+    (manifest.closed_loop_repair as any)?.initial_share_url;
+  const verifiedShareUrl =
+    (manifest.kane_verification as any)?.share_url ||
+    (manifest.kane_verification as any)?.post_repair?.share_url ||
+    (manifest.kane_verification as any)?.test_url ||
+    (manifest.closed_loop_repair as any)?.re_verification_share_url;
+
   const readmeContent = `# Kane CLI Assurance Evidence: Ledgerly Invoice Approval Defect & Autonomous Repair
 
 This directory contains the machine-verifiable evidence artifacts for AutoCast's closed-loop repair of Ledgerly.
 
+### 🌐 Kane Browser Verification (Hosted ShareLinks)
+- **Initial Failure (Kane 740)**: [Watch Kane's original execution & failure trace](${initialShareUrl || '#'})
+- **Independent Verification (Kane 100)**: [Watch Kane's passing browser execution](${verifiedShareUrl || '#'})
+
+### 🎬 Product Demonstration & Evidence
+- **Edited Product Demo**: [\`out/demo.mp4\`](https://raw.githubusercontent.com/nikhil-r0/autocast/main/examples/output/sample-demo.mp4) (1080p @ 30 FPS)
+- **Hash-Verified Run Manifest**: [\`run-manifest.json\`](./run-manifest.json) (Sealed SHA-256)
+
+---
+
 ## 1. Failure Evidence (Kane Run 1)
 - **Result Code**: \`${failureSummary.result_code} · Confirmed product bug\`
+- **Hosted Execution Trace**: [Inspect Kane Failure Run](${initialShareUrl || '#'})
 - **Defect Trigger**: \`APP_BUG=approve-noop\` on \`examples/ledgerly/server/index.js\`
 - **Failing Step**: ${failureSummary.step}
 - **Failure Summary**: [\`failure-summary.json\`](./failure-summary.json)
@@ -218,6 +239,7 @@ This directory contains the machine-verifiable evidence artifacts for AutoCast's
 
 ## 3. Independent Verification (Kane Run 2)
 - **Result Code**: \`${manifest.kane_verification.result_code} · Passed\` (${successSummary.steps_verified}/${successSummary.steps_verified} steps verified)
+- **Hosted Execution Trace**: [Inspect Kane Verification Run](${verifiedShareUrl || '#'})
 - **Underlying Database State**: \`invoice.status === 'Approved'\` verified independently via backend API.
 - **Success Summary**: [\`success-summary.json\`](./success-summary.json)
 - **Visual Evidence**: ![Passing Screenshot](./passing-screenshot.jpg)
@@ -227,6 +249,7 @@ This directory contains the machine-verifiable evidence artifacts for AutoCast's
 - **Run ID**: \`${runId}\`
 - **Verified Commit**: \`${testedCommit}\`
 - **Verification ID**: \`${manifest.kane_verification.run_id}\`
+- **Hosted Evidence URL**: [Kane ShareLink](${verifiedShareUrl || '#'})
 `;
 
   const readmePath = path.join(catchDir, 'README.md');
