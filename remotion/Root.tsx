@@ -1,9 +1,10 @@
 import React from 'react';
 import { Composition } from 'remotion';
 import { Demo, calculateMetadata } from './Demo';
-import { AutoCastShowcase, calculateShowcaseMetadata } from './Showcase';
+import { AutoCastShowcase, calculateShowcaseMetadata, ShowcaseProps } from './Showcase';
 import { RemotionTerminalOnly, RemotionTerminalSplitHud } from './TerminalShowcase';
 import storyboardData from '../storyboard.json';
+import defaultShowcaseProps from '../examples/output/showcase-props.json';
 
 export const RemotionRoot: React.FC = () => {
   return (
@@ -24,6 +25,7 @@ export const RemotionRoot: React.FC = () => {
         height={1080}
         fps={30}
         durationInFrames={6750}
+        defaultProps={defaultShowcaseProps as ShowcaseProps}
       />
       <Composition
         id="RemotionTerminalOnly"

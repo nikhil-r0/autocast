@@ -67,7 +67,10 @@ export function generateRunManifest(params: {
   return manifest;
 }
 
-export function verifyRunManifest(manifestPath: string): { valid: boolean; errors: string[] } {
+export function verifyRunManifest(
+  manifestPath: string,
+  options: { requireVerifiedStatus?: boolean; requireArtifacts?: boolean } = { requireVerifiedStatus: true }
+): { valid: boolean; errors: string[] } {
   if (!fs.existsSync(manifestPath)) {
     return { valid: false, errors: [`Manifest file not found: ${manifestPath}`] };
   }
@@ -81,11 +84,47 @@ export function verifyRunManifest(manifestPath: string): { valid: boolean; error
     return { valid: false, errors: ['Manifest is not valid JSON'] };
   }
 
+  // Mandatory Release Gate: status must be 'verified'
+  if (options.requireVerifiedStatus && manifest.status !== 'verified') {
+    errors.push(`Manifest status is not 'verified' (current status: '${manifest.status}')`);
+  }
+
+  // Mandatory Release Gate: application state must be verified
+  if (options.requireVerifiedStatus && !manifest.application?.state_verified) {
+    errors.push('Underlying application state was not verified (application.state_verified !== true)');
+  }
+
+  // Mandatory Release Gate: Kane verification result code must be 100
+  if (options.requireVerifiedStatus && manifest.kane_verification) {
+    if (manifest.kane_verification.result_code !== undefined && manifest.kane_verification.result_code !== 100) {
+      errors.push(`Kane verification result code is not 100 (got: ${manifest.kane_verification.result_code})`);
+    }
+  }
+
+  // Mandatory Release Gate: Visual QA must be passed if present
+  if (options.requireVerifiedStatus && manifest.visual_qa) {
+    if (manifest.visual_qa.status !== 'passed') {
+      errors.push(`Visual QA is not passed (status: '${manifest.visual_qa.status}')`);
+    }
+  }
+
+  // Mandatory Release Gate: Security OCR scan must be clean
+  if (options.requireVerifiedStatus && manifest.security_scan) {
+    if (manifest.security_scan.status !== 'clean') {
+      errors.push(`Security scan detected issues (status: '${manifest.security_scan.status}')`);
+    }
+  }
+
+  // Mandatory Artifact: Video must exist if required
+  if (options.requireArtifacts && !manifest.artifacts?.video) {
+    errors.push('Manifest missing required video artifact entry');
+  }
+
   // Verify video hash
-  if (manifest.artifacts.video) {
+  if (manifest.artifacts?.video) {
     const videoFile = path.resolve(process.cwd(), manifest.artifacts.video.path);
     if (!fs.existsSync(videoFile)) {
-      errors.push(`Video artifact missing: ${videoFile}`);
+      errors.push(`Video artifact missing on disk: ${videoFile}`);
     } else {
       const actualHash = computeFileSha256(videoFile);
       if (actualHash !== manifest.artifacts.video.sha256) {
@@ -95,10 +134,10 @@ export function verifyRunManifest(manifestPath: string): { valid: boolean; error
   }
 
   // Verify poster hash
-  if (manifest.artifacts.poster) {
+  if (manifest.artifacts?.poster) {
     const posterFile = path.resolve(process.cwd(), manifest.artifacts.poster.path);
     if (!fs.existsSync(posterFile)) {
-      errors.push(`Poster artifact missing: ${posterFile}`);
+      errors.push(`Poster artifact missing on disk: ${posterFile}`);
     } else {
       const actualHash = computeFileSha256(posterFile);
       if (actualHash !== manifest.artifacts.poster.sha256) {

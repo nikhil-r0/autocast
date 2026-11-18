@@ -86,7 +86,7 @@ export class LedgerlyLifecycleAdapter implements AppLifecycleAdapter {
       this.serverProcess = null;
     }
 
-    // Free port if still occupied
+    // Free port if still occupied by an AutoCast / Ledgerly server process
     try {
       const pids = execSync(`lsof -ti :${this.port}`, { stdio: ['ignore', 'pipe', 'ignore'] })
         .toString()
@@ -97,7 +97,13 @@ export class LedgerlyLifecycleAdapter implements AppLifecycleAdapter {
         const pidNum = parseInt(p, 10);
         if (pidNum && pidNum !== process.pid) {
           try {
-            process.kill(pidNum, 'SIGTERM');
+            // Verify process ownership before sending termination signal
+            const cmd = execSync(`ps -p ${pidNum} -o args=`, { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+            if (cmd.includes('ledgerly') || cmd.includes('examples/ledgerly') || cmd.includes('server/index.js')) {
+              process.kill(pidNum, 'SIGTERM');
+            } else {
+              console.warn(`[Lifecycle] Port ${this.port} occupied by unrelated PID ${pidNum} ('${cmd}'), skipping.`);
+            }
           } catch {}
         }
       }

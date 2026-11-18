@@ -78,6 +78,7 @@ async function main() {
   console.log(`User Prompt: "${userPrompt}"\n`);
 
   const appUrl = process.env.TARGET_APP_URL || 'http://localhost:8080/?logged_in=true';
+  const appLifecycle = new LedgerlyLifecycleAdapter({ port: 8080 });
   await ensureSampleAppRunning(8080);
 
   const enableAgentRepair = args.includes('--agent-repair') || !args.includes('--no-agent-repair');
@@ -106,6 +107,7 @@ async function main() {
   let shootAttempts = 0;
   const maxShootAttempts = 3;
   let kaneResult: any;
+  let isStateVerified = false;
 
   while (shootAttempts < maxShootAttempts) {
     shootAttempts++;
@@ -193,7 +195,13 @@ async function main() {
 
           if (reClassification.type === 'pass') {
             const stateVerified = await worktreeAdapter.verifyUnderlyingState();
-            console.log(`\n✓ Closed-Loop Verification SUCCESS! Underlying state verified: ${stateVerified}`);
+            if (!stateVerified) {
+              console.error('\n[Closed Loop Repair] HARD ABORT: Underlying application state verification failed (invoice status was not mutated to Approved in backend storage).');
+              cleanupWorktree(worktreeDir, repairBranch, true);
+              process.exit(1);
+            }
+            isStateVerified = true;
+            console.log(`\n✓ Closed-Loop Verification SUCCESS! Underlying state verified: ${isStateVerified}`);
 
             // Save catch evidence pack in docs/catches/catch-ledgerly-approval/
             const catchDir = path.join(process.cwd(), 'docs', 'catches', 'catch-ledgerly-approval');
@@ -214,6 +222,7 @@ async function main() {
               initial_failure: `result_code: 740 (confirmed_product_bug)`,
               agent: 'Antigravity CLI (agy 2.0 accept-edits)',
               candidate_commit: repairResult.candidateCommit,
+              repair_branch: repairBranch,
               patch_file: 'docs/catches/catch-ledgerly-approval/patch.diff',
               re_verification_run_id: reKaneResult.sessionDir,
             };
@@ -233,6 +242,11 @@ async function main() {
       console.log(`\n✓ Kane CLI verified feature: "${objectivePlan.expectedVerification}"`);
       if (kaneResult.creditsConsumed) {
         console.log(`  Credits consumed: ${kaneResult.creditsConsumed.toFixed(2)}`);
+      }
+      isStateVerified = await appLifecycle.verifyUnderlyingState();
+      if (!isStateVerified) {
+        console.error('\n[Shoot Loop] HARD ABORT: Underlying application state verification failed.');
+        process.exit(1);
       }
       break;
     }
@@ -455,11 +469,11 @@ async function main() {
   } catch {}
 
   const manifest = generateRunManifest({
-    status: (skipReview || visualQaMetadata.status !== 'passed') ? 'unverified_draft' : 'verified',
+    status: (skipReview || visualQaMetadata.status !== 'passed' || !isStateVerified) ? 'unverified_draft' : 'verified',
     applicationUrl: appUrl,
     baselineCommit,
     testedCommit,
-    stateVerified: true,
+    stateVerified: isStateVerified,
     kaneVerification: {
       run_id: kaneResult.sessionDir || 'kane-run',
       result_code: kaneResult.resultCode || 100,
@@ -475,6 +489,23 @@ async function main() {
     videoPath: outputMp4,
     posterPath: posterPath,
   });
+
+  // Generate showcase props for Remotion presentation render
+  const showcaseProps = {
+    prUrl: process.env.PR_URL || '',
+    prNumber: process.env.PR_NUMBER ? parseInt(process.env.PR_NUMBER, 10) : undefined,
+    branch: closedLoopMetadata.occurred ? (closedLoopMetadata as any).repair_branch || 'fix/ledgerly-approve-noop' : 'main',
+    candidateCommit: closedLoopMetadata.candidate_commit || testedCommit,
+    testedCommit: testedCommit,
+    baselineCommit: baselineCommit,
+    kaneResult: kaneResult.resultCode || 100,
+    verified: isStateVerified && visualQaMetadata.status === 'passed' && !skipReview,
+    sourceVideo: 'source.mp4',
+    prRecording: 'pr-recording.mp4',
+    manifestPath: 'out/run-manifest.json',
+  };
+  fs.writeFileSync(path.join(outDir, 'showcase-props.json'), JSON.stringify(showcaseProps, null, 2), 'utf-8');
+  console.log(`[Showcase] Generated showcase composition props -> ${path.join(outDir, 'showcase-props.json')}`);
 
   // Sync to examples/output for docs & sample delivery
   const examplesOutDir = path.join(process.cwd(), 'examples', 'output');

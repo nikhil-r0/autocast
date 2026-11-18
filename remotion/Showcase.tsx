@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import {
+  Audio,
   CalculateMetadataFunction,
   interpolate,
   OffthreadVideo,
@@ -19,12 +20,29 @@ import runManifest from '../examples/output/run-manifest.json';
 
 export const SHOWCASE_TOTAL_FRAMES = 6750; // 3 minutes 45 seconds at 30 fps
 
-export const calculateShowcaseMetadata: CalculateMetadataFunction = async () => {
+export interface ShowcaseProps {
+  prUrl?: string;
+  prNumber?: number;
+  branch?: string;
+  candidateCommit?: string;
+  testedCommit?: string;
+  baselineCommit?: string;
+  kaneResult?: number;
+  verified?: boolean;
+  sourceVideo?: string;
+  prRecording?: string;
+  manifestPath?: string;
+}
+
+export const ShowcaseDataContext = React.createContext<ShowcaseProps>({});
+
+export const calculateShowcaseMetadata: CalculateMetadataFunction<ShowcaseProps> = async ({ props }) => {
   return {
     fps: 30,
     width: 1920,
     height: 1080,
     durationInFrames: SHOWCASE_TOTAL_FRAMES,
+    props,
   };
 };
 
@@ -68,53 +86,55 @@ const ChapterHeader: React.FC<{
   );
 };
 
-export const AutoCastShowcase: React.FC = () => {
+export const AutoCastShowcase: React.FC<ShowcaseProps> = (props) => {
   return (
-    <div style={{ width: 1920, height: 1080, backgroundColor: '#060911', position: 'relative', overflow: 'hidden' }}>
-      <AuroraBackground />
+    <ShowcaseDataContext.Provider value={props}>
+      <div style={{ width: 1920, height: 1080, backgroundColor: '#060911', position: 'relative', overflow: 'hidden' }}>
+        <AuroraBackground />
 
-      <Series>
-        {/* ACT 1: THE HOOK (0:00 - 0:15 = 450 frames) */}
-        <Series.Sequence durationInFrames={450}>
-          <Act1Hook />
-        </Series.Sequence>
+        <Series>
+          {/* ACT 1: THE HOOK (0:00 - 0:15 = 450 frames) */}
+          <Series.Sequence durationInFrames={450}>
+            <Act1Hook />
+          </Series.Sequence>
 
-        {/* ACT 2: THE PROBLEM & PROMPT (0:15 - 0:40 = 750 frames) */}
-        <Series.Sequence durationInFrames={750}>
-          <Act2Problem />
-        </Series.Sequence>
+          {/* ACT 2: THE PROBLEM & PROMPT (0:15 - 0:40 = 750 frames) */}
+          <Series.Sequence durationInFrames={750}>
+            <Act2Problem />
+          </Series.Sequence>
 
-        {/* ACT 3: KANE CATCHES THE BUG (0:40 - 1:10 = 900 frames) */}
-        <Series.Sequence durationInFrames={900}>
-          <Act3BugCatch />
-        </Series.Sequence>
+          {/* ACT 3: KANE CATCHES THE BUG (0:40 - 1:10 = 900 frames) */}
+          <Series.Sequence durationInFrames={900}>
+            <Act3BugCatch />
+          </Series.Sequence>
 
-        {/* ACT 4: AUTONOMOUS REPAIR LOOP (1:10 - 1:55 = 1350 frames) */}
-        <Series.Sequence durationInFrames={1350}>
-          <Act4Repair />
-        </Series.Sequence>
+          {/* ACT 4: AUTONOMOUS REPAIR LOOP (1:10 - 1:55 = 1350 frames) */}
+          <Series.Sequence durationInFrames={1350}>
+            <Act4Repair />
+          </Series.Sequence>
 
-        {/* ACT 5: INDEPENDENT VERIFICATION (1:55 - 2:15 = 600 frames) */}
-        <Series.Sequence durationInFrames={600}>
-          <Act5Verification />
-        </Series.Sequence>
+          {/* ACT 5: INDEPENDENT VERIFICATION (1:55 - 2:15 = 600 frames) */}
+          <Series.Sequence durationInFrames={600}>
+            <Act5Verification />
+          </Series.Sequence>
 
-        {/* ACT 6: THE CINEMATIC PRODUCT DEMO (2:15 - 3:05 = 1500 frames) */}
-        <Series.Sequence durationInFrames={1500}>
-          <Act6DemoVideo />
-        </Series.Sequence>
+          {/* ACT 6: THE CINEMATIC PRODUCT DEMO (2:15 - 3:05 = 1500 frames) */}
+          <Series.Sequence durationInFrames={1500}>
+            <Act6DemoVideo />
+          </Series.Sequence>
 
-        {/* ACT 7: LOOP 2 VISUAL QA & RELEASE (3:05 - 3:30 = 750 frames) */}
-        <Series.Sequence durationInFrames={750}>
-          <Act7VisualQaAndRelease />
-        </Series.Sequence>
+          {/* ACT 7: LOOP 2 VISUAL QA & RELEASE (3:05 - 3:30 = 750 frames) */}
+          <Series.Sequence durationInFrames={750}>
+            <Act7VisualQaAndRelease />
+          </Series.Sequence>
 
-        {/* ACT 8: THE CLOSE (3:30 - 3:45 = 450 frames) */}
-        <Series.Sequence durationInFrames={450}>
-          <Act8Close />
-        </Series.Sequence>
-      </Series>
-    </div>
+          {/* ACT 8: THE CLOSE (3:30 - 3:45 = 450 frames) */}
+          <Series.Sequence durationInFrames={450}>
+            <Act8Close />
+          </Series.Sequence>
+        </Series>
+      </div>
+    </ShowcaseDataContext.Provider>
   );
 };
 
@@ -319,6 +339,9 @@ const Act3BugCatch: React.FC = () => {
 // ACT 4: AUTONOMOUS REPAIR LOOP
 // ==========================================
 const Act4Repair: React.FC = () => {
+  const data = useContext(ShowcaseDataContext);
+  const commit = data.candidateCommit || data.testedCommit || runManifest.application?.tested_commit || 'candidate-commit';
+
   return (
     <div
       style={{
@@ -342,7 +365,7 @@ const Act4Repair: React.FC = () => {
       <div style={{ display: 'flex', gap: 30, alignItems: 'center' }}>
         <DiffCard
           filePath="examples/ledgerly/server/index.js"
-          commitHash="candidate-commit: 9ef4bade88e"
+          commitHash={`candidate-commit: ${commit.slice(0, 11)}`}
           width={760}
           height={500}
         />
@@ -361,7 +384,7 @@ const Act4Repair: React.FC = () => {
             { text: 'Running regression verification test suite...', type: 'info', delayFrames: 110 },
             { text: '✓ 33/33 tests passed in worktree.', type: 'success', delayFrames: 125 },
             { text: 'Starting candidate server on port 8080...', type: 'info', delayFrames: 140 },
-            { text: '✓ Health check confirmed candidate commit 9ef4bade88e', type: 'success', delayFrames: 155 },
+            { text: `✓ Health check confirmed candidate commit ${commit.slice(0, 11)}`, type: 'success', delayFrames: 155 },
           ]}
         />
       </div>
@@ -373,6 +396,10 @@ const Act4Repair: React.FC = () => {
 // ACT 5: INDEPENDENT VERIFICATION (KANE 100)
 // ==========================================
 const Act5Verification: React.FC = () => {
+  const data = useContext(ShowcaseDataContext);
+  const resultCode = data.kaneResult || runManifest.kane_verification?.result_code || 100;
+  const isPassed = resultCode === 100;
+
   return (
     <div
       style={{
@@ -385,18 +412,19 @@ const Act5Verification: React.FC = () => {
         padding: '0 80px',
       }}
     >
+      <Audio src={staticFile('sfx-stamp.wav')} startFrom={0} volume={0.6} />
       <ChapterHeader
         act="ACT 04 // INDEPENDENT PROOF"
-        title="Kane CLI Re-Verifies the Repaired Application (100 · Passed)"
+        title={`Kane CLI Re-Verifies the Repaired Application (${resultCode} · ${isPassed ? 'Passed' : 'Failed'})`}
         subtitle="Kane runs the full browser journey against the patched server. The invoice transitions to Approved, digital seal appears, and backend DB state is verified."
-        badge="RESULT CODE: 100"
-        badgeColor="#22c55e"
+        badge={`RESULT CODE: ${resultCode}`}
+        badgeColor={isPassed ? '#22c55e' : '#ef4444'}
       />
 
       <div style={{ display: 'flex', gap: 30, alignItems: 'center' }}>
         <KaneCard
-          status="passed"
-          resultCode={100}
+          status={isPassed ? 'passed' : 'failed'}
+          resultCode={resultCode}
           taskTitle="Re-verify Invoice Approval & Document Compliance Seal"
           durationText="58s"
           stepsCount={6}
@@ -435,6 +463,9 @@ const Act5Verification: React.FC = () => {
 // ACT 6: THE CINEMATIC PRODUCT DEMO
 // ==========================================
 const Act6DemoVideo: React.FC = () => {
+  const data = useContext(ShowcaseDataContext);
+  const videoFile = data.sourceVideo || 'source.mp4';
+
   return (
     <div
       style={{
@@ -469,7 +500,7 @@ const Act6DemoVideo: React.FC = () => {
         }}
       >
         <OffthreadVideo
-          src={staticFile('source.mp4')}
+          src={staticFile(videoFile)}
           style={{ width: '100%', height: '100%', objectFit: 'contain' }}
         />
 
@@ -504,6 +535,12 @@ const Act6DemoVideo: React.FC = () => {
 // ACT 7: LOOP 2 VISUAL QA, GITHUB PR & RELEASE MANIFEST
 // ==========================================
 const Act7SubPR: React.FC = () => {
+  const data = useContext(ShowcaseDataContext);
+  const prNum = data.prNumber || 2;
+  const branch = data.branch || 'fix/ledgerly-approve-noop';
+  const prRecording = data.prRecording || 'pr-recording.mp4';
+  const commit = data.testedCommit || data.candidateCommit || runManifest.application?.tested_commit || 'verified';
+
   return (
     <div
       style={{
@@ -518,9 +555,9 @@ const Act7SubPR: React.FC = () => {
     >
       <ChapterHeader
         act="ACT 06.1 // MACHINE PROOF"
-        title="Automated GitHub PR #42 & Sealed Evidence Pack"
-        subtitle="Antigravity creates branch 'fix/approve-noop' and opens PR #42. Kane CLI assurance suite attaches machine-verifiable logs, test matrices, and evidence."
-        badge="GITHUB PR #42 · VERIFIED"
+        title={`Automated GitHub PR #${prNum} & Verified Evidence`}
+        subtitle={`Antigravity created branch '${branch}' and submitted Pull Request #${prNum} to nikhil-r0/autocast. Kane CLI test matrix and machine evidence attached.`}
+        badge={`GITHUB PR #${prNum} · VERIFIED`}
         badgeColor="#a855f7"
       />
 
@@ -537,7 +574,7 @@ const Act7SubPR: React.FC = () => {
         }}
       >
         <OffthreadVideo
-          src={staticFile('pr-recording.mp4')}
+          src={staticFile(prRecording)}
           style={{ width: '100%', height: '100%', objectFit: 'contain' }}
         />
 
@@ -560,7 +597,7 @@ const Act7SubPR: React.FC = () => {
         >
           <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#22c55e' }} />
           <span style={{ color: '#f8fafc', fontSize: 13, fontWeight: 600 }}>
-            Machine Evidence: .testmuai/evidence/run-100.evidence.zip · Commit 9ef4bade88e
+            Machine Evidence: PR #{prNum} · Commit {commit.slice(0, 11)}
           </span>
         </div>
       </div>
@@ -569,6 +606,15 @@ const Act7SubPR: React.FC = () => {
 };
 
 const Act7SubProvenance: React.FC = () => {
+  const data = useContext(ShowcaseDataContext);
+
+  const isVerified = (data.verified ?? true) && (runManifest.status === 'verified');
+  const manifestStatus = isVerified ? 'VERIFIED & RELEASED' : 'UNVERIFIED DRAFT';
+  const badgeColor = isVerified ? '#4ade80' : '#ef4444';
+  const testedCommit = data.testedCommit || runManifest.application?.tested_commit || '[UNKNOWN COMMIT]';
+  const videoSha256 = runManifest.artifacts?.video?.sha256 || (isVerified ? '[CALCULATING HASH]' : '[UNVERIFIED DRAFT - NO HASH]');
+  const stateVerified = data.verified ?? runManifest.application?.state_verified ?? false;
+
   return (
     <div
       style={{
@@ -581,21 +627,22 @@ const Act7SubProvenance: React.FC = () => {
         padding: '0 80px',
       }}
     >
+      <Audio src={staticFile('sfx-stamp.wav')} startFrom={0} volume={0.7} />
       <ChapterHeader
         act="ACT 06.2 // TAMPER-EVIDENT PROVENANCE"
-        title="Loop 2 Visual Review & Cryptographic Provenance Seal"
+        title="Loop 2 Visual Review & Hash-Verified Provenance Manifest"
         subtitle="Kane reviews the video edit frames for visual defects. Tesseract pixel OCR audits for credentials. A tamper-evident SHA-256 manifest is sealed."
-        badge="CRYPTOGRAPHIC SEAL"
-        badgeColor="#4ade80"
+        badge={isVerified ? 'HASH-VERIFIED' : 'UNVERIFIED DRAFT'}
+        badgeColor={badgeColor}
       />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 24, alignItems: 'center' }}>
         <ManifestBadge
           version={runManifest.autocast_version || '0.2.0'}
-          status="VERIFIED & RELEASED"
-          commitHash={runManifest.tested_commit || '9ef4bade88e764c20ff9e47d40f86c23a0988bc1'}
-          videoSha256={runManifest.video_sha256 || 'e87d2193453adf71053fa4f96f068d4f8a4b94001dfaf075b9c3a62cc05c30b3'}
-          stateVerified={runManifest.state_verified ?? true}
+          status={manifestStatus}
+          commitHash={testedCommit}
+          videoSha256={videoSha256}
+          stateVerified={stateVerified}
           width={1100}
         />
 
@@ -603,38 +650,38 @@ const Act7SubProvenance: React.FC = () => {
           <div
             style={{
               backgroundColor: 'rgba(15, 23, 42, 0.8)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
+              border: `1px solid ${isVerified ? 'rgba(255, 255, 255, 0.1)' : 'rgba(239, 68, 68, 0.4)'}`,
               padding: '14px 22px',
               borderRadius: 10,
               color: '#94a3b8',
               fontSize: 14,
             }}
           >
-            🔍 <strong style={{ color: '#f8fafc' }}>Loop 2 Visual QA:</strong> Zero clipping, typography flaws, or overlaps
+            🔍 <strong style={{ color: '#f8fafc' }}>Loop 2 Visual QA:</strong> {isVerified ? 'Zero clipping, typography flaws, or overlaps' : 'Visual QA review pending or flagged'}
           </div>
           <div
             style={{
               backgroundColor: 'rgba(15, 23, 42, 0.8)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
+              border: `1px solid ${isVerified ? 'rgba(255, 255, 255, 0.1)' : 'rgba(239, 68, 68, 0.4)'}`,
               padding: '14px 22px',
               borderRadius: 10,
               color: '#94a3b8',
               fontSize: 14,
             }}
           >
-            🔒 <strong style={{ color: '#f8fafc' }}>Pixel Safety OCR:</strong> 0 secrets or credentials exposed across frames
+            🔒 <strong style={{ color: '#f8fafc' }}>Pixel Safety OCR:</strong> {isVerified ? '0 secrets or credentials exposed across frames' : 'Security audit pending'}
           </div>
           <div
             style={{
               backgroundColor: 'rgba(15, 23, 42, 0.8)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
+              border: `1px solid ${isVerified ? 'rgba(255, 255, 255, 0.1)' : 'rgba(239, 68, 68, 0.4)'}`,
               padding: '14px 22px',
               borderRadius: 10,
               color: '#94a3b8',
               fontSize: 14,
             }}
           >
-            📦 <strong style={{ color: '#f8fafc' }}>PR Verification:</strong> scripts/verify-provenance.ts verified
+            📦 <strong style={{ color: '#f8fafc' }}>Manifest Auditor:</strong> {isVerified ? 'scripts/verify-provenance.ts verified' : 'Auditor rejects unverified draft'}
           </div>
         </div>
       </div>

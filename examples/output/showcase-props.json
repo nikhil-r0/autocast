@@ -1,0 +1,12 @@
+{
+  "prUrl": "https://github.com/nikhil-r0/autocast/pull/2",
+  "prNumber": 2,
+  "branch": "fix/ledgerly-approve-noop",
+  "candidateCommit": "9ef4bade88e764c20ff9e47d40f86c23a0988bc1",
+  "testedCommit": "9ef4bade88e764c20ff9e47d40f86c23a0988bc1",
+  "kaneResult": 100,
+  "verified": true,
+  "sourceVideo": "source.mp4",
+  "prRecording": "pr-recording.mp4",
+  "manifestPath": "out/run-manifest.json"
+}

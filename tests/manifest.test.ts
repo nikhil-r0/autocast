@@ -34,8 +34,14 @@ test('TEST-13: --skip-review flag enabled -> manifest stamped UNVERIFIED DRAFT a
   assert.equal(manifest.status, 'unverified_draft');
   assert.equal(manifest.visual_qa?.status, 'flagged');
 
-  const check = verifyRunManifest(tempManifest);
-  assert.equal(check.valid, true);
+  // Strict verification rejects unverified draft
+  const strictCheck = verifyRunManifest(tempManifest, { requireVerifiedStatus: true });
+  assert.equal(strictCheck.valid, false);
+  assert.ok(strictCheck.errors.some((e) => e.includes('unverified_draft')));
+
+  // Non-strict verification allows checking format
+  const formatCheck = verifyRunManifest(tempManifest, { requireVerifiedStatus: false });
+  assert.equal(formatCheck.valid, true);
 
   fs.rmSync(tempManifest, { force: true });
 });

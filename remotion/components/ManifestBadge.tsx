@@ -12,13 +12,15 @@ interface ManifestBadgeProps {
 
 export const ManifestBadge: React.FC<ManifestBadgeProps> = ({
   version = '0.2.0',
-  status = 'VERIFIED',
-  commitHash = '9ef4bade88e764c20ff9e47d40f86c23a0988bc1',
-  videoSha256 = 'e87d2193453adf71053fa4f96f068d4f8a4b94001dfaf075b9c3a62cc05c30b3',
-  stateVerified = true,
+  status = 'UNVERIFIED DRAFT',
+  commitHash = '[UNVERIFIED COMMIT]',
+  videoSha256 = '[UNVERIFIED SHA-256]',
+  stateVerified = false,
   width = 960,
 }) => {
   const frame = useCurrentFrame();
+
+  const isVerified = status === 'VERIFIED' || status === 'VERIFIED & RELEASED';
 
   const glowOpacity = interpolate(
     Math.sin(frame / 15),
@@ -26,14 +28,18 @@ export const ManifestBadge: React.FC<ManifestBadgeProps> = ({
     [0.15, 0.35]
   );
 
+  const badgeColor = isVerified ? '#4ade80' : '#f87171';
+  const badgeBg = isVerified ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)';
+  const badgeBorder = isVerified ? 'rgba(34, 197, 94, 0.5)' : 'rgba(239, 68, 68, 0.5)';
+
   return (
     <div
       style={{
         width,
         backgroundColor: '#0a0f1d',
         borderRadius: 16,
-        border: '1px solid rgba(56, 189, 248, 0.4)',
-        boxShadow: `0 20px 50px -10px rgba(0, 0, 0, 0.8), 0 0 40px rgba(56, 189, 248, ${glowOpacity})`,
+        border: `1px solid ${isVerified ? 'rgba(56, 189, 248, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`,
+        boxShadow: `0 20px 50px -10px rgba(0, 0, 0, 0.8), 0 0 40px ${isVerified ? 'rgba(56, 189, 248, ' + glowOpacity + ')' : 'rgba(239, 68, 68, 0.2)'}`,
         padding: '26px 32px',
         display: 'flex',
         flexDirection: 'column',
@@ -46,7 +52,7 @@ export const ManifestBadge: React.FC<ManifestBadgeProps> = ({
           <span style={{ fontSize: 24 }}>🛡️</span>
           <div>
             <div style={{ color: '#f3f4f6', fontSize: 18, fontWeight: 700 }}>
-              Cryptographic Provenance Manifest
+              Hash-Verified Provenance Manifest
             </div>
             <div style={{ color: '#9ca3af', fontSize: 12 }}>
               Tamper-evident verification seal · run-manifest.json
@@ -55,9 +61,9 @@ export const ManifestBadge: React.FC<ManifestBadgeProps> = ({
         </div>
         <div
           style={{
-            backgroundColor: 'rgba(34, 197, 94, 0.15)',
-            border: '1px solid rgba(34, 197, 94, 0.5)',
-            color: '#4ade80',
+            backgroundColor: badgeBg,
+            border: `1px solid ${badgeBorder}`,
+            color: badgeColor,
             padding: '6px 16px',
             borderRadius: 8,
             fontSize: 14,
@@ -65,7 +71,7 @@ export const ManifestBadge: React.FC<ManifestBadgeProps> = ({
             letterSpacing: '0.06em',
           }}
         >
-          ✓ {status}
+          {isVerified ? '✓ ' : '⚠ '}{status}
         </div>
       </div>
 
@@ -98,6 +104,12 @@ export const ManifestBadge: React.FC<ManifestBadgeProps> = ({
         </div>
         <div style={{ gridColumn: 'span 2' }}>
           <span style={{ color: '#6b7280' }}>video_sha256: </span>
+          <span style={{ color: isVerified ? '#38bdf8' : '#9ca3af', wordBreak: 'break-all' }}>{videoSha256}</span>
+        </div>
+      </div>
+    </div>
+  );
+};
           <span style={{ color: '#fbbf24' }}>{videoSha256}</span>
         </div>
       </div>

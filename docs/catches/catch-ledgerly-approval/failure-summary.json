@@ -1,0 +1,12 @@
+{
+  "step": "0-5",
+  "status": "failed",
+  "error": "Final verification failed: \"Approved seal is visible\"",
+  "verdict": {
+    "category": "application_issue/ui_state_mismatch",
+    "confidence": 0.93,
+    "severity": "major",
+    "result_code": 740,
+    "summary": "Invoice approval was accepted by API but invoice status remained Pending without digital compliance seal."
+  }
+}

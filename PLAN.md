@@ -555,3 +555,97 @@ Thu Nov 19: SUBMISSION FREEZE & DEMO (P3)
 | `TEST-17` | `Antigravity` | Kane reports another 740 after AGY repair attempt | Halts after configured limit (max 2 attempts). |
 | `TEST-18` | `Safety OCR` | Secret visible for 0.5s in transition frame | Detected by interaction & boundary frame scanner. |
 | `TEST-19` | `Manifest` | MP4 bytes modified after manifest generation | SHA-256 verification detects tampering. |
+| `TEST-20` | `Safety OCR` | Zero frames extracted or OCR worker fails | Fails closed (`passed: false`, with explicit error). |
+
+---
+
+## 7. Hackathon Self-Demonstration Showcase: 8-Phase Execution Runbook
+
+### Core Principle: "Demos that can't lie"
+AutoCast's hackathon presentation is produced entirely from its own execution evidence. No pre-recorded mockups or synthetic hardcoded states are accepted; every card, diff, badge, and PR view is linked to machine artifacts verified by Kane CLI and sealed with SHA-256 manifests.
+
+```mermaid
+flowchart TD
+    P0["Phase 0: Preflight & Safety Matrix (npm test, 33/33 pass)"] --> P1["Phase 1: Closed-Loop Self-Demonstration (APP_BUG=approve-noop)"]
+    P1 --> P2["Phase 2: Live GitHub PR Creation (Candidate Commit & Sanitized Evidence)"]
+    P2 --> P3["Phase 3: Live GitHub PR Recording via Playwright (30 FPS, Files Tab)"]
+    P3 --> P4["Phase 4: Hash-Verified Provenance Manifest Audit (Gate-by-Gate)"]
+    P4 --> P5["Phase 5: AutoCastShowcase Render (--props=out/showcase-props.json)"]
+    P5 --> P6["Phase 6: Post-Render Validation & Showcase Manifest Seal"]
+```
+
+### Phase 0: Preflight & Environment Audit
+- Verify clean Git tree and branch synchronization with `origin/main`.
+- Verify port ownership: `src/app/lifecycle.ts` checks process cmdline before signaling termination.
+- Validate test suite: `npm run typecheck && npm test` (all 33 automated tests pass).
+
+### Phase 1: Produce the Closed-Loop Self-Demonstration
+Execute the core AutoCast pipeline with bug injection:
+```bash
+APP_BUG=approve-noop npm run demo -- \
+  "Create a cinematic product demo of the invoice approval workflow in Ledgerly. Show the pending approvals dashboard, open invoice INV-1042, inspect its line items, enter an approval note, approve the invoice, and verify the Approved status and digital approval seal."
+```
+- **Kane Run 1**: Fails with `Result: 740 · Confirmed product bug` (`approve-noop`).
+- **Antigravity AI**: Clones isolated worktree `.worktrees/repair-*`, enforces read-only `tests/**`, applies verified patch to `examples/ledgerly/server/index.js`.
+- **Candidate Verification**: 33 unit regression tests pass; candidate server starts on commit `9ef4bade88e`.
+- **Kane Run 2**: Re-executes full browser journey, certifies `Result: 100 · Passed`.
+- **State Check**: Independent backend verification (`/api/invoices/INV-1042`) confirms `status === 'Approved'` (hard-aborts if false).
+- **Playwright Capture**: Replays verified workflow in 1080p -> `public/source.mp4`.
+- **Visual QA & OCR Audit**: Checks rendered frames; generates `out/run-manifest.json` and `out/showcase-props.json`.
+
+### Phase 2: Live GitHub PR Creation (Public Machine Proof)
+- Push the exact verified repair candidate commit:
+  ```bash
+  git checkout -b fix/ledgerly-approve-noop
+  git push -u origin fix/ledgerly-approve-noop
+  ```
+- Enforce diff verification before PR creation:
+  ```bash
+  git diff origin/main...HEAD -- examples/ledgerly/server/index.js
+  ```
+- Open real PR with sanitized public evidence attached (`docs/catches/catch-ledgerly-approval/`):
+  ```bash
+  gh pr create \
+    --title "fix(ledgerly): repair invoice approval state mutation bug [Kane 100 Verified]" \
+    --body-file docs/catches/catch-ledgerly-approval/README.md \
+    --base main \
+    --head fix/ledgerly-approve-noop
+  ```
+- Capture dynamic `PR_URL` from output.
+
+### Phase 3: Live GitHub PR Recording via Playwright
+- Supply the live URL to `scripts/record-pr.ts`:
+  ```bash
+  PR_URL="https://github.com/nikhil-r0/autocast/pull/<PR_ID>" npm run record:pr
+  ```
+- Headless Chromium loads live GitHub at 1920x1080, scrolls through the Kane assurance report, clicks into the native **Files changed** tab, and captures the code diff.
+- FFmpeg transcodes raw webm to 1080p @ 30 FPS (`r_frame_rate: 30/1`) -> `public/pr-recording.mp4`.
+
+### Phase 4: Hash-Verified Provenance Manifest Audit
+Run the standalone auditor to enforce all mandatory release gates:
+```bash
+npm run verify:provenance
+```
+- Gates verified:
+  1. `manifest.status === 'verified'`
+  2. `application.state_verified === true`
+  3. `kane_verification.result_code === 100`
+  4. `visual_qa.status === 'passed'`
+  5. `security_scan.status === 'clean'`
+  6. `video.sha256` exact binary match with `out/demo.mp4`
+
+### Phase 5: Render Final 3:45 Showcase Presentation
+Render the Remotion composition dynamically bound to `out/showcase-props.json`:
+```bash
+npm run render:showcase
+```
+*(Or with parallel concurrency: `npx remotion render AutoCastShowcase out/autocast-hackathon-showcase.mp4 --props=out/showcase-props.json --concurrency=4`)*
+
+### Phase 6: Post-Render Technical Validation & Showcase Manifest Seal
+Audit the rendered 3:45 presentation:
+```bash
+npm run verify:showcase
+```
+- Inspects technical properties via FFprobe (1920x1080, 30 FPS, ~225s duration).
+- Computes SHA-256 checksum of `out/autocast-hackathon-showcase.mp4`.
+- Emits and seals `out/showcase-manifest.json` with provenance links to the live PR URL, tested commit, and source video checksums.

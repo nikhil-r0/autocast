@@ -1,0 +1,23 @@
+{
+  "result_code": 100,
+  "status": "passed",
+  "steps_verified": 6,
+  "claims": [
+    {
+      "id": "c1",
+      "claim": "Invoice INV-1042 state mutated to Approved",
+      "passed": true
+    },
+    {
+      "id": "c2",
+      "claim": "Ledger table reflects reconciled balance",
+      "passed": true
+    },
+    {
+      "id": "c3",
+      "claim": "Compliance audit trail seal confirmed visible",
+      "passed": true
+    }
+  ],
+  "underlying_state_verified": true
+}
