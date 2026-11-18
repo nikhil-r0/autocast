@@ -39,6 +39,15 @@ export class LedgerlyLifecycleAdapter implements AppLifecycleAdapter {
       } catch {}
     }
 
+    // Ensure node_modules exists; if in a worktree, link from root repo
+    const appNodeModules = path.join(this.appDir, 'node_modules');
+    const rootAppNodeModules = path.resolve(process.cwd(), 'examples/ledgerly/node_modules');
+    if (!fs.existsSync(appNodeModules) && fs.existsSync(rootAppNodeModules)) {
+      try {
+        fs.symlinkSync(rootAppNodeModules, appNodeModules, 'junction');
+      } catch {}
+    }
+
     this.serverProcess = spawn(process.execPath, [serverPath], {
       cwd: this.appDir,
       env,

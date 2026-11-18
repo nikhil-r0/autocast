@@ -44,7 +44,23 @@ export function cleanupWorktree(worktreeDir: string, repairBranch?: string, dele
   try {
     if (fs.existsSync(worktreeDir)) {
       console.log(`[Worktree] Removing worktree at ${worktreeDir}...`);
+      const worktreeNm = path.join(worktreeDir, 'examples/ledgerly/node_modules');
+      const worktreeDist = path.join(worktreeDir, 'examples/ledgerly/dist');
+      try {
+        if (fs.existsSync(worktreeNm) && fs.lstatSync(worktreeNm).isSymbolicLink()) {
+          fs.unlinkSync(worktreeNm);
+        }
+      } catch {}
+      try {
+        if (fs.existsSync(worktreeDist) && fs.lstatSync(worktreeDist).isSymbolicLink()) {
+          fs.unlinkSync(worktreeDist);
+        }
+      } catch {}
       execSync(`git worktree remove --force ${worktreeDir}`, { stdio: 'ignore' });
+      if (fs.existsSync(worktreeDir)) {
+        fs.rmSync(worktreeDir, { recursive: true, force: true });
+        execSync('git worktree prune', { stdio: 'ignore' });
+      }
     }
   } catch (err) {
     console.warn(`[Worktree] Warning removing worktree: ${err}`);

@@ -1,3 +1,4 @@
+node_modules
 node_modules/
 .env
 .env.*
@@ -9,6 +10,7 @@ tools/
 .quarantine/
 *.log
 *.ndjson
+dist
 dist/
 public/raw-captures/
 public/raw-pr-captures/
