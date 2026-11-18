@@ -67,8 +67,8 @@ async function ensureSampleAppRunning(port: number = 8080, expectedBug: string |
 
   // Wait for health endpoint and verify expected bug injection
   let confirmedHealth: { ok: boolean; bug?: string | null; commit?: string } | null = null;
-  for (let i = 0; i < 30; i++) {
-    await new Promise((r) => setTimeout(r, 200));
+  for (let i = 0; i < 60; i++) {
+    await new Promise((r) => setTimeout(r, 300));
     confirmedHealth = await getServerHealth(url);
     if (confirmedHealth?.ok) {
       if (!expectedBug || confirmedHealth.bug === expectedBug) {
