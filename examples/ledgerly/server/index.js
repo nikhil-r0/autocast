@@ -9,13 +9,18 @@ import { SEED_INVOICES, INITIAL_METRICS, DEMO_CLOCK, SEED_VENDORS } from './seed
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
-const DIST_DIR = path.join(ROOT_DIR, 'dist');
+let DIST_DIR = path.join(ROOT_DIR, 'dist');
 const PORT = process.env.PORT || 8080;
 
-// Ensure build exists before serving
+// Ensure build exists before serving; if in a worktree, fall back to main repo dist
 if (!fs.existsSync(DIST_DIR) || !fs.existsSync(path.join(DIST_DIR, 'index.html'))) {
-  console.log('[Server] Built assets not found in dist/. Running initial build...');
-  execSync('npm run build', { cwd: ROOT_DIR, stdio: 'inherit' });
+  const mainDist = path.resolve(process.cwd(), 'examples/ledgerly/dist');
+  if (fs.existsSync(mainDist) && fs.existsSync(path.join(mainDist, 'index.html'))) {
+    DIST_DIR = mainDist;
+  } else {
+    console.log('[Server] Built assets not found in dist/. Running initial build...');
+    execSync('npm run build', { cwd: ROOT_DIR, stdio: 'inherit' });
+  }
 }
 
 const app = express();

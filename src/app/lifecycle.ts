@@ -94,10 +94,10 @@ export class LedgerlyLifecycleAdapter implements AppLifecycleAdapter {
   async stop(): Promise<void> {
     if (this.serverProcess && this.serverProcess.pid) {
       try {
-        process.kill(-this.serverProcess.pid, 'SIGTERM');
+        process.kill(-this.serverProcess.pid, 'SIGKILL');
       } catch {
         try {
-          this.serverProcess.kill('SIGTERM');
+          this.serverProcess.kill('SIGKILL');
         } catch {}
       }
       this.serverProcess = null;
@@ -117,7 +117,7 @@ export class LedgerlyLifecycleAdapter implements AppLifecycleAdapter {
             // Verify process ownership before sending termination signal
             const cmd = execSync(`ps -p ${pidNum} -o args=`, { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
             if (cmd.includes('ledgerly') || cmd.includes('examples/ledgerly') || cmd.includes('server/index.js')) {
-              process.kill(pidNum, 'SIGTERM');
+              process.kill(pidNum, 'SIGKILL');
             } else {
               console.warn(`[Lifecycle] Port ${this.port} occupied by unrelated PID ${pidNum} ('${cmd}'), skipping.`);
             }
@@ -128,7 +128,16 @@ export class LedgerlyLifecycleAdapter implements AppLifecycleAdapter {
       // Port is free
     }
 
-    await new Promise((r) => setTimeout(r, 500));
+    // Wait until port is actually free (up to 3 seconds)
+    for (let i = 0; i < 30; i++) {
+      try {
+        const check = execSync(`lsof -ti :${this.port}`, { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+        if (!check) break;
+      } catch {
+        break; // Port is free
+      }
+      await new Promise((r) => setTimeout(r, 100));
+    }
   }
 
   async healthCheck(expectedCommit?: string): Promise<boolean> {
