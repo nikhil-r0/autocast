@@ -179,7 +179,7 @@ async function main() {
       const outDir = path.join(process.cwd(), 'out');
       fs.mkdirSync(outDir, { recursive: true });
 
-      const failingStep = kaneResult.steps.slice(-1)[0]?.summary || 'Final verification: Approved seal is visible';
+      const failingStep = kaneResult.steps.slice(-1)[0]?.summary || 'Final verification: drawer status badge shows Approved';
       const initialFailureSummary = {
         run_id: runId,
         step: failingStep,

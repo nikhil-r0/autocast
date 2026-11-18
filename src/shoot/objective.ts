@@ -31,7 +31,7 @@ export async function generateKaneObjective(
     {
       id: 'claim-1',
       claim: 'Invoice approved in 3 clicks',
-      expectedAssertion: 'Approved seal is visible',
+      expectedAssertion: 'drawer status badge shows Approved',
     },
     {
       id: 'claim-2',
@@ -45,14 +45,14 @@ export async function generateKaneObjective(
   if (!apiKey) {
     return {
       title: 'Ledgerly Invoice Approval',
-      objective: 'Click the Review button for row INV-1042, click Approve Invoice, enter approval note, click Confirm, then verify Approved seal is visible',
+      objective: 'Click the Review button for row INV-1042, click Approve Invoice in the drawer, enter approval note, click Confirm Approval, then verify drawer status badge shows Approved',
       expectedVerification: frozenClaims[0].expectedAssertion,
       frozenClaims,
     };
   }
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-3.8-flash' });
 
   const prompt = `
 You are the AI Director for Autocast AI, an autonomous product demo video generator.
@@ -71,21 +71,21 @@ Bundled App Features (Ledgerly SaaS):
 - Pending Invoices table (e.g. INV-1042 Apex Cloud Infra $4,850.00).
 - Each invoice row has an individual "Review" button on the right side that slides open the invoice drawer. Do not select checkboxes or use bulk actions.
 - Clicking "Approve Invoice" in the drawer opens a confirmation modal.
-- Entering an authorization note in the textarea and clicking "Confirm Approval" stamps the green "Approved" seal into document preview.
+- Entering an authorization note in the textarea and clicking "Confirm Approval" updates the invoice status badge from Pending to Approved.
 
 User Request: "${userPrompt}"
 
 Return JSON ONLY in this format:
 {
   "title": "Short title for the video (e.g. Ledgerly Invoice Approval)",
-  "objective": "Click the Review button for row INV-1042, click Approve Invoice in the drawer, enter approval note, click Confirm Approval, then verify Approved seal is visible"
+  "objective": "Click the Review button for row INV-1042, click Approve Invoice in the drawer, enter approval note, click Confirm Approval, then verify drawer status badge shows Approved"
 }
 `;
 
   try {
     const generatePromise = model.generateContent(prompt);
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('Gemini API timeout (4s)')), 4000)
+      setTimeout(() => reject(new Error('Gemini API timeout (10s)')), 10000)
     );
     const result = await Promise.race([generatePromise, timeoutPromise]);
     const text = result.response.text();
