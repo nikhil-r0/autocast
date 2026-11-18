@@ -1,5 +1,6 @@
 import { spawn, execSync, ChildProcess } from 'child_process';
 import path from 'path';
+import fs from 'fs';
 import { AppLifecycleAdapter } from '../types.js';
 
 export class LedgerlyLifecycleAdapter implements AppLifecycleAdapter {
@@ -29,11 +30,25 @@ export class LedgerlyLifecycleAdapter implements AppLifecycleAdapter {
     console.log(`[Lifecycle] Starting Ledgerly from ${this.appDir} on port ${this.port}...`);
     const serverPath = path.join(this.appDir, 'server/index.js');
 
+    // Ensure built frontend dist assets exist; if missing in worktree, link from root
+    const distDir = path.join(this.appDir, 'dist');
+    const rootDist = path.resolve(process.cwd(), 'examples/ledgerly/dist');
+    if (!fs.existsSync(distDir) && fs.existsSync(rootDist)) {
+      try {
+        fs.symlinkSync(rootDist, distDir, 'junction');
+      } catch {}
+    }
+
     this.serverProcess = spawn(process.execPath, [serverPath], {
       cwd: this.appDir,
       env,
       stdio: ['ignore', 'pipe', 'pipe'],
       detached: true,
+    });
+
+    let serverStderr = '';
+    this.serverProcess.stderr?.on('data', (chunk) => {
+      serverStderr += chunk.toString();
     });
 
     const pid = this.serverProcess.pid!;
@@ -67,7 +82,9 @@ export class LedgerlyLifecycleAdapter implements AppLifecycleAdapter {
           `Lifecycle Error: Server started but returned commit '${lastCommit}' instead of expected candidate commit '${opts.commit}'`
         );
       }
-      throw new Error(`Lifecycle Error: Server at ${this.baseUrl} failed to become healthy within 15 seconds`);
+      throw new Error(
+        `Lifecycle Error: Server at ${this.baseUrl} failed to become healthy within 15 seconds.${serverStderr ? `\nServer stderr:\n${serverStderr}` : ''}`
+      );
     }
 
     console.log(`[Lifecycle] Ledgerly is healthy on ${this.baseUrl} (commit: ${lastCommit || 'none'}, pid: ${pid})`);

@@ -37,6 +37,34 @@ export function createRepairWorktree(repairId: string): { worktreeDir: string; r
     stdio: 'inherit',
   });
 
+  // Link node_modules and built dist so worktree tests and server work immediately
+  const rootNodeModules = path.resolve(process.cwd(), 'node_modules');
+  const targetNodeModules = path.join(worktreeDir, 'node_modules');
+  if (fs.existsSync(rootNodeModules) && !fs.existsSync(targetNodeModules)) {
+    try {
+      fs.symlinkSync(rootNodeModules, targetNodeModules, 'junction');
+    } catch {}
+  }
+
+  const rootAppDir = path.resolve(process.cwd(), 'examples/ledgerly');
+  const worktreeAppDir = path.join(worktreeDir, 'examples/ledgerly');
+
+  const rootAppNodeModules = path.join(rootAppDir, 'node_modules');
+  const targetAppNodeModules = path.join(worktreeAppDir, 'node_modules');
+  if (fs.existsSync(rootAppNodeModules) && !fs.existsSync(targetAppNodeModules)) {
+    try {
+      fs.symlinkSync(rootAppNodeModules, targetAppNodeModules, 'junction');
+    } catch {}
+  }
+
+  const rootAppDist = path.join(rootAppDir, 'dist');
+  const targetAppDist = path.join(worktreeAppDir, 'dist');
+  if (fs.existsSync(rootAppDist) && !fs.existsSync(targetAppDist)) {
+    try {
+      fs.symlinkSync(rootAppDist, targetAppDist, 'junction');
+    } catch {}
+  }
+
   return { worktreeDir, repairBranch };
 }
 
@@ -44,6 +72,11 @@ export function cleanupWorktree(worktreeDir: string, repairBranch?: string, dele
   try {
     if (fs.existsSync(worktreeDir)) {
       console.log(`[Worktree] Removing worktree at ${worktreeDir}...`);
+      try {
+        fs.rmSync(path.join(worktreeDir, 'node_modules'), { force: true, recursive: true });
+        fs.rmSync(path.join(worktreeDir, 'examples/ledgerly/node_modules'), { force: true, recursive: true });
+        fs.rmSync(path.join(worktreeDir, 'examples/ledgerly/dist'), { force: true, recursive: true });
+      } catch {}
       execSync(`git worktree remove --force ${worktreeDir}`, { stdio: 'ignore' });
     }
   } catch (err) {
