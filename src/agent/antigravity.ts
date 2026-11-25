@@ -88,7 +88,7 @@ export async function invokeAntigravityRepair(
     runner?: (args: string[], cwd: string, timeoutMs: number) => Promise<{ stdout: string; stderr: string; code: number }>;
   }
 ): Promise<AgentRepairResult> {
-  const agyBinary = process.env.AGY_PATH || '/home/home/.local/bin/agy';
+  const agyBinary = process.env.AGY_PATH || 'agy';
 
   // Explicitly resolve appDir inside worktreeDir to avoid ambiguous paths
   const appDir = path.resolve(request.worktreeDir, request.appRelativePath);

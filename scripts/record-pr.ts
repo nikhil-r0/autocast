@@ -128,7 +128,7 @@ async function recordPrEvidence() {
     // 3. Mandatory Genuine Kane Assurance Content Verification
     const bodyLocator = page.locator('#issue-body, .comment-body, .markdown-body').first();
     const bodyText = (await bodyLocator.textContent({ timeout: 10000 })) || '';
-    
+
     const hasKaneResult740 = bodyText.includes('740') || bodyText.includes('Confirmed product bug') || bodyText.includes('approve-noop');
     const hasKaneResult100 = bodyText.includes('100') || bodyText.includes('Passed');
     const hasTargetFile = bodyText.includes('examples/ledgerly/server/index.js') || bodyText.includes('server/index.js');
@@ -150,11 +150,11 @@ async function recordPrEvidence() {
     // 4. Locate and Open Hosted Kane ShareLink Directly from PR Description
     const kaneLink = page.locator('a[href*="test-manager.lambdatest.com"]').first();
     const hasKaneLink = await kaneLink.isVisible({ timeout: 5000 }).catch(() => false);
-    
+
     if (hasKaneLink) {
       const shareUrl = await kaneLink.getAttribute('href');
       console.log(`[Playwright PR Recorder] Found live Kane ShareLink in PR body: ${shareUrl}`);
-      
+
       // Animate cursor moving to the Kane ShareLink
       const box = await kaneLink.boundingBox();
       if (box) {

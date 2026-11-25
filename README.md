@@ -10,132 +10,86 @@
   <em>Demos that can't lie.</em>
 </p>
 
-Autocast turns a product flow into a finished demo video, and it refuses to ship one that the product cannot actually perform. Kane CLI proves the feature works before a frame is recorded. A second pass proves the edit looks right before the MP4 is written.
+<p align="center">
+  <a href="https://github.com/nikhil-r0/autocast/actions"><img src="https://img.shields.io/badge/Build-Passing-emerald?style=flat-square" alt="Build"></a>
+  <a href="tests/"><img src="https://img.shields.io/badge/Tests-42%2F42%20Pass%20(100%25)-blue?style=flat-square" alt="Tests"></a>
+  <a href="scripts/verify-provenance.ts"><img src="https://img.shields.io/badge/Release%20Gates-6%2F6%20Verified-success?style=flat-square" alt="Release Gates"></a>
+  <a href="out/autocast-hackathon-showcase.mp4"><img src="https://img.shields.io/badge/Showcase-3%3A45%20(225s)-violet?style=flat-square" alt="Showcase Duration"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-lightgrey?style=flat-square" alt="License"></a>
+</p>
 
-No video is rendered when the product fails. No video ships when the edit fails visual review.
+Autocast turns a product workflow into a finished demo video, and it refuses to ship one that the product cannot actually perform. Kane CLI proves the feature works before a frame is recorded. If Kane finds a bug (`740`), Antigravity AI (`agy`) patches the source in an isolated worktree and Kane re-verifies (`100`). Only then does Playwright capture 1080p footage, Kane inspect visual layout, Tesseract OCR scrub for secrets, and Remotion render the final MP4 sealed with a SHA-256 provenance manifest.
 
-## What you get
+> **Inspect Without Running:** You do not need to install dependencies to evaluate our evidence. Pre-rendered videos and sealed machine evidence packs are committed in [`examples/output/`](examples/output/) and [`docs/catches/catch-ledgerly-approval/`](docs/catches/catch-ledgerly-approval/). Inspect the verified MP4, tamper-evident `run-manifest.json`, and SHA-256 hashes immediately.
 
-A single command produces a 1080p, 30fps H.264 demo:
+---
 
-- A real browser walkthrough of the feature, captured at 1920×1080
-- Benefit-led narration and scene captions with automated secret redaction
-- Camera zooms with edge-containment protection, a synthesized cursor, and title and outro cards
-- Readable-text pacing enforcement (>=0.3s per word settled on screen)
-- Hero poster frame extraction (`out/poster.jpg`) and frame-0 preview baking for instant rich social thumbnails on Slack, Discord, and X
-- A structured defect report, with screenshots, when the product is broken
+## 🎥 Verified Demonstration & Evidence Links
 
-A bundled invoice-approval app is included so the pipeline runs without your own product. Point `TARGET_APP_URL` at any web app when you are ready.
+| Asset | Description | Direct Link |
+|---|---|---|
+| **🎬 Showcase Video** | 3:45 full hackathon presentation (failure, repair, flowchart, demo, PR) | [`out/autocast-hackathon-showcase.mp4`](out/autocast-hackathon-showcase.mp4) |
+| **🎥 Product Demo** | 2:59 standalone product demo of verified Ledgerly invoice flow | [`out/demo.mp4`](out/demo.mp4) |
+| **🔗 GitHub PR #2** | Live pull request with Kane assurance report & code diff | [PR #2 on GitHub](https://github.com/nikhil-r0/autocast/pull/2) |
+| **🔴 Kane 740 Failure** | Hosted LambdaTest Test Manager run showing failure & console logs | [View Kane 740 Defect](https://test-manager.lambdatest.com/projects/01M7G731FR81J5BGBWP3Y53FHF/test-cases/01M7QBRZR4FRVMB943TNRAG5PV/dashboard/share/US_DI4N4K9JKH8XJIJV21PI9C1O8S14VK91Q077F66Q6H6O7CBY8G3Q2Z1GZ0IR6PFJ?type=summary&agentView=true&fqdn=summary-page) |
+| **🟢 Kane 100 Pass** | Hosted LambdaTest Test Manager run proving post-repair pass | [View Kane 100 Pass](https://test-manager.lambdatest.com/projects/01M7G731FR81J5BGBWP3Y53FHF/test-cases/01M7QC3EMRSVJKXF11RPKAZRVG/dashboard/share/US_LEHGINX5N6K8F08SZWYR5A5CNWSKGJSE4G6G4TU5OWLL2SV3WWU6PZD17ZUJLE30?type=summary&agentView=true&fqdn=summary-page) |
 
-## Quick start
+---
 
-**Requirements:** Node.js 18+, Kane CLI signed in (`kane-cli login`), and a Gemini API key if you want generated narration. Without a key, the pipeline falls back to silent captions.
+## The Three Decoupled Loops
+
+| Loop | What it checks | What happens on failure |
+|---|---|---|
+| **1. Shoot (Correctness)** | Strict Kane run (`--bug-detection stop`) on live web app | Confirmed defect (`740`) triggers Antigravity AI (`agy`) repair in Git worktree. No video renders until Kane confirms fix (`100`) and DB state matches. |
+| **2. Review (Cinematic)** | Storyboard lint + Kane visual QA in headless Chrome (port 8081) | Storyboard is patched once. If visual flaws persist, MP4 is rendered for diagnostic audit, but stamped `UNVERIFIED DRAFT` and blocked from release. |
+| **3. Safety (Release)** | Post-render Tesseract OCR scan on video pixels & text assets | Hard stop: secrets moved to `.quarantine/`. Clean renders receive tamper-evident `run-manifest.json` with SHA-256 hashes. |
+
+---
+
+## Quick Start
+
+**Requirements:** Node.js 18+, Kane CLI (`kane-cli login`), and Antigravity CLI (`agy` in PATH or set `AGY_PATH`). Gemini API key is optional (for AI narration; falls back to silent captions).
 
 ```bash
 git clone https://github.com/nikhil-r0/autocast.git
 cd autocast
 npm install
 cp .env.example .env
-# Set GEMINI_API_KEY in .env
 ```
 
+### Run the Closed-Loop Pipeline with Injected Bug
 ```bash
-npm run demo -- "Create a demo of the invoice approval flow"
+APP_BUG=approve-noop npm run demo -- "Create a demo of the invoice approval flow"
 ```
 
-The finished files are `out/demo.mp4` (with frame-0 thumbnail baked in), `out/poster.jpg` (hero settled screenshot), and `out/share-copy.txt` (ready-to-post launch copy). Pre-rendered samples are committed in `examples/output/`.
+The output files are `out/demo.mp4` (with frame-0 thumbnail baked in), `out/poster.jpg`, `out/share-copy.txt`, and `out/run-manifest.json`.
 
-## How a demo is made
-
-```
-"Create a demo of the invoice approval flow"
-                |
-                v
-       Director (Gemini)
-       objective + assertion
-                |
-     1. Shoot — Kane CLI, real Chrome
-        product defect?  -->  stop. print the report. no render.
-                |
-     2. Capture — Playwright replay at 1920×1080
-        exact clicks, no model pauses in the footage
-                |
-     3. Edit — narration, captions, zoom rects, cursor path
-        written to storyboard.json
-                |
-     4. Lint — schema, bounds, timing, frame fit
-                |
-     5. Review — Kane inspects rendered frames
-        clipping, cut-off type, overlapping text
-                |
-     6. Render — Remotion, H.264, 1080p, 30fps
-                |
-                v
-            out/demo.mp4
-```
-
-| Loop | What it checks | What happens on failure |
-| --- | --- | --- |
-| Shoot | Strict Kane run (`--mode action --bug-detection stop --final-validation on`) against frozen claims | Render is aborted. A structured defect report is printed. |
-| Lint | Storyboard validity: schema, zoom bounds, readability floor (>=0.3s/word), secret scrubber, banned superlatives | Render is aborted before Remotion starts. |
-| Review | Rendered frames & MP4 stream stay defect-free without edge clipping or text overlap | Kane flags the visual defect; autonomous repair (`fix.ts`) heals layout and re-audits. |
-| Pixel Safety | Post-render OCR scan on video pixels using Tesseract | Aborts if any API key or token pattern appears in rendered video pixels. |
-
-Shoot retries are capped at 3 with strictly frozen claims. Review iterations heal layout defects autonomously. All verified telemetry powers trailer-style overlays: Spotlight focus rings, StatChip HUDs, and the Verified End Card centerpiece.
-
-## Verified Catch Evidence
-
-Autocast AI's Loop 3 Visual QA caught an over-panning camera defect in its own rendered video, halted the pipeline, repaired the camera rig constraints, and Kane CLI independently verified the fix. See full before/after evidence in [docs/catches/frame-204-catch.md](docs/catches/frame-204-catch.md).
-
-## Demos that can't lie
-
-If the approval seal is missing, Autocast does not invent one. Kane catches the failure, the pipeline exits, and nothing is rendered:
-
-```bash
-TARGET_APP_URL="http://localhost:8080/?broken=approve" npm run demo
-```
-
-Pass `--skip-review` to run shoot, capture, lint, and render without the visual review loop.
+---
 
 ## Commands
 
 | Command | Purpose |
-| --- | --- |
-| `npm run demo -- "<prompt>"` | Full pipeline: verify, capture, edit, review, render |
-| `npm run app` | Bundled invoice app on port 8080 |
-| `npm run preview` | Remotion Studio |
-| `npm run render` | Render the current storyboard to `out/demo.mp4` |
-| `npm run lint:storyboard` | Validate `storyboard.json` |
-| `npm run typecheck` | TypeScript check |
+|---|---|
+| `npm run preflight` | Run environment, clean-tree, and git sync auditor |
+| `npm test` | Run complete 42-test automated suite (100% pass) |
+| `npm run demo -- "<prompt>"` | Run full pipeline: verify, repair, capture, review, render |
+| `npm run verify:provenance` | Audit all 6 release gates on rendered demo and manifest |
+| `npm run verify:showcase` | Audit all 10 checks on 3:45 competition showcase video |
+| `npm run app` | Start bundled Ledgerly demo application on port 8080 |
+| `npm run preview` | Open Remotion Studio for interactive video preview |
+
+---
 
 ## Configuration
 
-Copy `.env.example` to `.env`.
+| Variable | Default | Purpose |
+|---|---|---|
+| `AGY_PATH` | `agy` | Path to Antigravity CLI binary (or custom location) |
+| `TARGET_APP_URL` | `http://localhost:8080` | URL of the web application under test |
+| `APP_BUG` | *(none)* | Set `approve-noop` to simulate bug injection and closed-loop repair |
+| `GEMINI_API_KEY` | *(none)* | Optional; generates benefit-led voiceover and scene captions |
+| `ELEVENLABS_API_KEY` | *(none)* | Optional TTS voiceover; leaves silent when blank |
 
-| Variable | Role |
-| --- | --- |
-| `GEMINI_API_KEY` | Objectives, narration, and captions. Optional; silent fallback when unset. |
-| `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` | Alternate model providers. |
-| `ELEVENLABS_API_KEY` | Optional voiceover. Blank stays silent. |
-| `TARGET_APP_URL` | App under test. Defaults to `http://localhost:8080`. |
-| `AUTOCAST_CHAOS` | Forces a layout defect so the review loop can be demonstrated. |
+---
 
-## Layout
-
-```
-autocast/
-├── src/
-│   ├── cli.ts                 # Pipeline entry
-│   ├── shoot/                 # Objective, Kane run, stop-on-bug
-│   ├── capture/replay.ts      # 1080p Playwright replay
-│   ├── edit/                  # Storyboard, lint, redact, poster, shareCopy
-│   └── review/kaneReview.ts   # Boundary & frame-level Kane visual QA
-├── remotion/                  # Composition, camera, cursor, cards
-├── examples/
-│   ├── invoice-app/           # Sample product
-│   └── output/                # Sample MP4, poster, share-copy, and storyboard
-├── docs/                      # Cover, design notes, and comparative reports
-└── storyboard.json            # The edit. Change this, not the components.
-```
-
-Further reading: [shoot findings](docs/spike-findings.md), [the review loop](docs/loop3-review.md), and [brag comparative audit & roadmap](docs/brag-report.md).
+📖 **Deep Dive:** For full architectural diagrams, Kane CLI exit code schemas, lifecycle adapter specs, and the complete test matrix, see [**docs/ARCHITECTURE.md**](docs/ARCHITECTURE.md).

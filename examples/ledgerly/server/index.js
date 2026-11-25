@@ -10,11 +10,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
 let DIST_DIR = path.join(ROOT_DIR, 'dist');
-const AUTOCAST_OUT_DIR = [
-  path.resolve(__dirname, '../../../out'),
-  path.resolve(process.cwd(), '../../out'),
-  path.resolve(process.cwd(), 'out'),
-].find((dir) => fs.existsSync(dir)) || path.resolve(__dirname, '../../../out');
 const PORT = process.env.PORT || 8080;
 
 // Ensure build exists before serving; if in a worktree, fall back to main repo dist
@@ -143,6 +138,16 @@ app.post('/api/invoices/:id/approve', async (req, res) => {
 
   if (!invoice) {
     return res.status(404).json({ error: 'Invoice not found' });
+  }
+
+  // Bug Injection: approve-noop (returns success toast payload, but leaves status Pending)
+  if (process.env.APP_BUG === 'approve-noop') {
+    return res.json({
+      success: true,
+      id,
+      status: invoice.status, // stays Pending!
+      message: `Invoice ${id} approved`,
+    });
   }
 
   const prevStatus = invoice.status;
@@ -275,7 +280,7 @@ app.get('/review', (req, res) => {
 // 12. Serve rendered still frame image
 app.get('/review-image', (req, res) => {
   const frame = req.query.frame || '100';
-  const reviewDir = path.join(AUTOCAST_OUT_DIR, 'review');
+  const reviewDir = path.join(process.cwd(), 'out', 'review');
   let targetFile = path.join(reviewDir, `frame-${frame}.png`);
   if (!fs.existsSync(targetFile)) {
     targetFile = path.join(reviewDir, 'test-frame.png');
@@ -321,7 +326,7 @@ app.get('/review-video', (req, res) => {
 
 // 14. MP4 Video Stream with Range Requests
 app.get('/video-stream', (req, res) => {
-  const videoPath = path.join(AUTOCAST_OUT_DIR, 'demo.mp4');
+  const videoPath = path.join(process.cwd(), 'out', 'demo.mp4');
   if (!fs.existsSync(videoPath)) {
     return res.status(404).type('text').send('Rendered video not found. Run render phase first.');
   }
