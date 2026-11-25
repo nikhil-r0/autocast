@@ -16,3 +16,9 @@ public/raw-captures/
 public/raw-pr-captures/
 public/*.mp4
 *.traineddata
+
+# Local-only agent skills and working notes
+.agents/skills/remotion-*/
+PLAN.md
+docs/brag-report.md
+docs/spike-findings.md
