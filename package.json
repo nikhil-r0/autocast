@@ -16,6 +16,8 @@
     "finalize:showcase": "tsx scripts/finalize-showcase.ts",
     "evidence:public": "tsx scripts/generate-public-evidence.ts",
     "verify:provenance": "tsx scripts/verify-provenance.ts",
+    "verify:oracle": "tsx scripts/verify-oracle.ts",
+    "reverify:oracle": "tsx scripts/reverify-oracle.ts",
     "verify:showcase": "tsx scripts/verify-showcase.ts",
     "preflight": "tsx scripts/preflight.ts",
     "preview": "remotion preview remotion/index.ts",

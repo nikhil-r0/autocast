@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { isDeepStrictEqual } from 'util';
 import { Page } from 'playwright';
 import { OutcomeSpec } from '../types.js';
 
@@ -157,6 +158,100 @@ export function findActionsLog(dir: string): string | null {
   return findRecursive(dir);
 }
 
+export function resolveJsonPath(data: unknown, rawPath: string): unknown {
+  if (data !== null && typeof data === 'object' && Object.prototype.hasOwnProperty.call(data, rawPath)) {
+    return (data as Record<string, unknown>)[rawPath];
+  }
+
+  let normalized = rawPath.trim();
+  if (normalized.startsWith('$.')) {
+    normalized = normalized.slice(2);
+  } else if (normalized.startsWith('$')) {
+    normalized = normalized.slice(1);
+  }
+  if (!normalized) {
+    return data;
+  }
+
+  const segments: string[] = [];
+  for (const dotPart of normalized.split('.')) {
+    if (!dotPart) continue;
+    const bracketRegex = /([^\[\]]+)|\[(\d+)\]/g;
+    let match: RegExpExecArray | null;
+    while ((match = bracketRegex.exec(dotPart)) !== null) {
+      segments.push(match[1] ?? match[2]);
+    }
+  }
+
+  let current: unknown = data;
+  for (const segment of segments) {
+    if (current === null || current === undefined || typeof current !== 'object') {
+      return undefined;
+    }
+    if (Array.isArray(current)) {
+      const idx = Number(segment);
+      if (!Number.isInteger(idx) || idx < 0 || idx >= current.length) {
+        return undefined;
+      }
+      current = current[idx];
+    } else {
+      current = (current as Record<string, unknown>)[segment];
+    }
+  }
+  return current;
+}
+
+export async function verifyApiStateOutcomes(
+  apiBase: string,
+  specs: OutcomeSpec[]
+): Promise<{ passed: boolean; checkedCount: number; failures: string[] }> {
+  const apiSpecs = specs.filter((s) => s.verification.type === 'api_state');
+  const failures: string[] = [];
+  const baseNormalized = apiBase.replace(/\/+$/, '');
+  const baseOrigin = new URL(baseNormalized).origin;
+
+  for (const spec of apiSpecs) {
+    if (spec.verification.type !== 'api_state') continue;
+    try {
+      const endpoint = spec.verification.endpoint;
+      if (!endpoint.startsWith('/')) {
+        failures.push(
+          `OutcomeSpec '${spec.id}' failed: api_state endpoint '${endpoint}' must be a relative path starting with '/'`
+        );
+        continue;
+      }
+      const resolvedUrl = new URL(endpoint, `${baseNormalized}/`);
+      if (resolvedUrl.origin !== baseOrigin) {
+        failures.push(
+          `OutcomeSpec '${spec.id}' failed: api_state endpoint '${endpoint}' resolved outside target origin`
+        );
+        continue;
+      }
+
+      const res = await fetch(resolvedUrl.toString());
+      if (!res.ok) {
+        failures.push(`OutcomeSpec '${spec.id}' failed: API ${resolvedUrl.toString()} returned HTTP ${res.status}`);
+        continue;
+      }
+      const data: unknown = await res.json();
+      const actualValue = resolveJsonPath(data, spec.verification.jsonPath);
+      if (!isDeepStrictEqual(actualValue, spec.verification.expected)) {
+        failures.push(
+          `OutcomeSpec '${spec.id}' failed: API ${resolvedUrl.toString()} field '${spec.verification.jsonPath}' expected ${JSON.stringify(spec.verification.expected)}, got ${JSON.stringify(actualValue)}`
+        );
+      }
+    } catch (err: any) {
+      failures.push(`OutcomeSpec '${spec.id}' encountered error: ${err.message}`);
+    }
+  }
+
+  return {
+    passed: failures.length === 0,
+    checkedCount: apiSpecs.length,
+    failures,
+  };
+}
+
 export async function verifyOutcomeSpecs(
   page: Page,
   specs: OutcomeSpec[],
@@ -185,25 +280,14 @@ export async function verifyOutcomeSpecs(
         if (!currentUrl.includes(spec.verification.expected)) {
           failures.push(`OutcomeSpec '${spec.id}' failed: expected url '${spec.verification.expected}', got '${currentUrl}'`);
         }
-      } else if (spec.verification.type === 'api_state') {
-        const url = `${apiBase.replace(/\/+$/, '')}${spec.verification.endpoint}`;
-        const res = await fetch(url);
-        if (!res.ok) {
-          failures.push(`OutcomeSpec '${spec.id}' failed: API ${url} returned HTTP ${res.status}`);
-          continue;
-        }
-        const data: any = await res.json();
-        const actualValue = data[spec.verification.jsonPath];
-        if (actualValue !== spec.verification.expected) {
-          failures.push(
-            `OutcomeSpec '${spec.id}' failed: API ${url} field '${spec.verification.jsonPath}' expected '${spec.verification.expected}', got '${actualValue}'`
-          );
-        }
       }
     } catch (err: any) {
       failures.push(`OutcomeSpec '${spec.id}' encountered error: ${err.message}`);
     }
   }
+
+  const apiResult = await verifyApiStateOutcomes(apiBase, specs);
+  failures.push(...apiResult.failures);
 
   return {
     passed: failures.length === 0,

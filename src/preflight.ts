@@ -1,5 +1,36 @@
 import { execSync } from 'child_process';
 
+export interface OraclePreflightOptions {
+  requireCleanTree?: boolean;
+  cwd?: string;
+}
+
+export function runOraclePreflight(options: OraclePreflightOptions = {}): { headCommit: string; clean: boolean } {
+  const cwd = options.cwd || process.cwd();
+  let headCommit = '';
+  try {
+    headCommit = execSync('git rev-parse HEAD', { cwd, encoding: 'utf-8' }).trim();
+  } catch (err: any) {
+    throw new Error(`Oracle preflight failed: cannot resolve git HEAD (${err.message})`);
+  }
+
+  let porcelain = '';
+  try {
+    porcelain = execSync('git status --porcelain', { cwd, encoding: 'utf-8' }).trim();
+  } catch (err: any) {
+    throw new Error(`Oracle preflight failed: cannot inspect git status (${err.message})`);
+  }
+
+  const clean = porcelain.length === 0;
+  if (!clean && options.requireCleanTree !== false) {
+    throw new Error(
+      `Oracle preflight failed: git working tree is dirty:\n${porcelain}\nOracle runs require a clean repository.`
+    );
+  }
+
+  return { headCommit, clean };
+}
+
 export interface PreflightOptions {
   allowDirty?: boolean;
   runTests?: boolean;

@@ -129,6 +129,47 @@ export interface OutcomeSpec {
     | { type: 'api_state'; endpoint: string; jsonPath: string; expected: unknown };
 }
 
+export interface AcceptanceSpec {
+  version: 1;
+  title: string;
+  objective: string;
+  outcome_specs: OutcomeSpec[];
+  target: {
+    url: string;
+    expected_commit: string;
+    seed_id: string;
+  };
+  parties?: {
+    client: string;
+    contractor: string;
+  };
+  milestone_id?: string;
+}
+
+export type OracleVerdict = 'release' | 'hold';
+
+export type OracleHoldReason =
+  | 'kane_failed'
+  | 'state_mismatch'
+  | 'commit_mismatch'
+  | 'spec_mismatch'
+  | 'timeout';
+
+export interface OracleManifestSection {
+  spec_sha256: string;
+  seed_id: string;
+  expected_commit: string;
+  runner_id: string;
+  verdict: OracleVerdict;
+  hold_reason?: OracleHoldReason;
+}
+
+export interface ManifestSignature {
+  alg: 'ed25519';
+  key_id: string;
+  sig: string;
+}
+
 export type FailureCategory =
   | 'pass'
   | 'confirmed_product_bug'
@@ -192,14 +233,16 @@ export interface AppLifecycleAdapter {
   start: (opts?: { env?: Record<string, string>; commit?: string }) => Promise<{ pid: number; port: number; commit?: string }>;
   stop: () => Promise<void>;
   healthCheck: (expectedCommit?: string) => Promise<boolean>;
-  resetSeedData: () => Promise<void>;
-  verifyUnderlyingState: (expected?: Record<string, any>) => Promise<boolean>;
+  getHealthInfo?: () => Promise<{ ok: boolean; commit?: string; bug?: string | null } | null>;
+  resetSeedData: (seedId?: string) => Promise<void>;
+  verifyUnderlyingState: (expected?: Record<string, any> | OutcomeSpec[]) => Promise<boolean>;
 }
 
 export interface RunManifest {
   autocast_version: string;
   run_id?: string;
   generated_at: string;
+  mode?: 'demo' | 'oracle';
   status: 'verified' | 'unverified_draft' | 'quarantined' | 'failed';
   application: {
     url: string;
@@ -210,6 +253,8 @@ export interface RunManifest {
   };
   kane_verification?: {
     run_id: string;
+    session_id?: string;
+    evidence_pack?: string;
     result_code?: number;
     credits_consumed?: number;
     share_url?: string;
@@ -250,6 +295,7 @@ export interface RunManifest {
     ocr_frames_scanned: number;
     quarantined?: boolean;
   };
+  oracle?: OracleManifestSection;
   artifacts: {
     video?: {
       path: string;
@@ -261,6 +307,7 @@ export interface RunManifest {
       sha256: string;
     };
   };
+  signature?: ManifestSignature;
 }
 
 

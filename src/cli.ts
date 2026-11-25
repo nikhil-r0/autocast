@@ -24,6 +24,8 @@ import { LedgerlyLifecycleAdapter } from './app/lifecycle.js';
 import { generateRunManifest } from './manifest.js';
 import { RunManifest } from './types.js';
 import { runPreflightAudit } from './preflight.js';
+import { runOraclePipeline } from './oracle/runner.js';
+import { PublishAdapterName } from './oracle/publish.js';
 
 import dns from 'dns';
 
@@ -82,13 +84,110 @@ async function ensureSampleAppRunning(port: number = 8080, expectedBug: string |
   throw new Error(`[Setup] Fatal: Sample app failed to become healthy with expected bug='${expectedBug}' on ${url}`);
 }
 
+interface ParsedCliFlags {
+  oracleMode: boolean;
+  oracleSpecPath?: string;
+  expectSpecSha256?: string;
+  withVideo: boolean;
+  publishAdapter?: PublishAdapterName;
+  agentRepairFlag: boolean;
+  promptArg?: string;
+  skipReview: boolean;
+  layoutChoice: 'split' | 'hud' | 'auto';
+  allowDirty: boolean;
+  allowUnverified: boolean;
+}
+
+export function parseCliArgs(argv: string[]): ParsedCliFlags {
+  let oracleMode = false;
+  let oracleSpecPath: string | undefined;
+  let expectSpecSha256: string | undefined;
+  let withVideo = false;
+  let publishAdapter: PublishAdapterName | undefined;
+  let agentRepairFlag = false;
+  let skipReview = false;
+  let layoutChoice: 'split' | 'hud' | 'auto' = 'auto';
+  let allowDirty = process.env.ALLOW_DIRTY === 'true';
+  let allowUnverified = false;
+  const positionals: string[] = [];
+
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (i === 0 && arg === 'oracle') {
+      oracleMode = true;
+      if (argv[i + 1] && !argv[i + 1].startsWith('--')) {
+        oracleSpecPath = argv[++i];
+      }
+    } else if (arg === '--oracle') {
+      oracleMode = true;
+      if (argv[i + 1] && !argv[i + 1].startsWith('--')) {
+        oracleSpecPath = argv[++i];
+      }
+    } else if (arg.startsWith('--oracle=')) {
+      oracleMode = true;
+      oracleSpecPath = arg.slice('--oracle='.length);
+    } else if (arg === '--expect-spec-sha256' && argv[i + 1]) {
+      expectSpecSha256 = argv[++i];
+    } else if (arg.startsWith('--expect-spec-sha256=')) {
+      expectSpecSha256 = arg.slice('--expect-spec-sha256='.length);
+    } else if (arg === '--publish' && argv[i + 1]) {
+      publishAdapter = argv[++i] as PublishAdapterName;
+    } else if (arg.startsWith('--publish=')) {
+      publishAdapter = arg.slice('--publish='.length) as PublishAdapterName;
+    } else if (arg === '--with-video') {
+      withVideo = true;
+    } else if (arg === '--agent-repair') {
+      agentRepairFlag = true;
+    } else if (arg === '--skip-review') {
+      skipReview = true;
+    } else if (arg.startsWith('--layout=')) {
+      layoutChoice = arg.split('=')[1] as 'split' | 'hud' | 'auto';
+    } else if (arg === '--allow-dirty') {
+      allowDirty = true;
+    } else if (arg === '--allow-unverified' || arg === '--force') {
+      allowUnverified = true;
+    } else if (!arg.startsWith('--')) {
+      positionals.push(arg);
+    }
+  }
+
+  return {
+    oracleMode,
+    oracleSpecPath,
+    expectSpecSha256,
+    withVideo,
+    publishAdapter,
+    agentRepairFlag,
+    promptArg: positionals[0],
+    skipReview,
+    layoutChoice,
+    allowDirty,
+    allowUnverified,
+  };
+}
+
 async function main() {
   const args = process.argv.slice(2);
-  const promptArg = args.find((a) => !a.startsWith('--'));
-  const userPrompt = promptArg || 'Create a demo of the invoice approval flow';
-  const skipReview = args.includes('--skip-review');
-  const layoutArg = args.find((a) => a.startsWith('--layout='));
-  const layoutChoice = layoutArg ? (layoutArg.split('=')[1] as 'split' | 'hud' | 'auto') : 'auto';
+  const parsed = parseCliArgs(args);
+
+  if (parsed.oracleMode) {
+    if (!parsed.oracleSpecPath) {
+      console.error('❌ Missing acceptance spec path. Usage: autocast --oracle <spec.json> (or autocast oracle <spec.json>)');
+      process.exit(2);
+    }
+    const outcome = await runOraclePipeline({
+      specPath: parsed.oracleSpecPath,
+      expectSpecSha256: parsed.expectSpecSha256,
+      withVideo: parsed.withVideo,
+      publishAdapter: parsed.publishAdapter,
+      agentRepairRequested: parsed.agentRepairFlag,
+    });
+    process.exit(outcome.exitCode);
+  }
+
+  const userPrompt = parsed.promptArg || 'Create a demo of the invoice approval flow';
+  const skipReview = parsed.skipReview;
+  const layoutChoice = parsed.layoutChoice;
 
   console.log('================================================================');
   console.log('⚡ AUTOCAST AI: THE AUTONOMOUS DEMO DIRECTOR');
@@ -97,7 +196,7 @@ async function main() {
   console.log(`User Prompt: "${userPrompt}"\n`);
 
   // Preflight Integrity Audit (Fails closed on dirty tree, wrong branch, or unpushed commits)
-  const allowDirty = args.includes('--allow-dirty') || process.env.ALLOW_DIRTY === 'true';
+  const allowDirty = parsed.allowDirty;
   try {
     runPreflightAudit({ allowDirty, runTests: true });
   } catch (err: any) {
@@ -716,7 +815,10 @@ async function main() {
   console.log('================================================================');
 }
 
-main().catch((err) => {
-  console.error('Fatal pipeline error:', err);
-  process.exit(1);
-});
+const invokedEntry = process.argv[1] ? path.basename(process.argv[1]) : '';
+if (invokedEntry === 'cli.ts' || invokedEntry === 'cli.js' || invokedEntry === 'autocast') {
+  main().catch((err) => {
+    console.error('Fatal pipeline error:', err);
+    process.exit(1);
+  });
+}

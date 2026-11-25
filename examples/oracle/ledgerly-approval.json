@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "title": "Ledgerly INV-1042 Invoice Approval",
+  "objective": "Click the Review button for row INV-1042, click Approve Invoice in the drawer, enter approval note, click Confirm Approval, then verify drawer status badge shows Approved",
+  "outcome_specs": [
+    {
+      "id": "drawer-status-approved",
+      "verification": {
+        "type": "dom_text",
+        "selector": "[data-testid=\"drawer-status-badge\"]",
+        "expected": "Approved"
+      }
+    },
+    {
+      "id": "approved-seal-visible",
+      "verification": {
+        "type": "visible",
+        "selector": "[data-testid=\"approved-seal\"]"
+      }
+    },
+    {
+      "id": "invoice-api-approved",
+      "verification": {
+        "type": "api_state",
+        "endpoint": "/api/invoices/INV-1042",
+        "jsonPath": "status",
+        "expected": "Approved"
+      }
+    }
+  ],
+  "target": {
+    "url": "http://localhost:8080/?logged_in=true",
+    "expected_commit": "eab450840a7cec4d367defb9d4de96fcbcdcb96d",
+    "seed_id": "ledgerly-default-v1"
+  },
+  "parties": {
+    "client": "ledgerly-client@example.com",
+    "contractor": "ledgerly-contractor@example.com"
+  },
+  "milestone_id": "ledgerly-inv-1042-approval"
+}

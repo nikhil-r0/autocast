@@ -56,6 +56,7 @@ test('TEST-19: MP4 bytes modified after manifest generation -> SHA-256 verificat
   // Generate manifest
   generateRunManifest({
     outputPath: tempManifest,
+    status: 'verified',
     applicationUrl: 'http://localhost:8080',
     stateVerified: true,
     kaneVerification: { run_id: 'kane-test', result_code: 100 },
@@ -291,6 +292,7 @@ test('TEST-29: Manifest preserves and verifies Kane hosted ShareLinks for initia
 
   const manifest = generateRunManifest({
     outputPath: tempManifest,
+    status: 'verified',
     applicationUrl: 'http://localhost:8080',
     stateVerified: true,
     kaneVerification: {
@@ -327,4 +329,18 @@ test('TEST-29: Manifest preserves and verifies Kane hosted ShareLinks for initia
   assert.equal(check.valid, true);
 
   fs.rmSync(tempManifest, { force: true });
+});
+
+test('generateRunManifest does not default status to verified and rejects missing status', () => {
+  const tempManifest = path.resolve(process.cwd(), 'out', 'test-no-status-manifest.json');
+  assert.throws(
+    () => {
+      generateRunManifest({
+        outputPath: tempManifest,
+        applicationUrl: 'http://localhost:8080',
+        stateVerified: true,
+      } as any);
+    },
+    /requires an explicit status/i
+  );
 });

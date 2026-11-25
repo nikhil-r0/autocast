@@ -2,6 +2,14 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { RunManifest } from './types.js';
+import {
+  TrustedKeyMap,
+  computePublicKeyId,
+  loadTrustedKeys,
+  signOracleManifest,
+  verifyManifestSignature,
+} from './oracle/sign.js';
+import { normalizeSha256Hex } from './oracle/spec.js';
 
 export function computeFileSha256(filePath: string): string {
   const fileBuffer = fs.readFileSync(filePath);
@@ -36,9 +44,50 @@ export function resolveArtifactPath(declaredPath: string): string | null {
   return null;
 }
 
+function verifyDeclaredArtifacts(manifest: RunManifest, requireArtifacts: boolean): string[] {
+  const errors: string[] = [];
+
+  if (requireArtifacts) {
+    if (!manifest.artifacts?.video) {
+      errors.push('Manifest missing required video artifact entry');
+    }
+    if (!manifest.artifacts?.poster) {
+      errors.push('Manifest missing required poster artifact entry');
+    }
+  }
+
+  if (manifest.artifacts?.video) {
+    const videoFile = resolveArtifactPath(manifest.artifacts.video.path);
+    if (!videoFile) {
+      errors.push(`Video artifact missing on disk: ${manifest.artifacts.video.path}`);
+    } else {
+      const actualHash = computeFileSha256(videoFile);
+      if (actualHash !== manifest.artifacts.video.sha256) {
+        errors.push(`Video SHA-256 mismatch! Manifest: ${manifest.artifacts.video.sha256}, Actual: ${actualHash}`);
+      }
+    }
+  }
+
+  if (manifest.artifacts?.poster) {
+    const posterFile = resolveArtifactPath(manifest.artifacts.poster.path);
+    if (!posterFile) {
+      errors.push(`Poster artifact missing on disk: ${manifest.artifacts.poster.path}`);
+    } else {
+      const actualHash = computeFileSha256(posterFile);
+      if (actualHash !== manifest.artifacts.poster.sha256) {
+        errors.push(`Poster SHA-256 mismatch! Manifest: ${manifest.artifacts.poster.sha256}, Actual: ${actualHash}`);
+      }
+    }
+  }
+
+  return errors;
+}
+
 export function generateRunManifest(params: {
   outputPath?: string;
-  status?: RunManifest['status'];
+  additionalOutputPaths?: string[];
+  mode?: 'demo' | 'oracle';
+  status: RunManifest['status'];
   runId?: string;
   applicationUrl: string;
   baselineCommit?: string;
@@ -49,9 +98,26 @@ export function generateRunManifest(params: {
   closedLoopRepair?: RunManifest['closed_loop_repair'];
   visualQa?: RunManifest['visual_qa'];
   securityScan?: RunManifest['security_scan'];
+  oracle?: RunManifest['oracle'];
+  signature?: RunManifest['signature'];
+  signingKey?: string;
   videoPath?: string;
   posterPath?: string;
 }): RunManifest {
+  if (!params.status) {
+    throw new Error('generateRunManifest requires an explicit status (no default fallback allowed)');
+  }
+
+  const mode = params.mode || (params.oracle ? 'oracle' : 'demo');
+  if (mode === 'oracle') {
+    if (!params.oracle) {
+      throw new Error('Oracle manifest generation requires oracle metadata');
+    }
+    if (params.closedLoopRepair?.occurred === true) {
+      throw new Error('Oracle manifest cannot record closed_loop_repair.occurred = true');
+    }
+  }
+
   const outputPath = params.outputPath || path.join(process.cwd(), 'out', 'run-manifest.json');
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 
@@ -73,11 +139,17 @@ export function generateRunManifest(params: {
     };
   }
 
-  const manifest: RunManifest = {
+  let closedLoopRepair = params.closedLoopRepair;
+  if (mode === 'oracle') {
+    closedLoopRepair = { occurred: false };
+  }
+
+  let manifest: RunManifest = {
     autocast_version: '0.2.0',
     run_id: params.runId,
     generated_at: new Date().toISOString(),
-    status: params.status || 'verified',
+    ...(params.mode ? { mode: params.mode } : mode === 'oracle' ? { mode: 'oracle' } : {}),
+    status: params.status,
     application: {
       url: params.applicationUrl,
       baseline_commit: params.baselineCommit,
@@ -86,13 +158,29 @@ export function generateRunManifest(params: {
       state_verified: params.stateVerified,
     },
     kane_verification: params.kaneVerification,
-    closed_loop_repair: params.closedLoopRepair,
+    closed_loop_repair: closedLoopRepair,
     visual_qa: params.visualQa,
     security_scan: params.securityScan,
+    ...(params.oracle ? { oracle: params.oracle } : {}),
     artifacts,
+    ...(params.signature ? { signature: params.signature } : {}),
   };
 
-  fs.writeFileSync(outputPath, JSON.stringify(manifest, null, 2), 'utf-8');
+  const resolvedSigningKey =
+    params.signingKey ?? (mode === 'oracle' ? process.env.ORACLE_SIGNING_KEY : undefined);
+
+  if (resolvedSigningKey && !params.signature) {
+    manifest = signOracleManifest(manifest, resolvedSigningKey);
+  }
+
+  const serialized = JSON.stringify(manifest, null, 2);
+  fs.writeFileSync(outputPath, serialized, 'utf-8');
+  for (const extraPath of params.additionalOutputPaths || []) {
+    if (path.resolve(extraPath) !== path.resolve(outputPath)) {
+      fs.mkdirSync(path.dirname(extraPath), { recursive: true });
+      fs.writeFileSync(extraPath, serialized, 'utf-8');
+    }
+  }
   console.log(`[Provenance] Sealed tamper-evident run-manifest.json -> ${outputPath}`);
   return manifest;
 }
@@ -151,41 +239,7 @@ export function verifyRunManifest(
     }
   }
 
-  // Mandatory Artifacts: Video and Poster must exist if requireArtifacts is enabled
-  if (options.requireArtifacts) {
-    if (!manifest.artifacts?.video) {
-      errors.push('Manifest missing required video artifact entry');
-    }
-    if (!manifest.artifacts?.poster) {
-      errors.push('Manifest missing required poster artifact entry');
-    }
-  }
-
-  // Verify video hash
-  if (manifest.artifacts?.video) {
-    const videoFile = resolveArtifactPath(manifest.artifacts.video.path);
-    if (!videoFile) {
-      errors.push(`Video artifact missing on disk: ${manifest.artifacts.video.path}`);
-    } else {
-      const actualHash = computeFileSha256(videoFile);
-      if (actualHash !== manifest.artifacts.video.sha256) {
-        errors.push(`Video SHA-256 mismatch! Manifest: ${manifest.artifacts.video.sha256}, Actual: ${actualHash}`);
-      }
-    }
-  }
-
-  // Verify poster hash
-  if (manifest.artifacts?.poster) {
-    const posterFile = resolveArtifactPath(manifest.artifacts.poster.path);
-    if (!posterFile) {
-      errors.push(`Poster artifact missing on disk: ${manifest.artifacts.poster.path}`);
-    } else {
-      const actualHash = computeFileSha256(posterFile);
-      if (actualHash !== manifest.artifacts.poster.sha256) {
-        errors.push(`Poster SHA-256 mismatch! Manifest: ${manifest.artifacts.poster.sha256}, Actual: ${actualHash}`);
-      }
-    }
-  }
+  errors.push(...verifyDeclaredArtifacts(manifest, Boolean(options.requireArtifacts)));
 
   return {
     valid: errors.length === 0,
@@ -193,3 +247,118 @@ export function verifyRunManifest(
   };
 }
 
+export interface VerifyOracleManifestOptions {
+  expectedSpecSha256: string;
+  expectedCommit: string;
+  trustedKeysPath?: string;
+  trustedKeys?: TrustedKeyMap;
+  publicKeyPem?: string;
+}
+
+export function verifyOracleManifest(
+  manifestPath: string,
+  options: VerifyOracleManifestOptions
+): { valid: boolean; errors: string[]; manifest?: RunManifest } {
+  if (!fs.existsSync(manifestPath)) {
+    return { valid: false, errors: [`Manifest file not found: ${manifestPath}`] };
+  }
+
+  const errors: string[] = [];
+  const content = fs.readFileSync(manifestPath, 'utf-8');
+  let manifest: RunManifest;
+  try {
+    manifest = JSON.parse(content);
+  } catch {
+    return { valid: false, errors: ['Manifest is not valid JSON'] };
+  }
+
+  let expectedSpecSha256: string;
+  try {
+    expectedSpecSha256 = normalizeSha256Hex(options.expectedSpecSha256, 'expectedSpecSha256');
+  } catch (err: any) {
+    return { valid: false, errors: [err.message], manifest };
+  }
+
+  if (manifest.mode !== 'oracle') {
+    errors.push(`Manifest mode must be 'oracle' (got: '${manifest.mode || 'undefined'}')`);
+  }
+
+  if (manifest.status !== 'verified') {
+    errors.push(`Manifest status must be 'verified' for payment release (got: '${manifest.status}')`);
+  }
+
+  if (!manifest.oracle) {
+    errors.push('Manifest missing required oracle metadata');
+  } else {
+    if (manifest.oracle.verdict !== 'release') {
+      errors.push(
+        `Oracle verdict is '${manifest.oracle.verdict}'${manifest.oracle.hold_reason ? ` (${manifest.oracle.hold_reason})` : ''}; expected 'release'`
+      );
+    }
+    if (manifest.oracle.hold_reason) {
+      errors.push(`Oracle manifest contains hold_reason '${manifest.oracle.hold_reason}'`);
+    }
+    if (manifest.oracle.spec_sha256 !== expectedSpecSha256) {
+      errors.push(
+        `Spec SHA-256 mismatch! Expected '${expectedSpecSha256}', manifest has '${manifest.oracle.spec_sha256}'`
+      );
+    }
+    if (manifest.oracle.expected_commit?.toLowerCase() !== options.expectedCommit.toLowerCase()) {
+      errors.push(
+        `Oracle expected_commit mismatch! Expected '${options.expectedCommit}', manifest has '${manifest.oracle.expected_commit}'`
+      );
+    }
+  }
+
+  if (!manifest.kane_verification) {
+    errors.push('Manifest missing required kane_verification entry');
+  } else if (manifest.kane_verification.result_code !== 100) {
+    errors.push(`Kane verification result_code must be 100 (got: ${manifest.kane_verification.result_code})`);
+  }
+
+  if (manifest.application?.state_verified !== true) {
+    errors.push('Underlying backend state was not verified (application.state_verified !== true)');
+  }
+
+  if (manifest.closed_loop_repair?.occurred !== false) {
+    errors.push(
+      `Oracle manifest must record closed_loop_repair.occurred === false (got: ${String(manifest.closed_loop_repair?.occurred)})`
+    );
+  }
+
+  if (manifest.application?.tested_commit?.toLowerCase() !== options.expectedCommit.toLowerCase()) {
+    errors.push(
+      `Tested commit mismatch! Expected '${options.expectedCommit}', manifest has '${manifest.application?.tested_commit}'`
+    );
+  }
+
+  // Signature verification (always required in oracle mode; fails closed if no trusted keys provided)
+  try {
+    let trustedKeys: TrustedKeyMap;
+    if (options.trustedKeys) {
+      trustedKeys = loadTrustedKeys(options.trustedKeys);
+    } else if (options.publicKeyPem) {
+      const pubObj = crypto.createPublicKey(options.publicKeyPem.replace(/\\n/g, '\n'));
+      const keyId = computePublicKeyId(pubObj);
+      trustedKeys = { [keyId]: pubObj.export({ type: 'spki', format: 'pem' }).toString() };
+    } else {
+      trustedKeys = loadTrustedKeys(options.trustedKeysPath);
+    }
+
+    const sigCheck = verifyManifestSignature(manifest, trustedKeys);
+    if (!sigCheck.valid) {
+      errors.push(sigCheck.error || 'Manifest signature verification failed');
+    }
+  } catch (err: any) {
+    errors.push(err.message);
+  }
+
+  // Optional cinematic artifacts: never required, but verify hashes if attached
+  errors.push(...verifyDeclaredArtifacts(manifest, false));
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    manifest,
+  };
+}
