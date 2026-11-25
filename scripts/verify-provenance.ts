@@ -2,7 +2,26 @@ import path from 'path';
 import fs from 'fs';
 import { verifyRunManifest } from '../src/manifest.js';
 
-const manifestPath = process.argv[2] || path.join(process.cwd(), 'out', 'run-manifest.json');
+function resolveManifestPath(): string {
+  if (process.argv[2]) {
+    return process.argv[2];
+  }
+
+  const localManifest = path.join(process.cwd(), 'out', 'run-manifest.json');
+  if (fs.existsSync(localManifest)) {
+    return localManifest;
+  }
+
+  const committedManifest = path.join(process.cwd(), 'examples', 'output', 'run-manifest.json');
+  if (fs.existsSync(committedManifest)) {
+    console.log('[Provenance] out/run-manifest.json not found; using committed examples/output evidence.\n');
+    return committedManifest;
+  }
+
+  return localManifest;
+}
+
+const manifestPath = resolveManifestPath();
 
 console.log('================================================================');
 console.log('🛡️  AUTOCAST HASH-VERIFIED PROVENANCE MANIFEST AUDITOR');

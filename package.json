@@ -20,10 +20,24 @@
     "preflight": "tsx scripts/preflight.ts",
     "preview": "remotion preview remotion/index.ts",
     "lint:storyboard": "tsx src/edit/lint.ts",
-    "test": "node --import tsx --test 'tests/**/*.test.ts'",
+    "test": "node scripts/run-tests.mjs",
     "build": "tsc -p tsconfig.build.json",
-    "typecheck": "tsc -p tsconfig.build.json --noEmit"
+    "typecheck": "tsc -p tsconfig.build.json --noEmit",
+    "prepare": "npm run build"
   },
+  "files": [
+    "bin",
+    "dist",
+    "docs",
+    "examples",
+    "public",
+    "remotion",
+    "scripts",
+    "src",
+    "storyboard.json",
+    "README.md",
+    "LICENSE"
+  ],
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "@remotion/cli": "^4.0.260",
@@ -36,13 +50,13 @@
     "react-dom": "^18.3.1",
     "remotion": "^4.0.260",
     "tesseract.js": "^7.0.0",
-    "zod": "^3.24.1"
+    "tsx": "^4.19.2",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
-    "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   }
 }
