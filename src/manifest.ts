@@ -10,6 +10,32 @@ export function computeFileSha256(filePath: string): string {
   return hashSum.digest('hex');
 }
 
+/**
+ * When verifying a sealed manifest on a fresh clone, out/ is gitignored.
+ * Committed examples/output copies keep the same SHA-256 as the sealed paths.
+ */
+const COMMITTED_ARTIFACT_ALIASES: Record<string, string[]> = {
+  'out/demo.mp4': ['examples/output/sample-demo.mp4'],
+  'out/poster.jpg': ['examples/output/poster.jpg'],
+};
+
+export function resolveArtifactPath(declaredPath: string): string | null {
+  const normalized = declaredPath.replace(/\\/g, '/');
+  const candidates = [
+    path.resolve(process.cwd(), declaredPath),
+    ...(COMMITTED_ARTIFACT_ALIASES[normalized] || []).map((alias) =>
+      path.resolve(process.cwd(), alias)
+    ),
+  ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
 export function generateRunManifest(params: {
   outputPath?: string;
   status?: RunManifest['status'];
@@ -137,9 +163,9 @@ export function verifyRunManifest(
 
   // Verify video hash
   if (manifest.artifacts?.video) {
-    const videoFile = path.resolve(process.cwd(), manifest.artifacts.video.path);
-    if (!fs.existsSync(videoFile)) {
-      errors.push(`Video artifact missing on disk: ${videoFile}`);
+    const videoFile = resolveArtifactPath(manifest.artifacts.video.path);
+    if (!videoFile) {
+      errors.push(`Video artifact missing on disk: ${manifest.artifacts.video.path}`);
     } else {
       const actualHash = computeFileSha256(videoFile);
       if (actualHash !== manifest.artifacts.video.sha256) {
@@ -150,9 +176,9 @@ export function verifyRunManifest(
 
   // Verify poster hash
   if (manifest.artifacts?.poster) {
-    const posterFile = path.resolve(process.cwd(), manifest.artifacts.poster.path);
-    if (!fs.existsSync(posterFile)) {
-      errors.push(`Poster artifact missing on disk: ${posterFile}`);
+    const posterFile = resolveArtifactPath(manifest.artifacts.poster.path);
+    if (!posterFile) {
+      errors.push(`Poster artifact missing on disk: ${manifest.artifacts.poster.path}`);
     } else {
       const actualHash = computeFileSha256(posterFile);
       if (actualHash !== manifest.artifacts.poster.sha256) {
