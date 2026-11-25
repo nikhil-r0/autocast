@@ -1,7 +1,7 @@
-# Part 2 Feature Drop Plan: Autocast Oracle Mode (78s)
+# Part 2 Feature Drop Plan: Autocast Oracle Mode (~74.5s)
 
 > **Video Title:** *Autocast v0.2 — Oracle Mode: Code That Can't Fake a Payout*  
-> **Target Runtime:** **78 seconds** (`2,340` frames @ `30 FPS`, `1920x1080`)  
+> **Target Runtime:** **~74.5 seconds** (baseline `2,235` frames @ `30 FPS`, `1920x1080`, dynamically padded via `ffprobe` to match voiceover stems)  
 > **Sequel Context:** Direct continuation of the Part 1 Demo ([YouTube](https://youtu.be/9kUd6yS9JkI) — *"Demos that can't lie"*).  
 > **Core Rule:** Zero mocked outputs, zero hardcoded manifest values. Every terminal output, Kane result, 1080p browser replay, `spec_sha256`, `tested_commit`, and Ed25519 `signature` comes directly from live `autocast --oracle` runs and sealed `run-manifest.json` artifacts.
 
@@ -14,11 +14,11 @@
 | **Ships (25%)** | Single CLI invocation (`autocast --oracle ... --commit <sha> --with-video --publish stdout-json`) outputs a signed payment manifest, optional 1080p video evidence, and machine-readable payout payload, audited offline via `npm run verify:oracle`. |
 | **Verified (25% · Tie-Breaker #1)** | Contrasts a real **fail-closed `hold`** (`APP_BUG=approve-noop`, Kane `740`, exit `1`) against a real **signed `release`** (clean fix, Kane `100`, `application.state_verified: true`, exit `0`) under the exact same Day-1 frozen `AcceptanceSpec` (`spec_sha256` + `contract_id`). |
 | **Closed Loop (25% · Tie-Breaker #2)** | Sharp policy contrast with Part 1: the same Kane CLI verification loop triggers autonomous `agy` worktree repair in Demo Mode, whereas in Oracle Mode it **fails closed** (`closed_loop_repair.occurred: false`, zero `agy`, zero retries) when money is on the line. |
-| **Craft (25%)** | Tight 78s pacing (`4` clear beats + dedicated end cards), speed-ramped 1080p Playwright replay (`public/oracle-source.mp4`), tactile SFX + `KineticTransition` flares + burned-in `LowerThird` captions for muted viewing, 8-gate offline cryptographic verification, and post-render OCR pixel scan. |
+| **Craft (25%)** | Tight ~74.5s pacing (`4` clear beats + crisp end cards, voiceover-padded so zero words clip), speed-ramped 1080p Playwright replay (`public/oracle-source.mp4`), tactile SFX + `KineticTransition` flares + burned-in `LowerThird` captions for muted viewing, 8-gate offline cryptographic verification, and post-render OCR pixel scan. |
 
 ---
 
-## 1. Beat Sheet & Visual Direction (78s Total · 2,340 Frames @ 30 FPS)
+## 1. Beat Sheet & Visual Direction (~74.5s Baseline · 2,235+ Frames @ 30 FPS)
 
 ### Color Grammar (Locked Across All Beats)
 - **Red (`#ef4444`):** `740` failure, `HOLD`, `state_verified: false`
@@ -30,12 +30,12 @@
 |---|---|---|---|---|
 | **Beat 1: Hook & Policy Flip** | `0:00 – 0:14` (`14s` / `420f`) | **Remotion Split Policy Card** (`AuroraBackground` + `BorderBeam`) + compact **Frozen Spec Pill** (`contract_id`, `spec_sha256`, omitting commit SHA until delivery) | **Voiceover (~37 words):** *"In Part 1, Autocast caught a silent bug, patched it, and shipped a demo that can't lie. Now meet v0.2 Oracle Mode: code that can't fake a payout. Same Kane engine, opposite policy—no auto-repair, one frozen spec, signed for escrow."*<br>**LowerThird Caption:** `Part 1: 740 → auto-fix` · `Part 2: 740 → HOLD`<br>**SFX:** Subtle ambient swell + `sfx-click.wav` on policy fork reveal. | **Closed Loop** + **Ships** |
 | **Beat 2: Fail-Closed `hold` on Buggy Code** | `0:14 – 0:32` (`18s` / `540f`) | **2-Column Staggered Layout** *(avoids 3-card crowding)*:<br>• **Left (`width: 860`):** Filtered `TerminalCard` (6–8 key lines from `hold-terminal.log`, `typingSpeed = 4`)<br>• **Right (`width: 860`):** `KaneCard (740 FAIL)` enters at `f90`, **swaps/morphs at `f280`** to `ManifestBadge (HOLD · repair: false)` | **Voiceover (~42 words):** *"When a buggy approval endpoint returns 200 without updating storage, Kane catches result code 740. Oracle Mode refuses to touch the deliverable—zero worktrees, zero `agy` calls—and seals a signed `hold` manifest exiting code 1."*<br>**LowerThird Caption:** `Kane 740 caught → zero agy repair → signed HOLD`<br>**Transition/SFX:** `KineticTransition` flare at cut; `sfx-click.wav` on CLI line; `sfx-stamp.wav` on `HOLD` seal (`f280`). | **Verified** + **Closed Loop** |
-| **Beat 3a: Signed `release` Browser Proof** | `0:32 – 0:50` (`18s` / `540f`) | **3D-Tilted `BrowserFrame` + `BorderBeam` + `CameraRig` Zoom** playing `public/oracle-source.mp4` (speed-ramped `1.45x` on idle typing, snapping to `1.0x` on `Approve Invoice` click & `APPROVED` badge) + **Oracle `FloatingHud` Chips** + **Backend State Pill** (`GET /api/invoices/INV-1042 → status: "Approved"`) | **Voiceover (~34 words):** *"On the fixed commit, `--oracle --commit --with-video` passes Kane 100, verifies `/api/invoices/INV-1042` directly in backend state, and captures 1080p browser proof as optional evidence."*<br>**LowerThird Caption:** `Kane 100 + API state verified → signed RELEASE`<br>**Transition/SFX:** `KineticTransition` flare at cut; `sfx-click.wav` on `Approve Invoice` click & API state pill pop. | **Ships** + **Verified** |
-| **Beat 3b: Oracle Verified End Card** | `0:50 – 0:58` (`8s` / `240f`) | **`Outro` (`mode: 'oracle'`)** bound to `release-manifest.json` (`verdict: RELEASE`, `spec_sha256`, `tested_commit`, `state_verified: true`, `repair: false`, `key_id`) | **Voiceover:** *"Ed25519-signed for payout."* *(short 1.5s hold to let stamp settle)*<br>**LowerThird Caption:** *(none — End Card carries copy)*<br>**SFX:** `sfx-stamp.wav` on `RELEASE` seal. | **Verified** + **Craft** |
-| **Beat 4a: 8-Gate Offline Verification & Publisher** | `0:58 – 1:12` (`14s` / `420f`) | **2-Column Layout**:<br>• **Left (`width: 860`):** `TerminalCard` (`verify:oracle` + `--publish stdout-json`)<br>• **Right (`width: 860`):** **8-Gate Payment Checklist** animating gates 1–8 green (`12f` per gate) + compact 3-line `VerdictPayload` pill (`manifest_sha256`, `verdict`, `signature`) | **Voiceover (~36 words):** *"Any client or escrow contract verifies all eight payment gates and the runner's Ed25519 signature completely offline—no browser or video required—or streams the payload straight to webhooks or EVM adapters."*<br>**LowerThird Caption:** `8 payment gates verified offline · zero video required`<br>**Transition/SFX:** `KineticTransition` flare at cut; rapid `sfx-click.wav` ticks on gates 1–8. | **Craft** + **Ships** |
-| **Beat 4b: Closing Title Card** | `1:12 – 1:18` (`6s` / `180f`) | **`TitleCard`-style Metallic Shimmer Closing Card** (`3.5s+` clean hold): *"Autocast v0.2 — Demos that can't lie. Code that can't fake a payout."* + `autocast --oracle` + `github.com/nikhil-r0/autocast` | **Voiceover (~11 words):** *"Autocast v0.2: demos that can't lie, and code that can't fake a payout."*<br>**SFX:** Subtle fade-out chime. | **Craft** |
+| **Beat 3a: Signed `release` Browser Proof** | `0:32 – 0:50` (`18s` / `540f` min) | **3D-Tilted `BrowserFrame` + `BorderBeam` + `CameraRig` Zoom** playing `public/oracle-source.mp4` (speed-ramped `1.45x` on idle typing, snapping to `1.0x` on `Approve Invoice` click & `APPROVED` badge) + **Oracle `FloatingHud` Chips** + **Backend State Pill** (`GET /api/invoices/INV-1042 → status: "Approved"`) | **Voiceover (~34 words):** *"Once the persistence bug is resolved, `--oracle --commit --with-video` passes Kane 100, verifies `/api/invoices/INV-1042` directly in backend state, and captures 1080p browser proof as optional evidence."* *(Or use two commits `C_bug`/`C_fix` and say "On the patched commit..." so `tested_commit` visibly changes.)*<br>**LowerThird Caption:** `Kane 100 + API state verified → signed RELEASE`<br>**Transition/SFX:** `KineticTransition` flare at cut; `sfx-click.wav` on `Approve Invoice` click & API state pill pop. | **Ships** + **Verified** |
+| **Beat 3b: Oracle Verified End Card** | `0:50 – 0:54.5` (`4.5s` / `135f` min) | **`Outro` (`mode: 'oracle'`)** bound to `release-manifest.json` (`verdict: RELEASE`, `spec_sha256`, `tested_commit`, `state_verified: true`, `repair: false`, `key_id`) | **Voiceover:** *"Ed25519-signed for payout."* *(snappy 4.5s stamp beat so mid-video momentum stays brisk)*<br>**LowerThird Caption:** *(none — End Card carries copy)*<br>**SFX:** `sfx-stamp.wav` on `RELEASE` seal. | **Verified** + **Craft** |
+| **Beat 4a: 8-Gate Offline Verification & Publisher** | `0:54.5 – 1:08.5` (`14s` / `420f` min) | **2-Column Layout**:<br>• **Left (`width: 860`):** `TerminalCard` (`verify:oracle` + `--publish stdout-json`)<br>• **Right (`width: 860`):** **8-Gate Payment Checklist** animating gates 1–8 green (`12f` per gate) + compact 3-line `VerdictPayload` pill (`manifest_sha256`, `verdict`, `signature`) | **Voiceover (~36 words):** *"Any client or escrow contract verifies all eight payment gates and the runner's Ed25519 signature completely offline—no browser or video required—or streams the payload straight to webhooks or EVM adapters."*<br>**LowerThird Caption:** `8 payment gates verified offline · zero video required`<br>**Transition/SFX:** `KineticTransition` flare at cut; rapid `sfx-click.wav` ticks on gates 1–8. | **Craft** + **Ships** |
+| **Beat 4b: Closing Title Card** | `1:08.5 – 1:14.5` (`6s` / `180f` min) | **`TitleCard`-style Metallic Shimmer Closing Card** (`3.5s+` clean hold): *"Autocast v0.2 — Demos that can't lie. Code that can't fake a payout."* + `autocast --oracle` + `github.com/nikhil-r0/autocast` | **Voiceover (~11 words):** *"Autocast v0.2: demos that can't lie, and code that can't fake a payout."*<br>**SFX:** Subtle fade-out chime. | **Craft** |
 
-*Frame Budget Check:* `420 + 540 + 540 + 240 + 420 + 180 = 2,340` frames = **78.0s** @ 30 FPS.
+*Frame Budget Check:* Baseline `420 + 540 + 540 + 135 + 420 + 180 = 2,235` frames = **74.5s** @ 30 FPS. Each beat's final `durationInFrames` is computed dynamically via `Math.max(defaultFrames, Math.ceil(audioDurationSec * 30) + 15)` so no voiceover word is clipped at transition boundaries.
 
 ---
 
@@ -138,7 +138,7 @@ npm run verify:oracle -- out/oracle-drop/release-manifest.json \
 
 ### Step 4 — Bind Artifacts, Render `OracleDrop`, & Run OCR + FFprobe Audit
 
-1. Generate voiceover audio stems (via ElevenLabs TTS if `ELEVENLABS_API_KEY` is set, or recorded `.wav`/`.mp3` stems under `public/audio/oracle-beat-*.mp3`), then assemble props from the real sealed manifests, captured logs, and `public/oracle-source.mp4` SHA-256 via `scripts/finalize-oracle-drop.ts` (validated via `verifyOracleManifest`):
+1. Generate voiceover audio stems (via ElevenLabs TTS if `ELEVENLABS_API_KEY` is set, or recorded `.wav`/`.mp3` stems under `public/audio/oracle-beat-*.mp3`), then assemble props from the real sealed manifests, captured logs, and `public/oracle-source.mp4` SHA-256 via `scripts/finalize-oracle-drop.ts` (which validates via `verifyOracleManifest` and probes each voiceover stem with `ffprobe` to pad `beatFrames` dynamically so no narration gets clipped):
    ```bash
    npx tsx scripts/finalize-oracle-drop.ts \
      --spec "${SPEC_PATH}" \
@@ -152,14 +152,14 @@ npm run verify:oracle -- out/oracle-drop/release-manifest.json \
      --source-video public/oracle-source.mp4 \
      --out out/oracle-drop/oracle-drop-props.json
    ```
-2. Render the 78-second Part 2 feature drop video:
+2. Render the ~74.5-second Part 2 feature drop video:
    ```bash
    npx remotion render OracleDrop out/oracle-feature-drop.mp4 \
      --codec=h264 \
      --concurrency=2 \
      --props=out/oracle-drop/oracle-drop-props.json
    ```
-3. Inspect video stream properties (`1920x1080`, `30 fps`, `78.0s`), run Tesseract OCR pixel safety audit (`scanVideoPixelsForSecrets`) to prove zero `.oracle-keys/` leakage in any frame, and bake the frame-0 poster:
+3. Inspect video stream properties (`1920x1080`, `30 fps`, `~74.5s`), run Tesseract OCR pixel safety audit (`scanVideoPixelsForSecrets`) to prove zero `.oracle-keys/` leakage in any frame, and bake the frame-0 poster:
    ```bash
    ffprobe -v error -show_entries format=duration,size:stream=width,height,r_frame_rate,codec_name -of json out/oracle-feature-drop.mp4
    npx tsx -e "import { scanVideoPixelsForSecrets } from './src/edit/ocrScan.js'; scanVideoPixelsForSecrets('out/oracle-feature-drop.mp4').then(r => { console.log(r); if (!r.passed) process.exit(1); });"
@@ -177,11 +177,12 @@ To keep Part 1 (`Demo` and `AutoCastShowcase`) 100% unchanged and risk-free, app
 - **`remotion/components/Outro.tsx`**: Accept optional `oracle?: OracleManifestOverlay`. When provided, render the **Oracle Verified End Card** bound to real props (`oracle.verdict`, `oracle.hold_reason`, `oracle.spec_sha256`, `tested_commit`, `result_code`, `state_verified`, `closed_loop_repair.occurred`, `signature.key_id`).
 - **`remotion/components/ManifestBadge.tsx`**: Add optional `mode?: 'demo' | 'oracle'`, `verdict`, `holdReason`, `specSha256`, `repairOccurred`, and `signatureKeyId` props. When `mode === 'oracle'`, render those fields alongside `tested_commit` and `state_verified`, labeling the video SHA row `optional_video_sha256` (or `not attached (payment-decoupled)`).
 
-### B. Dedicated `remotion/OracleDrop.tsx` Composition (78s · 2,340 Frames)
-- Register `<Composition id="OracleDrop" component={OracleDrop} width={1920} height={1080} fps={30} durationInFrames={2340} ... />` in `remotion/Root.tsx`.
-- Implement Beat 3a timing cleanly: inspect `public/oracle-source.mp4` duration in `finalize-oracle-drop.ts` so `<OffthreadVideo>` speed-ramps idle typing (`1.4x–1.6x`) or trims dead lead-in frames to settle cleanly on the `APPROVED` badge within `540` frames before cutting to Beat 3b (`240f` Oracle `Outro`).
+### B. Dedicated `remotion/OracleDrop.tsx` Composition (~74.5s Baseline · Dynamic Voiceover Padding)
+- Register `<Composition id="OracleDrop" component={OracleDrop} calculateMetadata={calculateOracleDropMetadata} width={1920} height={1080} fps={30} durationInFrames={2235} ... />` in `remotion/Root.tsx` so `calculateOracleDropMetadata` sums `props.beatFrames` dynamically.
+- **Voiceover overflow guard:** `scripts/finalize-oracle-drop.ts` runs `ffprobe` on each existing `public/audio/oracle-beat-*.mp3`/`.wav` stem and computes `beatFrames[k] = Math.max(defaultFrames[k], Math.ceil(audioDurationSec * 30) + 15)` (preserving `15` frames / `0.5s` breathing room before each `KineticTransition` cut so no words clip).
+- Implement Beat 3a timing cleanly: inspect `public/oracle-source.mp4` duration in `finalize-oracle-drop.ts` so `<OffthreadVideo>` speed-ramps idle typing (`1.4x–1.6x`) or trims dead lead-in frames to settle cleanly on the `APPROVED` badge within Beat 3a before cutting to Beat 3b (`135f` / `4.5s` Oracle `Outro`).
 - Mount `KineticTransition` flares on scene boundaries, `sfx-click.wav` / `sfx-stamp.wav` via `<Audio>`, voiceover stems inside each `<Series.Sequence>` (when audio paths exist in props), and concise `LowerThird` captions across Beats 1, 2, 3a, and 4a.
-- Props interface (`OracleDropProps`), populated exclusively by `scripts/finalize-oracle-drop.ts` from disk artifacts (`hold-manifest.json`, `release-manifest.json`, captured `.log` files, `release-verdict.json`, `public/oracle-source.mp4`).
+- Props interface (`OracleDropProps`), populated exclusively by `scripts/finalize-oracle-drop.ts` from disk artifacts (`hold-manifest.json`, `release-manifest.json`, captured `.log` files, `release-verdict.json`, `public/oracle-source.mp4`, and `beatFrames` / `audioStems`).
 
 ### C. Keep `src/oracle/runner.ts` Sealing Order Untouched
 - In `src/oracle/runner.ts:207-275`, `defaultCaptureOptionalVideo` renders `Demo` before `sealAndOptionallyPublish` seals `out/run-manifest.json`.
@@ -193,8 +194,8 @@ To keep Part 1 (`Demo` and `AutoCastShowcase`) 100% unchanged and risk-free, app
 
 1. **Single-Commit Bug Injection vs. Two Distinct Commits (`--commit` separation)**
    - Since `expected_commit` is passed via `--commit <40-char-sha>` (not hashed inside `AcceptanceSpec`), **one frozen `spec.json` (`spec_sha256` + `contract_id`)** now works identically for both:
-     - **Single commit (`APP_BUG=approve-noop` vs. clean):** Simplest for filming (`DELIVERY_COMMIT=$(git rev-parse HEAD)`).
-     - **Two commits (`--commit C_bug` vs. `--commit C_fix`):** Contrasts two real git commits under the **exact same `spec_sha256`** (`preparePinnedAppCheckout()` extracts each commit via `git archive`).
+     - **Single commit (`APP_BUG=approve-noop` vs. clean):** Simplest for filming (`DELIVERY_COMMIT=$(git rev-parse HEAD)`). Pair this with phrasing like *"Once the persistence bug is resolved..."* (avoid *"On the fixed commit..."* since both manifests carry the same `tested_commit`).
+     - **Two commits (`--commit C_bug` vs. `--commit C_fix`):** Contrasts two real git commits under the **exact same `spec_sha256`** (`preparePinnedAppCheckout()` extracts each commit via `git archive`) so `tested_commit` visibly changes between `HOLD` and `RELEASE`.
    - Either way, verify `examples/ledgerly/node_modules` is installed first (`npm --prefix examples/ledgerly ci`) so isolated checkouts can symlink `node_modules` and run `npm run build` cleanly.
 2. **Do Not Use `scripts/finalize-showcase.ts` for Oracle Drops**
    - `scripts/finalize-showcase.ts:30` and `scripts/verify-provenance.ts:28-33` require `mode: 'demo'` + `visual_qa`. Use `npm run verify:oracle` and `scripts/finalize-oracle-drop.ts` backed by `verifyOracleManifest()`.
