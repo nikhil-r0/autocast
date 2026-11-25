@@ -70,7 +70,7 @@ export async function reverifyOracle(options: {
   runOracleFn?: typeof runOraclePipeline;
 }): Promise<ReverifyResult> {
   const loaded = loadAcceptanceSpec(options.specPath);
-  if (loaded.spec.target.expected_commit !== options.commit) {
+  if (loaded.spec.target.expected_commit.toLowerCase() !== options.commit.toLowerCase()) {
     return {
       status: 'failed',
       exitCode: 1,
@@ -106,14 +106,29 @@ export async function reverifyOracle(options: {
   }
 
   // Reject tampered or untrusted original manifests before reshooting unless it is an authentic signed hold
-  const nonVerdictErrors = offlineCheck.errors.filter(
-    (err) =>
-      !err.startsWith('Manifest status must be') &&
-      !err.startsWith('Oracle verdict is') &&
-      !err.startsWith('Oracle manifest contains hold_reason') &&
-      !err.startsWith('Kane verification result_code') &&
-      !err.startsWith('Underlying backend state was not verified')
-  );
+  const isSignedHold = originalManifest.oracle.verdict === 'hold';
+  const holdReason = originalManifest.oracle.hold_reason;
+  const nonVerdictErrors = isSignedHold
+    ? offlineCheck.errors.filter((err) => {
+        if (
+          err.startsWith('Manifest status must be') ||
+          err.startsWith('Oracle verdict is') ||
+          err.startsWith('Oracle manifest contains hold_reason') ||
+          err.startsWith('Kane verification result_code') ||
+          err.startsWith('Underlying backend state was not verified') ||
+          err.startsWith('Manifest missing required kane_verification entry')
+        ) {
+          return false;
+        }
+        if (
+          (holdReason === 'commit_mismatch' || holdReason === 'spec_mismatch') &&
+          err.startsWith('Tested commit mismatch!')
+        ) {
+          return false;
+        }
+        return true;
+      })
+    : offlineCheck.errors;
   if (nonVerdictErrors.length > 0) {
     return {
       status: 'failed',

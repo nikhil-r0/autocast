@@ -222,7 +222,7 @@ export class LedgerlyLifecycleAdapter implements AppLifecycleAdapter {
   async healthCheck(expectedCommit?: string): Promise<boolean> {
     const info = await this.getHealthInfo();
     if (!info?.ok) return false;
-    if (expectedCommit && info.commit !== expectedCommit) {
+    if (expectedCommit && (info.commit || '').toLowerCase() !== expectedCommit.toLowerCase()) {
       console.warn(`[Lifecycle] Health check commit mismatch: got '${info.commit}', expected '${expectedCommit}'`);
       return false;
     }

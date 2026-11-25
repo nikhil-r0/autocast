@@ -430,3 +430,129 @@ test('Kane 100 + matching api_state seals signed release manifest and exits 0', 
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
+
+test('CLI env ORACLE_SIGNING_KEY signs manifest in a single write (never writes unsigned manifest to disk)', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'autocast-oracle-singlewrite-'));
+  const keys = createTestKeys();
+  const commit = 'eeee1111ffff2222000033334444555566667777';
+  const spec = makeSpec({ expected_commit: commit });
+  const { specPath, specSha256 } = writeSpecFile(tmpDir, spec);
+  const manifestPath = path.join(tmpDir, 'out', 'run-manifest.json');
+
+  const prevSigningKey = process.env.ORACLE_SIGNING_KEY;
+  process.env.ORACLE_SIGNING_KEY = keys.privatePem;
+
+  const writesToManifest: string[] = [];
+  const origWriteFileSync = fs.writeFileSync;
+  (fs as any).writeFileSync = (file: fs.PathOrFileDescriptor, data: any, ...rest: any[]) => {
+    if (typeof file === 'string' && path.resolve(file) === path.resolve(manifestPath)) {
+      writesToManifest.push(String(data));
+    }
+    return (origWriteFileSync as any).call(fs, file, data, ...rest);
+  };
+
+  try {
+    const outcome = await runOraclePipeline({
+      specPath,
+      outDir: path.join(tmpDir, 'out'),
+      manifestOutPath: manifestPath,
+      requireCleanTree: false,
+      deps: {
+        preflightFn: () => ({ headCommit: commit, clean: true }),
+        prepareCheckoutFn: () => ({ appDir: tmpDir }),
+        createAdapterFn: () => ({
+          name: 'mock',
+          appDir: tmpDir,
+          start: async () => ({ pid: 1, port: 8080, commit }),
+          stop: async () => {},
+          getHealthInfo: async () => ({ ok: true, commit }),
+          healthCheck: async (c) => c === commit,
+          resetSeedData: async () => {},
+          verifyUnderlyingState: async () => true,
+        }),
+        executeKaneRunFn: async () => ({
+          passed: true,
+          category: 'pass',
+          isProductDefect: false,
+          exitCode: 0,
+          resultCode: 100,
+          summary: 'Verified',
+          sessionDir: '/tmp/kane-singlewrite',
+          steps: [],
+        }),
+      },
+    });
+
+    assert.equal(outcome.exitCode, 0);
+    assert.equal(writesToManifest.length, 1, 'Manifest must be written once, already signed');
+    const firstWritten = JSON.parse(writesToManifest[0]);
+    assert.equal(firstWritten.signature?.alg, 'ed25519');
+    assert.ok(firstWritten.signature?.sig);
+
+    const verify = verifyOracleManifest(manifestPath, {
+      expectedSpecSha256: specSha256,
+      expectedCommit: commit,
+      publicKeyPem: keys.publicPem,
+    });
+    assert.equal(verify.valid, true, verify.errors.join('; '));
+  } finally {
+    (fs as any).writeFileSync = origWriteFileSync;
+    if (prevSigningKey === undefined) delete process.env.ORACLE_SIGNING_KEY;
+    else process.env.ORACLE_SIGNING_KEY = prevSigningKey;
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('Uppercase 40-char expected_commit matches lowercase served commit from /api/health', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'autocast-oracle-case-'));
+  const keys = createTestKeys();
+  const lowerCommit = 'abcdef0123456789abcdef0123456789abcdef01';
+  const upperCommit = lowerCommit.toUpperCase();
+  const spec = makeSpec({ expected_commit: upperCommit });
+  const { specPath, specSha256 } = writeSpecFile(tmpDir, spec);
+  const manifestPath = path.join(tmpDir, 'out', 'run-manifest.json');
+
+  const outcome = await runOraclePipeline({
+    specPath,
+    outDir: path.join(tmpDir, 'out'),
+    manifestOutPath: manifestPath,
+    signingKey: keys.privatePem,
+    requireCleanTree: false,
+    deps: {
+      preflightFn: () => ({ headCommit: lowerCommit, clean: true }),
+      prepareCheckoutFn: () => ({ appDir: tmpDir }),
+      createAdapterFn: () => ({
+        name: 'mock',
+        appDir: tmpDir,
+        start: async () => ({ pid: 1, port: 8080, commit: lowerCommit }),
+        stop: async () => {},
+        getHealthInfo: async () => ({ ok: true, commit: lowerCommit }),
+        healthCheck: async (c) => (c || '').toLowerCase() === lowerCommit,
+        resetSeedData: async () => {},
+        verifyUnderlyingState: async () => true,
+      }),
+      executeKaneRunFn: async () => ({
+        passed: true,
+        category: 'pass',
+        isProductDefect: false,
+        exitCode: 0,
+        resultCode: 100,
+        summary: 'Verified',
+        sessionDir: '/tmp/kane-case',
+        steps: [],
+      }),
+    },
+  });
+
+  assert.equal(outcome.exitCode, 0);
+  assert.equal(outcome.verdict, 'release');
+
+  const verify = verifyOracleManifest(manifestPath, {
+    expectedSpecSha256: specSha256,
+    expectedCommit: upperCommit,
+    publicKeyPem: keys.publicPem,
+  });
+  assert.equal(verify.valid, true, verify.errors.join('; '));
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});

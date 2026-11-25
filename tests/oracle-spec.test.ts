@@ -118,12 +118,26 @@ test('parseAcceptanceSpec rejects unknown fields at root, target, parties, and v
   );
 });
 
-test('parseAcceptanceSpec rejects mutable HEAD commit refs and invalid URLs', () => {
-  const withHead = {
+test('parseAcceptanceSpec requires 40-char hex commit SHA and rejects short SHAs, tags, branch refs, and invalid URLs', () => {
+  for (const badRef of ['HEAD', 'main', 'v1.0.0', 'eab4508', 'g'.repeat(40), '1234']) {
+    const badCommitSpec = {
+      ...BASE_SPEC,
+      target: { ...BASE_SPEC.target, expected_commit: badRef },
+    };
+    assert.throws(
+      () => parseAcceptanceSpec(JSON.stringify(badCommitSpec)),
+      OracleSpecError,
+      `Expected expected_commit '${badRef}' to be rejected`
+    );
+  }
+
+  // Uppercase 40-char hex SHA should be accepted cleanly
+  const upperCommitSpec = {
     ...BASE_SPEC,
-    target: { ...BASE_SPEC.target, expected_commit: 'HEAD' },
+    target: { ...BASE_SPEC.target, expected_commit: 'EAB450840A7CEC4D367DEFB9D4DE96FCBCDCB96D' },
   };
-  assert.throws(() => parseAcceptanceSpec(JSON.stringify(withHead)), OracleSpecError);
+  const parsedUpper = parseAcceptanceSpec(JSON.stringify(upperCommitSpec));
+  assert.equal(parsedUpper.spec.target.expected_commit, 'EAB450840A7CEC4D367DEFB9D4DE96FCBCDCB96D');
 
   const withBadUrl = {
     ...BASE_SPEC,

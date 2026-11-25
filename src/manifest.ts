@@ -166,8 +166,11 @@ export function generateRunManifest(params: {
     ...(params.signature ? { signature: params.signature } : {}),
   };
 
-  if (params.signingKey && !params.signature) {
-    manifest = signOracleManifest(manifest, params.signingKey);
+  const resolvedSigningKey =
+    params.signingKey ?? (mode === 'oracle' ? process.env.ORACLE_SIGNING_KEY : undefined);
+
+  if (resolvedSigningKey && !params.signature) {
+    manifest = signOracleManifest(manifest, resolvedSigningKey);
   }
 
   const serialized = JSON.stringify(manifest, null, 2);
@@ -300,7 +303,7 @@ export function verifyOracleManifest(
         `Spec SHA-256 mismatch! Expected '${expectedSpecSha256}', manifest has '${manifest.oracle.spec_sha256}'`
       );
     }
-    if (manifest.oracle.expected_commit !== options.expectedCommit) {
+    if (manifest.oracle.expected_commit?.toLowerCase() !== options.expectedCommit.toLowerCase()) {
       errors.push(
         `Oracle expected_commit mismatch! Expected '${options.expectedCommit}', manifest has '${manifest.oracle.expected_commit}'`
       );
@@ -323,7 +326,7 @@ export function verifyOracleManifest(
     );
   }
 
-  if (manifest.application?.tested_commit !== options.expectedCommit) {
+  if (manifest.application?.tested_commit?.toLowerCase() !== options.expectedCommit.toLowerCase()) {
     errors.push(
       `Tested commit mismatch! Expected '${options.expectedCommit}', manifest has '${manifest.application?.tested_commit}'`
     );

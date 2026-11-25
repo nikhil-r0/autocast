@@ -57,16 +57,6 @@ export const OutcomeSpecSchema = z
   })
   .strict();
 
-const DISALLOWED_MUTABLE_REFS = new Set([
-  'HEAD',
-  'FETCH_HEAD',
-  'ORIG_HEAD',
-  'MERGE_HEAD',
-  'CHERRY_PICK_HEAD',
-  'main',
-  'master',
-]);
-
 export const AcceptanceSpecSchema = z
   .object({
     version: z.literal(1),
@@ -89,10 +79,9 @@ export const AcceptanceSpecSchema = z
         expected_commit: z
           .string()
           .trim()
-          .min(4)
-          .refine(
-            (val) => /^[a-zA-Z0-9._-]+$/.test(val) && !val.includes('..') && !DISALLOWED_MUTABLE_REFS.has(val),
-            'target.expected_commit must be an explicit pinned commit identifier (not HEAD or a branch ref)'
+          .regex(
+            /^[0-9a-f]{40}$/i,
+            'target.expected_commit must be a full 40-character hexadecimal git commit SHA'
           ),
         seed_id: z.string().trim().min(1),
       })

@@ -90,7 +90,7 @@ function main(): void {
           process.exit(2);
         }
       }
-      if (loaded.spec.target.expected_commit !== parsed.commit) {
+      if (loaded.spec.target.expected_commit.toLowerCase() !== parsed.commit.toLowerCase()) {
         console.error(
           `❌ Commit mismatch between spec (${loaded.spec.target.expected_commit}) and --commit (${parsed.commit}).`
         );

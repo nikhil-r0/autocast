@@ -212,3 +212,115 @@ test('reverifyOracle offline & --reshoot divergence reports inconclusive rather 
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
+
+test('reverifyOracle --reshoot accepts authentic signed hold manifests without kane_verification and rejects tampered holds', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'autocast-oracle-hold-reverify-'));
+  const keys = makePair();
+  const specPath = path.join(tmpDir, 'spec.json');
+  const trustedPath = path.join(tmpDir, 'trusted.json');
+  const commitMismatchManifest = path.join(tmpDir, 'commit-mismatch.json');
+  const specMismatchManifest = path.join(tmpDir, 'spec-mismatch.json');
+
+  fs.writeFileSync(specPath, JSON.stringify(SAMPLE_SPEC, null, 2), 'utf-8');
+  fs.writeFileSync(trustedPath, JSON.stringify({ [keys.keyId]: keys.publicPem }, null, 2), 'utf-8');
+  const { specSha256 } = computeSpecSha256(SAMPLE_SPEC);
+
+  // 1. Valid signed hold with hold_reason: 'commit_mismatch' (no kane_verification, tested_commit differs)
+  generateRunManifest({
+    outputPath: commitMismatchManifest,
+    mode: 'oracle',
+    status: 'failed',
+    runId: 'hold-commit-1',
+    applicationUrl: SAMPLE_SPEC.target.url,
+    testedCommit: '0000000000000000000000000000000000000000',
+    stateVerified: false,
+    closedLoopRepair: { occurred: false },
+    oracle: {
+      spec_sha256: specSha256,
+      seed_id: SAMPLE_SPEC.target.seed_id,
+      expected_commit: COMMIT,
+      runner_id: 'runner-1',
+      verdict: 'hold',
+      hold_reason: 'commit_mismatch',
+    },
+    signingKey: keys.privatePem,
+  });
+
+  const reproducedCommitMismatch = await reverifyOracle({
+    specPath,
+    commit: COMMIT,
+    manifestPath: commitMismatchManifest,
+    trustedKeysPath: trustedPath,
+    reshoot: true,
+    outDir: path.join(tmpDir, 'reverify-cm'),
+    runOracleFn: async () => ({
+      exitCode: 1,
+      verdict: 'hold',
+      holdReason: 'commit_mismatch',
+      specSha256,
+    }),
+  });
+  assert.equal(reproducedCommitMismatch.status, 'reproduced');
+  assert.equal(reproducedCommitMismatch.exitCode, 1);
+
+  // 2. Valid signed hold with hold_reason: 'spec_mismatch' (no kane_verification, tested_commit: 'not_started')
+  generateRunManifest({
+    outputPath: specMismatchManifest,
+    mode: 'oracle',
+    status: 'failed',
+    runId: 'hold-spec-1',
+    applicationUrl: SAMPLE_SPEC.target.url,
+    testedCommit: 'not_started',
+    stateVerified: false,
+    closedLoopRepair: { occurred: false },
+    oracle: {
+      spec_sha256: specSha256,
+      seed_id: SAMPLE_SPEC.target.seed_id,
+      expected_commit: COMMIT,
+      runner_id: 'runner-1',
+      verdict: 'hold',
+      hold_reason: 'spec_mismatch',
+    },
+    signingKey: keys.privatePem,
+  });
+
+  const divergedSpecMismatch = await reverifyOracle({
+    specPath,
+    commit: COMMIT,
+    manifestPath: specMismatchManifest,
+    trustedKeysPath: trustedPath,
+    reshoot: true,
+    outDir: path.join(tmpDir, 'reverify-sm'),
+    runOracleFn: async () => ({
+      exitCode: 0,
+      verdict: 'release',
+      specSha256,
+    }),
+  });
+  assert.equal(divergedSpecMismatch.status, 'inconclusive');
+  assert.equal(divergedSpecMismatch.exitCode, 4);
+
+  // 3. Tampering with signed hold manifest still fails verification before reshooting
+  const tampered = JSON.parse(fs.readFileSync(commitMismatchManifest, 'utf-8'));
+  tampered.oracle.runner_id = 'tampered-runner';
+  fs.writeFileSync(commitMismatchManifest, JSON.stringify(tampered, null, 2), 'utf-8');
+
+  let reshootInvoked = false;
+  const tamperedRes = await reverifyOracle({
+    specPath,
+    commit: COMMIT,
+    manifestPath: commitMismatchManifest,
+    trustedKeysPath: trustedPath,
+    reshoot: true,
+    outDir: path.join(tmpDir, 'reverify-tampered'),
+    runOracleFn: async () => {
+      reshootInvoked = true;
+      return { exitCode: 1, verdict: 'hold', specSha256 };
+    },
+  });
+  assert.equal(tamperedRes.status, 'failed');
+  assert.equal(tamperedRes.exitCode, 1);
+  assert.equal(reshootInvoked, false);
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});

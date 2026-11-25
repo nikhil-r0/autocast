@@ -16,7 +16,7 @@ import { classifyKaneRun } from '../shoot/classify.js';
 import { generateRunManifest } from '../manifest.js';
 import { runOraclePreflight } from '../preflight.js';
 import { loadAcceptanceSpec, normalizeSha256Hex, OracleSpecError } from './spec.js';
-import { loadOracleSigningKey, OracleSigningConfigError, signOracleManifest } from './sign.js';
+import { loadOracleSigningKey, OracleSigningConfigError } from './sign.js';
 import { buildVerdictPayload, PublishAdapterName, publishVerdict } from './publish.js';
 import { replayAndRecord } from '../capture/replay.js';
 import { generateNarration } from '../edit/narration.js';
@@ -340,7 +340,8 @@ export async function runOraclePipeline(options: OracleRunOptions): Promise<Orac
     videoPath?: string;
     posterPath?: string;
   }): Promise<RunManifest> => {
-    const unsignedManifest = generateRunManifest({
+    const resolvedSigningKey = options.signingKey ?? process.env.ORACLE_SIGNING_KEY;
+    const signedManifest = generateRunManifest({
       outputPath: manifestOutPath,
       additionalOutputPaths: [runManifestPath],
       mode: 'oracle',
@@ -370,21 +371,13 @@ export async function runOraclePipeline(options: OracleRunOptions): Promise<Orac
         verdict: params.verdict,
         ...(params.holdReason ? { hold_reason: params.holdReason } : {}),
       },
-      signingKey: options.signingKey,
+      signingKey: resolvedSigningKey,
       videoPath: params.videoPath,
       posterPath: params.posterPath,
     });
 
-    // Note: generateRunManifest already signed and wrote both paths identically when signingKey is given,
-    // or if ORACLE_SIGNING_KEY env is used, ensure signed consistently.
-    const signedManifest = unsignedManifest.signature
-      ? unsignedManifest
-      : signOracleManifest(unsignedManifest, options.signingKey);
-
-    if (!unsignedManifest.signature) {
-      const serialized = JSON.stringify(signedManifest, null, 2);
-      fs.writeFileSync(manifestOutPath, serialized, 'utf-8');
-      fs.writeFileSync(runManifestPath, serialized, 'utf-8');
+    if (!signedManifest.signature) {
+      throw new OracleSigningConfigError('Failed to sign oracle manifest before writing to disk.');
     }
 
     if (options.publishAdapter) {
@@ -510,7 +503,7 @@ export async function runOraclePipeline(options: OracleRunOptions): Promise<Orac
     const healthy = await adapter.healthCheck(spec.target.expected_commit);
     const testedCommit = healthInfo?.commit || (healthy ? spec.target.expected_commit : 'unknown');
 
-    if (!healthy || testedCommit !== spec.target.expected_commit) {
+    if (!healthy || testedCommit.toLowerCase() !== spec.target.expected_commit.toLowerCase()) {
       const msg = `Commit mismatch or unhealthy target: expected '${spec.target.expected_commit}', served '${testedCommit}'`;
       logErr(`❌ [Oracle HOLD] ${msg}`);
       const manifest = await sealAndOptionallyPublish({

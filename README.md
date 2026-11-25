@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="https://github.com/nikhil-r0/autocast/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/nikhil-r0/autocast/ci.yml?branch=main&style=flat-square&label=CI" alt="CI"></a>
-  <a href="tests/"><img src="https://img.shields.io/badge/Tests-42%2F42%20Pass%20(100%25)-blue?style=flat-square" alt="Tests"></a>
+  <a href="tests/"><img src="https://img.shields.io/badge/Tests-66%2F66%20Pass%20(100%25)-blue?style=flat-square" alt="Tests"></a>
   <a href="scripts/verify-provenance.ts"><img src="https://img.shields.io/badge/Release%20Gates-6%2F6%20Verified-success?style=flat-square" alt="Release Gates"></a>
   <a href="examples/output/sample-demo.mp4"><img src="https://img.shields.io/badge/Committed%20Demo-36s%20Verified-violet?style=flat-square" alt="Committed Demo"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-lightgrey?style=flat-square" alt="License"></a>
@@ -80,7 +80,7 @@ The output files are `out/demo.mp4` (with frame-0 thumbnail baked in), `out/post
 | Command | Purpose |
 |---|---|
 | `npm run preflight` | Run environment, clean-tree, and git sync auditor |
-| `npm test` | Run complete 42-test automated suite (100% pass) |
+| `npm test` | Run complete 66-test automated suite (100% pass) |
 | `npm run demo -- "<prompt>"` | Run full pipeline: verify, repair, capture, review, render |
 | `npm run verify:provenance` | Audit release gates on `out/` or committed `examples/output` evidence |
 | `npm run verify:oracle` | Audit Ed25519-signed oracle payment gates on a sealed manifest |
