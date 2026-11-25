@@ -21,6 +21,8 @@ function createTestKeys() {
   };
 }
 
+const DEFAULT_COMMIT = 'abc1234567890abcdef1234567890abcdef12345';
+
 function makeSpec(overrides?: Partial<AcceptanceSpec['target']>): AcceptanceSpec {
   return {
     version: 1,
@@ -48,7 +50,6 @@ function makeSpec(overrides?: Partial<AcceptanceSpec['target']>): AcceptanceSpec
     ],
     target: {
       url: 'http://localhost:8080/?logged_in=true',
-      expected_commit: 'abc1234567890abcdef1234567890abcdef12345',
       seed_id: 'ledgerly-default-v1',
       ...overrides,
     },
@@ -88,10 +89,10 @@ test('Kane 740 in oracle mode: never invokes agy, seals hold manifest with kane_
   const mockAdapter: AppLifecycleAdapter = {
     name: 'mock-ledgerly',
     appDir: tmpDir,
-    start: async () => ({ pid: 123, port: 8080, commit: spec.target.expected_commit }),
+    start: async () => ({ pid: 123, port: 8080, commit: DEFAULT_COMMIT }),
     stop: async () => {},
-    getHealthInfo: async () => ({ ok: true, commit: spec.target.expected_commit }),
-    healthCheck: async (c) => c === spec.target.expected_commit,
+    getHealthInfo: async () => ({ ok: true, commit: DEFAULT_COMMIT }),
+    healthCheck: async (c) => c === DEFAULT_COMMIT,
     resetSeedData: async () => {},
     verifyUnderlyingState: async () => {
       stateVerifyCalled = true;
@@ -102,13 +103,14 @@ test('Kane 740 in oracle mode: never invokes agy, seals hold manifest with kane_
   try {
     const outcome = await runOraclePipeline({
       specPath,
+      commit: DEFAULT_COMMIT,
       outDir: path.join(tmpDir, 'out'),
       manifestOutPath: manifestPath,
       signingKey: keys.privatePem,
       agentRepairRequested: true,
       requireCleanTree: false,
       deps: {
-        preflightFn: () => ({ headCommit: spec.target.expected_commit, clean: true }),
+        preflightFn: () => ({ headCommit: DEFAULT_COMMIT, clean: true }),
         prepareCheckoutFn: () => ({ appDir: tmpDir }),
         createAdapterFn: () => mockAdapter,
         executeKaneRunFn: async (opts): Promise<KaneRunResult> => {
@@ -177,6 +179,7 @@ test('Spec hash mismatch exits 2 before the app starts', async () => {
 
   const outcome = await runOraclePipeline({
     specPath,
+    commit: DEFAULT_COMMIT,
     expectSpecSha256: 'f'.repeat(64),
     outDir: path.join(tmpDir, 'out'),
     manifestOutPath: manifestPath,
@@ -223,6 +226,7 @@ test('Party-supplied localhost or disallowed URL is rejected with exit 2 before 
 
   const outcome = await runOraclePipeline({
     specPath,
+    commit: DEFAULT_COMMIT,
     outDir: path.join(tmpDir, 'out'),
     signingKey: keys.privatePem,
     runnerOrigin: 'http://localhost:8080',
@@ -254,7 +258,7 @@ test('expected_commit != served commit seals hold with commit_mismatch and exits
   const keys = createTestKeys();
   const expectedCommit = 'aaaa1111bbbb2222cccc3333dddd4444eeee5555';
   const servedCommit = '9999888877776666555544443333222211110000';
-  const spec = makeSpec({ expected_commit: expectedCommit });
+  const spec = makeSpec();
   const { specPath } = writeSpecFile(tmpDir, spec);
   const manifestPath = path.join(tmpDir, 'out', 'run-manifest.json');
 
@@ -262,6 +266,7 @@ test('expected_commit != served commit seals hold with commit_mismatch and exits
 
   const outcome = await runOraclePipeline({
     specPath,
+    commit: expectedCommit,
     outDir: path.join(tmpDir, 'out'),
     manifestOutPath: manifestPath,
     signingKey: keys.privatePem,
@@ -333,7 +338,7 @@ test('Kane 100 but api_state mismatch seals hold with state_mismatch and exits 1
 
   try {
     const baseUrl = `http://127.0.0.1:${serverPort}`;
-    const spec = makeSpec({ url: `${baseUrl}/?logged_in=true`, expected_commit: commit });
+    const spec = makeSpec({ url: `${baseUrl}/?logged_in=true` });
     const { specPath } = writeSpecFile(tmpDir, spec);
     const manifestPath = path.join(tmpDir, 'out', 'run-manifest.json');
 
@@ -341,6 +346,7 @@ test('Kane 100 but api_state mismatch seals hold with state_mismatch and exits 1
 
     const outcome = await runOraclePipeline({
       specPath,
+      commit,
       outDir: path.join(tmpDir, 'out'),
       manifestOutPath: manifestPath,
       signingKey: keys.privatePem,
@@ -381,12 +387,13 @@ test('Kane 100 + matching api_state seals signed release manifest and exits 0', 
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'autocast-oracle-release-'));
   const keys = createTestKeys();
   const commit = 'dddd1111eeee2222ffff33330000444411112222';
-  const spec = makeSpec({ expected_commit: commit });
+  const spec = makeSpec();
   const { specPath, specSha256 } = writeSpecFile(tmpDir, spec);
   const manifestPath = path.join(tmpDir, 'out', 'run-manifest.json');
 
   const outcome = await runOraclePipeline({
     specPath,
+    commit,
     expectSpecSha256: specSha256,
     outDir: path.join(tmpDir, 'out'),
     manifestOutPath: manifestPath,
@@ -435,7 +442,7 @@ test('CLI env ORACLE_SIGNING_KEY signs manifest in a single write (never writes 
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'autocast-oracle-singlewrite-'));
   const keys = createTestKeys();
   const commit = 'eeee1111ffff2222000033334444555566667777';
-  const spec = makeSpec({ expected_commit: commit });
+  const spec = makeSpec();
   const { specPath, specSha256 } = writeSpecFile(tmpDir, spec);
   const manifestPath = path.join(tmpDir, 'out', 'run-manifest.json');
 
@@ -454,6 +461,7 @@ test('CLI env ORACLE_SIGNING_KEY signs manifest in a single write (never writes 
   try {
     const outcome = await runOraclePipeline({
       specPath,
+      commit,
       outDir: path.join(tmpDir, 'out'),
       manifestOutPath: manifestPath,
       requireCleanTree: false,
@@ -503,17 +511,18 @@ test('CLI env ORACLE_SIGNING_KEY signs manifest in a single write (never writes 
   }
 });
 
-test('Uppercase 40-char expected_commit matches lowercase served commit from /api/health', async () => {
+test('Uppercase 40-char --commit matches lowercase served commit from /api/health', async () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'autocast-oracle-case-'));
   const keys = createTestKeys();
   const lowerCommit = 'abcdef0123456789abcdef0123456789abcdef01';
   const upperCommit = lowerCommit.toUpperCase();
-  const spec = makeSpec({ expected_commit: upperCommit });
+  const spec = makeSpec();
   const { specPath, specSha256 } = writeSpecFile(tmpDir, spec);
   const manifestPath = path.join(tmpDir, 'out', 'run-manifest.json');
 
   const outcome = await runOraclePipeline({
     specPath,
+    commit: upperCommit,
     outDir: path.join(tmpDir, 'out'),
     manifestOutPath: manifestPath,
     signingKey: keys.privatePem,
@@ -553,6 +562,41 @@ test('Uppercase 40-char expected_commit matches lowercase served commit from /ap
     publicKeyPem: keys.publicPem,
   });
   assert.equal(verify.valid, true, verify.errors.join('; '));
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('Invalid or short --commit exits 2 before loading spec or starting app', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'autocast-oracle-badcommit-'));
+  const keys = createTestKeys();
+  const spec = makeSpec();
+  const { specPath } = writeSpecFile(tmpDir, spec);
+  let startCalled = false;
+
+  const outcome = await runOraclePipeline({
+    specPath,
+    commit: 'abc1234',
+    outDir: path.join(tmpDir, 'out'),
+    signingKey: keys.privatePem,
+    deps: {
+      createAdapterFn: () => ({
+        name: 'mock',
+        appDir: tmpDir,
+        start: async () => {
+          startCalled = true;
+          return { pid: 1, port: 8080 };
+        },
+        stop: async () => {},
+        healthCheck: async () => true,
+        resetSeedData: async () => {},
+        verifyUnderlyingState: async () => true,
+      }),
+    },
+  });
+
+  assert.equal(outcome.exitCode, 2);
+  assert.match(outcome.error || '', /40-character hexadecimal/i);
+  assert.equal(startCalled, false);
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });

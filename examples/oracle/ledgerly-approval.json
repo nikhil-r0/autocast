@@ -30,12 +30,12 @@
   ],
   "target": {
     "url": "http://localhost:8080/?logged_in=true",
-    "expected_commit": "eab450840a7cec4d367defb9d4de96fcbcdcb96d",
     "seed_id": "ledgerly-default-v1"
   },
   "parties": {
     "client": "ledgerly-client@example.com",
     "contractor": "ledgerly-contractor@example.com"
   },
+  "contract_id": "ledgerly-escrow-2026-001",
   "milestone_id": "ledgerly-inv-1042-approval"
 }

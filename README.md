@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="https://github.com/nikhil-r0/autocast/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/nikhil-r0/autocast/ci.yml?branch=main&style=flat-square&label=CI" alt="CI"></a>
-  <a href="tests/"><img src="https://img.shields.io/badge/Tests-65%2F65%20Pass%20(100%25)-blue?style=flat-square" alt="Tests"></a>
+  <a href="tests/"><img src="https://img.shields.io/badge/Tests-66%2F66%20Pass%20(100%25)-blue?style=flat-square" alt="Tests"></a>
   <a href="scripts/verify-provenance.ts"><img src="https://img.shields.io/badge/Release%20Gates-6%2F6%20Verified-success?style=flat-square" alt="Release Gates"></a>
   <a href="examples/output/sample-demo.mp4"><img src="https://img.shields.io/badge/Committed%20Demo-36s%20Verified-violet?style=flat-square" alt="Committed Demo"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-lightgrey?style=flat-square" alt="License"></a>
@@ -20,7 +20,7 @@
 
 Autocast turns a product workflow into a finished demo video, and it refuses to ship one that the product cannot actually perform. Kane CLI proves the feature works before a frame is recorded. If Kane finds a bug (`740`), Antigravity AI (`agy`) patches the source in an isolated worktree and Kane re-verifies (`100`). Only then does Playwright capture 1080p footage, Kane inspect visual layout, Tesseract OCR scrub for secrets, and Remotion render the final MP4 sealed with a SHA-256 provenance manifest.
 
-For paid software milestones and escrow payouts, Autocast also ships an **Oracle Mode** (`autocast --oracle <spec.json>`) that fails closed without editing code, pins commit/seed/URL, verifies backend `api_state`, seals an Ed25519-signed manifest (`release` or `hold`), and skips video rendering unless requested. See [**docs/ORACLE.md**](docs/ORACLE.md) for the spec schema, payment gates, and threat model.
+For paid software milestones and escrow payouts, Autocast also ships an **Oracle Mode** (`autocast --oracle <spec.json> --commit <40-char-sha>`) that fails closed without editing code, pins commit/seed/URL, verifies backend `api_state`, seals an Ed25519-signed manifest (`release` or `hold`), and skips video rendering unless requested. See [**docs/ORACLE.md**](docs/ORACLE.md) for the spec schema, payment gates, and threat model.
 
 > **Inspect Without Running:** You do not need to install dependencies to evaluate our evidence. Pre-rendered product demo video and sealed machine evidence packs are committed in [`examples/output/`](examples/output/) and [`docs/catches/catch-ledgerly-approval/`](docs/catches/catch-ledgerly-approval/). Inspect the verified MP4, tamper-evident `run-manifest.json`, and SHA-256 hashes immediately. The longer competition showcase (≈3:45) is produced locally with `npm run render:showcase` and is gitignored under `out/`.
 
@@ -80,7 +80,7 @@ The output files are `out/demo.mp4` (with frame-0 thumbnail baked in), `out/post
 | Command | Purpose |
 |---|---|
 | `npm run preflight` | Run environment, clean-tree, and git sync auditor |
-| `npm test` | Run complete 65-test automated suite (100% pass) |
+| `npm test` | Run complete 66-test automated suite (100% pass) |
 | `npm run demo -- "<prompt>"` | Run full pipeline: verify, repair, capture, review, render |
 | `npm run verify:provenance` | Audit release gates on `out/` or committed `examples/output` evidence |
 | `npm run verify:oracle` | Audit Ed25519-signed oracle payment gates on a sealed manifest |

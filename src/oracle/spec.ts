@@ -76,13 +76,6 @@ export const AcceptanceSpecSchema = z
               return false;
             }
           }, 'target.url must be a valid http or https URL'),
-        expected_commit: z
-          .string()
-          .trim()
-          .regex(
-            /^[0-9a-f]{40}$/i,
-            'target.expected_commit must be a full 40-character hexadecimal git commit SHA'
-          ),
         seed_id: z.string().trim().min(1),
       })
       .strict(),
@@ -93,6 +86,8 @@ export const AcceptanceSpecSchema = z
       })
       .strict()
       .optional(),
+    contract_id: z.string().trim().min(1).optional(),
+    escrow_address: z.string().trim().min(1).optional(),
     milestone_id: z.string().trim().min(1).optional(),
   })
   .strict();
@@ -142,6 +137,16 @@ export function normalizeSha256Hex(value: string, label = 'sha256'): string {
   const normalized = value.trim().toLowerCase();
   if (!/^[a-f0-9]{64}$/.test(normalized)) {
     throw new OracleSpecError(`Invalid ${label}: expected 64-character hex SHA-256 digest`);
+  }
+  return normalized;
+}
+
+export function validateCommitSha40(value: string | undefined, label = '--commit'): string {
+  const normalized = (value || '').trim();
+  if (!/^[0-9a-f]{40}$/i.test(normalized)) {
+    throw new OracleSpecError(
+      `Invalid ${label}: expected a full 40-character hexadecimal git commit SHA`
+    );
   }
   return normalized;
 }

@@ -44,9 +44,9 @@ const SAMPLE_SPEC: AcceptanceSpec = {
   ],
   target: {
     url: 'http://localhost:8080/?logged_in=true',
-    expected_commit: COMMIT,
     seed_id: 'ledgerly-default-v1',
   },
+  contract_id: 'contract-reverify-1',
   milestone_id: 'milestone-42',
 };
 

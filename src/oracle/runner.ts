@@ -15,7 +15,7 @@ import { executeKaneRun } from '../shoot/kane.js';
 import { classifyKaneRun } from '../shoot/classify.js';
 import { generateRunManifest } from '../manifest.js';
 import { runOraclePreflight } from '../preflight.js';
-import { loadAcceptanceSpec, normalizeSha256Hex, OracleSpecError } from './spec.js';
+import { loadAcceptanceSpec, normalizeSha256Hex, OracleSpecError, validateCommitSha40 } from './spec.js';
 import { loadOracleSigningKey, OracleSigningConfigError } from './sign.js';
 import { buildVerdictPayload, PublishAdapterName, publishVerdict } from './publish.js';
 import { replayAndRecord } from '../capture/replay.js';
@@ -28,6 +28,7 @@ import { scanVideoPixelsForSecrets } from '../edit/ocrScan.js';
 
 export interface OracleRunOptions {
   specPath: string;
+  commit: string;
   expectSpecSha256?: string;
   withVideo?: boolean;
   publishAdapter?: PublishAdapterName;
@@ -311,6 +312,15 @@ export async function runOraclePipeline(options: OracleRunOptions): Promise<Orac
     return { exitCode: 2, error: err.message };
   }
 
+  // Validate delivery commit SHA before loading or executing
+  let expectedCommit: string;
+  try {
+    expectedCommit = validateCommitSha40(options.commit, '--commit');
+  } catch (err: any) {
+    logErr(`❌ [Oracle] ${err.message}`);
+    return { exitCode: 2, error: err.message };
+  }
+
   // Load and strictly validate frozen AcceptanceSpec
   let loadedSpec: ReturnType<typeof loadAcceptanceSpec>;
   try {
@@ -348,7 +358,7 @@ export async function runOraclePipeline(options: OracleRunOptions): Promise<Orac
       status: params.status,
       runId,
       applicationUrl: spec.target.url,
-      baselineCommit: spec.target.expected_commit,
+      baselineCommit: expectedCommit,
       testedCommit: params.testedCommit,
       stateVerified: params.stateVerified,
       kaneVerification: params.kaneResult
@@ -366,7 +376,7 @@ export async function runOraclePipeline(options: OracleRunOptions): Promise<Orac
       oracle: {
         spec_sha256: specSha256,
         seed_id: spec.target.seed_id,
-        expected_commit: spec.target.expected_commit,
+        expected_commit: expectedCommit,
         runner_id: runnerId,
         verdict: params.verdict,
         ...(params.holdReason ? { hold_reason: params.holdReason } : {}),
@@ -396,7 +406,7 @@ export async function runOraclePipeline(options: OracleRunOptions): Promise<Orac
   log('================================================================');
   log('⚖️  AUTOCAST ORACLE MODE: ACCEPTANCE PROOF RUNNER');
   log(`   Spec: "${spec.title}" (${specSha256.slice(0, 12)}...)`);
-  log(`   Pinned Commit: ${spec.target.expected_commit} | Seed: ${spec.target.seed_id}`);
+  log(`   Pinned Commit: ${expectedCommit} | Seed: ${spec.target.seed_id}`);
   log('================================================================\n');
 
   // Step 2: Check --expect-spec-sha256 BEFORE starting app
@@ -460,7 +470,7 @@ export async function runOraclePipeline(options: OracleRunOptions): Promise<Orac
 
     if (urlInfo.isRunnerManaged) {
       preflightFn({ requireCleanTree: options.requireCleanTree ?? true });
-      checkoutHandle = prepareCheckoutFn(spec.target.expected_commit, runDir, process.cwd());
+      checkoutHandle = prepareCheckoutFn(expectedCommit, runDir, process.cwd());
       adapter = createAdapterFn({
         appDir: checkoutHandle.appDir,
         port,
@@ -471,12 +481,12 @@ export async function runOraclePipeline(options: OracleRunOptions): Promise<Orac
         process.env.APP_COMMIT ||
         (() => {
           try {
-            return execSync(`git rev-parse ${spec.target.expected_commit}^{commit}`, {
+            return execSync(`git rev-parse ${expectedCommit}^{commit}`, {
               encoding: 'utf-8',
               stdio: ['ignore', 'pipe', 'ignore'],
             }).trim();
           } catch {
-            return spec.target.expected_commit;
+            return expectedCommit;
           }
         })();
 
@@ -500,11 +510,11 @@ export async function runOraclePipeline(options: OracleRunOptions): Promise<Orac
 
     // Verify health & served commit
     const healthInfo = adapter.getHealthInfo ? await adapter.getHealthInfo() : null;
-    const healthy = await adapter.healthCheck(spec.target.expected_commit);
-    const testedCommit = healthInfo?.commit || (healthy ? spec.target.expected_commit : 'unknown');
+    const healthy = await adapter.healthCheck(expectedCommit);
+    const testedCommit = healthInfo?.commit || (healthy ? expectedCommit : 'unknown');
 
-    if (!healthy || testedCommit.toLowerCase() !== spec.target.expected_commit.toLowerCase()) {
-      const msg = `Commit mismatch or unhealthy target: expected '${spec.target.expected_commit}', served '${testedCommit}'`;
+    if (!healthy || testedCommit.toLowerCase() !== expectedCommit.toLowerCase()) {
+      const msg = `Commit mismatch or unhealthy target: expected '${expectedCommit}', served '${testedCommit}'`;
       logErr(`❌ [Oracle HOLD] ${msg}`);
       const manifest = await sealAndOptionallyPublish({
         status: 'failed',

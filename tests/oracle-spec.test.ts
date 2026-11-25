@@ -10,6 +10,7 @@ import {
   loadAcceptanceSpec,
   OracleSpecError,
   parseAcceptanceSpec,
+  validateCommitSha40,
 } from '../src/oracle/spec.js';
 import { parseCliArgs } from '../src/cli.js';
 import { resolveJsonPath, verifyApiStateOutcomes } from '../src/capture/actionIR.js';
@@ -42,13 +43,14 @@ const BASE_SPEC: AcceptanceSpec = {
   ],
   target: {
     url: 'http://localhost:8080/?logged_in=true',
-    expected_commit: '0123456789abcdef0123456789abcdef01234567',
     seed_id: 'ledgerly-default-v1',
   },
   parties: {
     client: 'alice@example.com',
     contractor: 'bob@example.com',
   },
+  contract_id: 'contract-2026-001',
+  escrow_address: '0x0000000000000000000000000000000000000001',
   milestone_id: 'ms-1',
 };
 
@@ -59,13 +61,14 @@ test('canonicalizeJson sorts keys recursively, omits undefined, and preserves ar
   assert.equal(canonicalizeJson(a), canonicalizeJson(b));
 });
 
-test('spec_sha256 is invariant to JSON key ordering and whitespace', () => {
+test('spec_sha256 is invariant to JSON key ordering and domain-separated by contract_id', () => {
   const formattedA = JSON.stringify(BASE_SPEC, null, 2);
   const reordered = {
     milestone_id: BASE_SPEC.milestone_id,
+    escrow_address: BASE_SPEC.escrow_address,
+    contract_id: BASE_SPEC.contract_id,
     target: {
       seed_id: BASE_SPEC.target.seed_id,
-      expected_commit: BASE_SPEC.target.expected_commit,
       url: BASE_SPEC.target.url,
     },
     objective: BASE_SPEC.objective,
@@ -85,6 +88,12 @@ test('spec_sha256 is invariant to JSON key ordering and whitespace', () => {
   assert.equal(loadedA.specSha256, loadedB.specSha256);
   assert.equal(loadedA.specSha256.length, 64);
   assert.equal(computeSpecSha256(loadedA.spec).specSha256, loadedA.specSha256);
+
+  const otherContract = parseAcceptanceSpec(
+    JSON.stringify({ ...BASE_SPEC, contract_id: 'contract-2026-002' }),
+    'other.json'
+  );
+  assert.notEqual(otherContract.specSha256, loadedA.specSha256);
 });
 
 test('parseAcceptanceSpec rejects unknown fields at root, target, parties, and verification', () => {
@@ -118,26 +127,30 @@ test('parseAcceptanceSpec rejects unknown fields at root, target, parties, and v
   );
 });
 
-test('parseAcceptanceSpec requires 40-char hex commit SHA and rejects short SHAs, tags, branch refs, and invalid URLs', () => {
-  for (const badRef of ['HEAD', 'main', 'v1.0.0', 'eab4508', 'g'.repeat(40), '1234']) {
-    const badCommitSpec = {
-      ...BASE_SPEC,
-      target: { ...BASE_SPEC.target, expected_commit: badRef },
-    };
+test('parseAcceptanceSpec rejects expected_commit in frozen spec, invalid URLs, and validateCommitSha40 rejects non-40-char refs', () => {
+  const withEmbeddedCommit = {
+    ...BASE_SPEC,
+    target: { ...BASE_SPEC.target, expected_commit: '0123456789abcdef0123456789abcdef01234567' },
+  };
+  assert.throws(
+    () => parseAcceptanceSpec(JSON.stringify(withEmbeddedCommit)),
+    OracleSpecError,
+    'target.expected_commit must be rejected from frozen Day-1 AcceptanceSpec'
+  );
+
+  for (const badRef of ['', 'HEAD', 'main', 'v1.0.0', 'eab4508', 'g'.repeat(40), '1234']) {
     assert.throws(
-      () => parseAcceptanceSpec(JSON.stringify(badCommitSpec)),
+      () => validateCommitSha40(badRef, '--commit'),
       OracleSpecError,
-      `Expected expected_commit '${badRef}' to be rejected`
+      `Expected --commit '${badRef}' to be rejected`
     );
   }
 
-  // Uppercase 40-char hex SHA should be accepted cleanly
-  const upperCommitSpec = {
-    ...BASE_SPEC,
-    target: { ...BASE_SPEC.target, expected_commit: 'EAB450840A7CEC4D367DEFB9D4DE96FCBCDCB96D' },
-  };
-  const parsedUpper = parseAcceptanceSpec(JSON.stringify(upperCommitSpec));
-  assert.equal(parsedUpper.spec.target.expected_commit, 'EAB450840A7CEC4D367DEFB9D4DE96FCBCDCB96D');
+  // Uppercase 40-char hex SHA should be accepted cleanly by validateCommitSha40
+  assert.equal(
+    validateCommitSha40('EAB450840A7CEC4D367DEFB9D4DE96FCBCDCB96D', '--commit'),
+    'EAB450840A7CEC4D367DEFB9D4DE96FCBCDCB96D'
+  );
 
   const withBadUrl = {
     ...BASE_SPEC,
@@ -160,10 +173,12 @@ test('loadAcceptanceSpec loads valid JSON file from disk', () => {
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
-test('parseCliArgs supports --oracle, subcommand oracle, --agent-repair, --expect-spec-sha256, --with-video, and --publish', () => {
+test('parseCliArgs supports --oracle, subcommand oracle, --commit, --agent-repair, --expect-spec-sha256, --with-video, and --publish', () => {
   const flagStyle = parseCliArgs([
     '--oracle',
     'examples/oracle/ledgerly-approval.json',
+    '--commit',
+    '0123456789abcdef0123456789abcdef01234567',
     '--expect-spec-sha256',
     'a'.repeat(64),
     '--agent-repair',
@@ -173,14 +188,21 @@ test('parseCliArgs supports --oracle, subcommand oracle, --agent-repair, --expec
   ]);
   assert.equal(flagStyle.oracleMode, true);
   assert.equal(flagStyle.oracleSpecPath, 'examples/oracle/ledgerly-approval.json');
+  assert.equal(flagStyle.commit, '0123456789abcdef0123456789abcdef01234567');
   assert.equal(flagStyle.expectSpecSha256, 'a'.repeat(64));
   assert.equal(flagStyle.agentRepairFlag, true);
   assert.equal(flagStyle.withVideo, true);
   assert.equal(flagStyle.publishAdapter, 'webhook');
 
-  const subcommandStyle = parseCliArgs(['oracle', 'spec.json', '--publish=stdout-json']);
+  const subcommandStyle = parseCliArgs([
+    'oracle',
+    'spec.json',
+    '--commit=0123456789abcdef0123456789abcdef01234567',
+    '--publish=stdout-json',
+  ]);
   assert.equal(subcommandStyle.oracleMode, true);
   assert.equal(subcommandStyle.oracleSpecPath, 'spec.json');
+  assert.equal(subcommandStyle.commit, '0123456789abcdef0123456789abcdef01234567');
   assert.equal(subcommandStyle.publishAdapter, 'stdout-json');
 });
 

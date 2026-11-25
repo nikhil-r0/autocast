@@ -136,13 +136,14 @@ export interface AcceptanceSpec {
   outcome_specs: OutcomeSpec[];
   target: {
     url: string;
-    expected_commit: string;
     seed_id: string;
   };
   parties?: {
     client: string;
     contractor: string;
   };
+  contract_id?: string;
+  escrow_address?: string;
   milestone_id?: string;
 }
 

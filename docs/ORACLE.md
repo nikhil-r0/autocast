@@ -7,8 +7,8 @@ Autocast Oracle Mode turns a sealed `run-manifest.json` into a verifiable, fail-
 ## Core Guarantees & Design Principles
 
 1. **Fail closed.** Any Kane failure—including a confirmed `740` defect—seals a signed `hold` verdict and exits non-zero. No repair worktree, no `agy`, and no re-shoot are executed.
-2. **Frozen spec input.** Both parties agree on an `AcceptanceSpec` JSON file before work starts. Its `objective` is passed to Kane verbatim without LLM rewriting.
-3. **Pinned neutral environment.** The runner validates `target.url` against an allowlist (`ORACLE_ALLOWED_HOSTS`, defaulting strictly to the runner-started `http://localhost:8080` origin), checks out `target.expected_commit`, resets deterministic seed data for `target.seed_id`, and verifies `/api/health` reports the expected commit (`tested_commit`).
+2. **Frozen spec input.** Both parties agree on an `AcceptanceSpec` JSON file before work starts (locking `spec_sha256` and engagement identifiers like `contract_id`/`escrow_address` + `milestone_id`). Its `objective` is passed to Kane verbatim without LLM rewriting.
+3. **Pinned neutral environment.** At delivery verification time, the runner receives `--commit <40-char-sha>`, validates `target.url` against an allowlist (`ORACLE_ALLOWED_HOSTS`, defaulting strictly to the runner-started `http://localhost:8080` origin), checks out the pinned commit in isolation (`git archive`), enforces `strictPort`, resets deterministic seed data for `target.seed_id`, and checks `/api/health` (`tested_commit`).
 4. **Backend truth over DOM.** After Kane passes (`100`), the runner queries `api_state` endpoints directly via `verifyUnderlyingState()` so a UI that fakes success without mutating backend state still seals `hold` (`state_mismatch`).
 5. **Payment gates separated from cinematic gates.** `verifyOracleManifest` enforces correctness, commit pinning, backend state, repair non-occurrence, and Ed25519 signature validity—without requiring `visual_qa`, `security_scan`, or `artifacts.video`.
 
@@ -49,18 +49,21 @@ Autocast Oracle Mode turns a sealed `run-manifest.json` into a verifiable, fail-
   ],
   "target": {
     "url": "http://localhost:8080/?logged_in=true",
-    "expected_commit": "<40-char-sha>",
     "seed_id": "ledgerly-default-v1"
   },
   "parties": {
     "client": "client@example.com",
     "contractor": "contractor@example.com"
   },
+  "contract_id": "escrow-contract-2026-001",
+  "escrow_address": "0x0000000000000000000000000000000000000000",
   "milestone_id": "milestone-1"
 }
 ```
 
 - Unknown keys at any level are rejected by strict Zod schema validation (`AcceptanceSpecSchema`).
+- Because `expected_commit` is omitted from `AcceptanceSpec`, parties can compute and lock `spec_sha256` on Day 1 before any contractor code exists; the submitted `--commit <40-char-sha>` is supplied at verification time and bound to `spec_sha256` inside the signed `run-manifest.json`.
+- Use `contract_id` / `escrow_address` alongside `milestone_id` to domain-separate engagements so a signed `release` manifest cannot be replayed across different contracts sharing the same template spec.
 - `spec_sha256` is the SHA-256 hex digest over the **canonical JSON** representation (recursively sorted keys, zero whitespace, `undefined` properties omitted).
 - Pass `--expect-spec-sha256 <hash>` to bind the run to an escrow contract's pre-recorded spec digest; any mismatch fails with exit code `2` before starting the app.
 
@@ -69,8 +72,9 @@ Autocast Oracle Mode turns a sealed `run-manifest.json` into a verifiable, fail-
 ## CLI Usage & Exit Code Contract
 
 ```bash
-# Run oracle verification (or: autocast oracle examples/oracle/ledgerly-approval.json)
+# Run oracle verification (or: autocast oracle examples/oracle/ledgerly-approval.json --commit <40-char-sha>)
 autocast --oracle examples/oracle/ledgerly-approval.json \
+  --commit <40-char-sha> \
   [--expect-spec-sha256 <64-hex>] \
   [--with-video] \
   [--publish stdout-json|webhook|evm]
@@ -133,8 +137,9 @@ If optional `artifacts.video` or `artifacts.poster` entries exist (e.g. from `--
 | Mocked / UI-only fix | UI displays `Approved` badge while backend storage stays `Pending` | `verifyUnderlyingState()` checks `api_state` endpoints directly (`hold_reason: state_mismatch`) |
 | False failure claim by client | Client disputes screenshot or claims agreed flow failed | Signed `release` manifest binds `spec_sha256`, `tested_commit`, Kane `100`, and `state_verified: true`; anyone can run `verify:oracle` or `reverify:oracle --reshoot` |
 | Party-supplied localhost | Contractor points `target.url` at a local mock server on another port | `validateOracleTargetUrl` rejects URLs not matching runner-started origin or `ORACLE_ALLOWED_HOSTS` (exit `2`); `strictPort` rejects occupied ports |
-| Wrong commit served | Runner or server runs stale/unpinned code | `/api/health` commit is recorded as `tested_commit`; mismatch seals `hold` (`commit_mismatch`) |
+| Wrong commit served | Runner starts stale server process or contractor controls `/api/health` | `preparePinnedAppCheckout` (`git archive` of `--commit`) + `strictPort` is the runner's true commit trust anchor; `/api/health` (`tested_commit`) acts as a runtime sanity check catching stale processes or `APP_COMMIT` mismatches (`commit_mismatch`) |
 | Spec bait-and-switch | One party weakens assertions or edits spec after signing | Canonical `spec_sha256` checked against `--expect-spec-sha256` and verified in `verifyOracleManifest` |
+| Cross-contract replay | Reusing a signed `release` manifest from one contract on another using the same template | Unique `contract_id` / `escrow_address` + `milestone_id` inside `AcceptanceSpec` change `spec_sha256` per engagement |
 | Post-run manifest tampering | Editing `verdict`, `tested_commit`, or `result_code` in `run-manifest.json` | Ed25519 signature over canonical JSON fails `verifyOracleManifest` |
 | Silent agent auto-repair | Passing `--agent-repair` to patch broken deliverable at payout time | CLI forces `enableAgentRepair = false`, never calls `agy`, and `verifyOracleManifest` requires `closed_loop_repair.occurred === false` |
 

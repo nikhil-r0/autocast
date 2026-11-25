@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import * as dotenv from 'dotenv';
 import { verifyOracleManifest } from '../src/manifest.js';
-import { loadAcceptanceSpec, normalizeSha256Hex } from '../src/oracle/spec.js';
+import { loadAcceptanceSpec, normalizeSha256Hex, validateCommitSha40 } from '../src/oracle/spec.js';
 
 dotenv.config();
 
@@ -74,12 +74,14 @@ function main(): void {
     process.exit(2);
   }
   if (!parsed.commit) {
-    console.error('❌ Missing required --commit <sha>.');
+    console.error('❌ Missing required --commit <40-char-sha>.');
     process.exit(2);
   }
 
+  let expectedCommit: string;
   let expectedSpecSha256: string;
   try {
+    expectedCommit = validateCommitSha40(parsed.commit, '--commit');
     if (parsed.specPath) {
       const loaded = loadAcceptanceSpec(parsed.specPath);
       expectedSpecSha256 = loaded.specSha256;
@@ -90,17 +92,11 @@ function main(): void {
           process.exit(2);
         }
       }
-      if (loaded.spec.target.expected_commit.toLowerCase() !== parsed.commit.toLowerCase()) {
-        console.error(
-          `❌ Commit mismatch between spec (${loaded.spec.target.expected_commit}) and --commit (${parsed.commit}).`
-        );
-        process.exit(1);
-      }
     } else {
       expectedSpecSha256 = normalizeSha256Hex(parsed.specSha256!, '--spec-sha256');
     }
   } catch (err: any) {
-    console.error(`❌ Spec error: ${err.message}`);
+    console.error(`❌ Spec/argument error: ${err.message}`);
     process.exit(2);
   }
 
@@ -109,11 +105,11 @@ function main(): void {
   console.log('================================================================');
   console.log(`Manifest:        ${parsed.manifestPath}`);
   console.log(`Expected Spec:   ${expectedSpecSha256}`);
-  console.log(`Expected Commit: ${parsed.commit}\n`);
+  console.log(`Expected Commit: ${expectedCommit}\n`);
 
   const result = verifyOracleManifest(parsed.manifestPath, {
     expectedSpecSha256,
-    expectedCommit: parsed.commit,
+    expectedCommit,
     trustedKeysPath: parsed.trustedKeysPath,
   });
 

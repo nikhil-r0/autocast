@@ -87,6 +87,7 @@ async function ensureSampleAppRunning(port: number = 8080, expectedBug: string |
 interface ParsedCliFlags {
   oracleMode: boolean;
   oracleSpecPath?: string;
+  commit?: string;
   expectSpecSha256?: string;
   withVideo: boolean;
   publishAdapter?: PublishAdapterName;
@@ -101,6 +102,7 @@ interface ParsedCliFlags {
 export function parseCliArgs(argv: string[]): ParsedCliFlags {
   let oracleMode = false;
   let oracleSpecPath: string | undefined;
+  let commit: string | undefined;
   let expectSpecSha256: string | undefined;
   let withVideo = false;
   let publishAdapter: PublishAdapterName | undefined;
@@ -126,6 +128,10 @@ export function parseCliArgs(argv: string[]): ParsedCliFlags {
     } else if (arg.startsWith('--oracle=')) {
       oracleMode = true;
       oracleSpecPath = arg.slice('--oracle='.length);
+    } else if (arg === '--commit' && argv[i + 1]) {
+      commit = argv[++i];
+    } else if (arg.startsWith('--commit=')) {
+      commit = arg.slice('--commit='.length);
     } else if (arg === '--expect-spec-sha256' && argv[i + 1]) {
       expectSpecSha256 = argv[++i];
     } else if (arg.startsWith('--expect-spec-sha256=')) {
@@ -154,6 +160,7 @@ export function parseCliArgs(argv: string[]): ParsedCliFlags {
   return {
     oracleMode,
     oracleSpecPath,
+    commit,
     expectSpecSha256,
     withVideo,
     publishAdapter,
@@ -171,12 +178,13 @@ async function main() {
   const parsed = parseCliArgs(args);
 
   if (parsed.oracleMode) {
-    if (!parsed.oracleSpecPath) {
-      console.error('❌ Missing acceptance spec path. Usage: autocast --oracle <spec.json> (or autocast oracle <spec.json>)');
+    if (!parsed.oracleSpecPath || !parsed.commit) {
+      console.error('❌ Missing required arguments. Usage: autocast --oracle <spec.json> --commit <40-char-sha> (or autocast oracle <spec.json> --commit <40-char-sha>)');
       process.exit(2);
     }
     const outcome = await runOraclePipeline({
       specPath: parsed.oracleSpecPath,
+      commit: parsed.commit,
       expectSpecSha256: parsed.expectSpecSha256,
       withVideo: parsed.withVideo,
       publishAdapter: parsed.publishAdapter,

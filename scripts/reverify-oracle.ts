@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import * as dotenv from 'dotenv';
 import { verifyOracleManifest } from '../src/manifest.js';
-import { loadAcceptanceSpec } from '../src/oracle/spec.js';
+import { loadAcceptanceSpec, validateCommitSha40 } from '../src/oracle/spec.js';
 import { runOraclePipeline } from '../src/oracle/runner.js';
 
 dotenv.config();
@@ -69,20 +69,12 @@ export async function reverifyOracle(options: {
   outDir?: string;
   runOracleFn?: typeof runOraclePipeline;
 }): Promise<ReverifyResult> {
+  const expectedCommit = validateCommitSha40(options.commit, '--commit');
   const loaded = loadAcceptanceSpec(options.specPath);
-  if (loaded.spec.target.expected_commit.toLowerCase() !== options.commit.toLowerCase()) {
-    return {
-      status: 'failed',
-      exitCode: 1,
-      errors: [
-        `Spec expected_commit '${loaded.spec.target.expected_commit}' does not match requested commit '${options.commit}'`,
-      ],
-    };
-  }
 
   const offlineCheck = verifyOracleManifest(options.manifestPath, {
     expectedSpecSha256: loaded.specSha256,
-    expectedCommit: options.commit,
+    expectedCommit,
     trustedKeysPath: options.trustedKeysPath,
   });
 
@@ -145,6 +137,7 @@ export async function reverifyOracle(options: {
 
   const reshootOutcome = await runOracleFn({
     specPath: options.specPath,
+    commit: expectedCommit,
     expectSpecSha256: loaded.specSha256,
     runId: reshootRunId,
     outDir: reshootOutDir,
