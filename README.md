@@ -62,6 +62,8 @@ cp .env.example .env
 
 `npm install` also builds `dist/` via the `prepare` script so the `autocast` CLI entrypoint is ready.
 
+> *(Optional — AI coding agents only)* If you plan to use an AI coding agent to author or customize Remotion compositions, run `npm run skills:install` to restore the pinned Remotion guidance skills from `skills-lock.json`. This is **not** required to run `npm run demo`, `npm test`, or verification commands.
+
 ### Run the Closed-Loop Pipeline with Injected Bug
 ```bash
 APP_BUG=approve-noop npm run demo -- "Create a demo of the invoice approval flow"
@@ -82,6 +84,7 @@ The output files are `out/demo.mp4` (with frame-0 thumbnail baked in), `out/post
 | `npm run verify:showcase` | Audit rendered showcase, or committed evidence pack if `out/` is absent |
 | `npm run app` | Start bundled Ledgerly demo application on port 8080 |
 | `npm run preview` | Open Remotion Studio for interactive video preview |
+| `npm run skills:install` | *(Optional)* Restore pinned Remotion agent skills from `skills-lock.json` |
 
 ---
 

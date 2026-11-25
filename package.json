@@ -23,6 +23,7 @@
     "test": "node scripts/run-tests.mjs",
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.build.json --noEmit",
+    "skills:install": "npx --yes skills experimental_install",
     "prepare": "npm run build"
   },
   "files": [
