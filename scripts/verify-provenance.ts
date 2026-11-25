@@ -23,6 +23,20 @@ function resolveManifestPath(): string {
 
 const manifestPath = resolveManifestPath();
 
+if (fs.existsSync(manifestPath)) {
+  try {
+    const raw = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+    if (raw?.mode === 'oracle') {
+      console.error('❌ This manifest was produced in oracle mode (mode: "oracle").');
+      console.error('Use the payment gate verifier instead:');
+      console.error('  npm run verify:oracle -- <manifest> --spec <spec.json> --commit <sha>');
+      process.exit(1);
+    }
+  } catch {
+    // Let verifyRunManifest emit the standard JSON parse error below.
+  }
+}
+
 console.log('================================================================');
 console.log('🛡️  AUTOCAST HASH-VERIFIED PROVENANCE MANIFEST AUDITOR');
 console.log('    "Verifying that the video artifact has not been tampered with"');

@@ -640,3 +640,14 @@ npm run verify:showcase
 - Inspects technical properties via FFprobe: 1920x1080, H.264, probed 30 FPS (`r_frame_rate: 30/1`), stereo AAC, duration 225.0s (within 220s–230s).
 - Validates source demo run manifest and PR recording on disk and matches checksums.
 - Emits and seals `out/showcase-manifest.json` with provenance links.
+
+---
+
+## 8. Oracle Mode (Payment Acceptance Architecture)
+
+In **Oracle Mode** (`autocast --oracle <spec.json>` or `autocast oracle <spec.json>`), Autocast acts as a deterministic acceptance oracle rather than a repair/demo pipeline:
+
+- **Input:** A frozen, strictly validated [`AcceptanceSpec`](../src/oracle/spec.ts) (`version: 1`) hashed into `spec_sha256` via canonical JSON. `generateKaneObjective` is bypassed completely and `spec.objective` is passed verbatim.
+- **Pinned Environment:** `runOraclePreflight` checks clean git state without enforcing branch `main`; `validateOracleTargetUrl` restricts targets to the runner-started origin unless `ORACLE_ALLOWED_HOSTS` allows external hosts; `preparePinnedAppCheckout` isolates `target.expected_commit`; `resetSeedData(seed_id)` resets seed data; and `/api/health` confirms `tested_commit === expected_commit` (else seals `hold` with `commit_mismatch`).
+- **Fail-Closed Execution:** Kane runs once (`--bug-detection stop`). Any failure (`740` or unconfirmed failure) seals a signed `hold` manifest (`kane_failed`, exit `1`); timeout/cancel seals `timeout` (exit `3`). Antigravity repair (`agy`) and repair worktrees are disabled (`closed_loop_repair.occurred: false`).
+- **Backend Truth & Split Gates:** After Kane `100`, `verifyUnderlyingState` evaluates every `api_state` entry in `outcome_specs` (`state_mismatch` seals `hold`). `verifyOracleManifest` (`npm run verify:oracle`) enforces the 8 payment gates—including Ed25519 signature verification against `ORACLE_TRUSTED_KEYS`—without requiring `visual_qa`, `security_scan`, or `artifacts.video`. See [ORACLE.md](./ORACLE.md) for full details.

@@ -20,6 +20,8 @@
 
 Autocast turns a product workflow into a finished demo video, and it refuses to ship one that the product cannot actually perform. Kane CLI proves the feature works before a frame is recorded. If Kane finds a bug (`740`), Antigravity AI (`agy`) patches the source in an isolated worktree and Kane re-verifies (`100`). Only then does Playwright capture 1080p footage, Kane inspect visual layout, Tesseract OCR scrub for secrets, and Remotion render the final MP4 sealed with a SHA-256 provenance manifest.
 
+For paid software milestones and escrow payouts, Autocast also ships an **Oracle Mode** (`autocast --oracle <spec.json>`) that fails closed without editing code, pins commit/seed/URL, verifies backend `api_state`, seals an Ed25519-signed manifest (`release` or `hold`), and skips video rendering unless requested. See [**docs/ORACLE.md**](docs/ORACLE.md) for the spec schema, payment gates, and threat model.
+
 > **Inspect Without Running:** You do not need to install dependencies to evaluate our evidence. Pre-rendered product demo video and sealed machine evidence packs are committed in [`examples/output/`](examples/output/) and [`docs/catches/catch-ledgerly-approval/`](docs/catches/catch-ledgerly-approval/). Inspect the verified MP4, tamper-evident `run-manifest.json`, and SHA-256 hashes immediately. The longer competition showcase (≈3:45) is produced locally with `npm run render:showcase` and is gitignored under `out/`.
 
 ---
@@ -81,6 +83,8 @@ The output files are `out/demo.mp4` (with frame-0 thumbnail baked in), `out/post
 | `npm test` | Run complete 42-test automated suite (100% pass) |
 | `npm run demo -- "<prompt>"` | Run full pipeline: verify, repair, capture, review, render |
 | `npm run verify:provenance` | Audit release gates on `out/` or committed `examples/output` evidence |
+| `npm run verify:oracle` | Audit Ed25519-signed oracle payment gates on a sealed manifest |
+| `npm run reverify:oracle` | Third-party offline verification and `--reshoot` reproducibility check |
 | `npm run verify:showcase` | Audit rendered showcase, or committed evidence pack if `out/` is absent |
 | `npm run app` | Start bundled Ledgerly demo application on port 8080 |
 | `npm run preview` | Open Remotion Studio for interactive video preview |

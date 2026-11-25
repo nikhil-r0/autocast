@@ -38,13 +38,30 @@ function getSimulatedDelay(baseMs) {
   return baseMs;
 }
 
+function resolveDefaultCommit() {
+  if (process.env.APP_COMMIT) {
+    return process.env.APP_COMMIT;
+  }
+  try {
+    return execSync('git rev-parse HEAD', {
+      cwd: ROOT_DIR,
+      encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim() || 'development';
+  } catch {
+    return 'development';
+  }
+}
+
+const RESOLVED_COMMIT = resolveDefaultCommit();
+
 // 1. Health check
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
     app: 'ledgerly',
     clock: DEMO_CLOCK,
-    commit: process.env.APP_COMMIT || 'development',
+    commit: RESOLVED_COMMIT,
     bug: process.env.APP_BUG || null,
     invoicesCount: currentInvoices.length,
     pendingCount: currentMetrics.pendingApprovals,
@@ -53,9 +70,13 @@ app.get('/api/health', (req, res) => {
 
 // 2. Reset database state
 app.post(['/api/reset', '//api/reset'], (req, res) => {
+  const seedId = req.body?.seed_id || req.query?.seed_id || 'ledgerly-default-v1';
+  if (seedId !== 'ledgerly-default-v1' && seedId !== 'default') {
+    return res.status(400).json({ error: `Unsupported seed_id: ${seedId}` });
+  }
   currentInvoices = JSON.parse(JSON.stringify(SEED_INVOICES));
   currentMetrics = JSON.parse(JSON.stringify(INITIAL_METRICS));
-  res.json({ success: true, message: 'Ledgerly seed state restored', clock: DEMO_CLOCK });
+  res.json({ success: true, seed_id: seedId, message: 'Ledgerly seed state restored', clock: DEMO_CLOCK });
 });
 
 // 3. Get metrics

@@ -99,14 +99,19 @@ export async function executeKaneRun(options: KaneRunOptions): Promise<KaneRunRe
         console.warn(`[Kane Run] Warning: Failed to persist run logs: ${err}`);
       }
 
-      // Extract rich step details from session actions ndjson if available
+      // Extract rich step details and evidence pack from session dir if available
       let enrichedSteps = normalized.steps;
+      let evidencePack = normalized.evidencePack;
       if (normalized.sessionDir) {
         enrichedSteps = enrichStepsFromSession(normalized.sessionDir, normalized.steps);
+        if (!evidencePack) {
+          evidencePack = findEvidencePack(normalized.sessionDir) || undefined;
+        }
       }
 
       resolve({
         ...normalized,
+        evidencePack,
         steps: enrichedSteps,
       });
     });
@@ -170,6 +175,29 @@ function enrichStepsFromSession(sessionDir: string, fallbackSteps: KaneStep[]): 
   } catch {
     return fallbackSteps;
   }
+}
+
+function findEvidencePack(dir: string): string | null {
+  try {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      if (entry.name.endsWith('.evidence') || entry.name === '.evidence') {
+        return full;
+      }
+      if (entry.isDirectory() && entry.name !== 'node_modules' && !entry.name.startsWith('.git')) {
+        const subEntries = fs.readdirSync(full, { withFileTypes: true });
+        for (const sub of subEntries) {
+          if (sub.name.endsWith('.evidence') || sub.name === '.evidence') {
+            return path.join(full, sub.name);
+          }
+        }
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
 }
 
 function findActionsLog(dir: string): string | null {

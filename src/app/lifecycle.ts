@@ -1,7 +1,18 @@
 import { spawn, execSync, ChildProcess } from 'child_process';
 import path from 'path';
 import fs from 'fs';
-import { AppLifecycleAdapter } from '../types.js';
+import { AppLifecycleAdapter, OutcomeSpec } from '../types.js';
+import { verifyApiStateOutcomes } from '../capture/actionIR.js';
+
+export const SUPPORTED_LEDGERLY_SEED_IDS = new Set(['ledgerly-default-v1', 'default']);
+
+export interface LifecycleStartOptions {
+  env?: Record<string, string>;
+  commit?: string;
+  strictPort?: boolean;
+  requireHealthyCommitMatch?: boolean;
+  buildDistIfMissing?: boolean;
+}
 
 export class LedgerlyLifecycleAdapter implements AppLifecycleAdapter {
   name = 'ledgerly';
@@ -10,42 +21,78 @@ export class LedgerlyLifecycleAdapter implements AppLifecycleAdapter {
   baseUrl: string;
   serverProcess: ChildProcess | null = null;
 
-  constructor(options?: { appDir?: string; port?: number }) {
+  constructor(options?: { appDir?: string; port?: number; baseUrl?: string }) {
     this.appDir = options?.appDir || path.resolve(process.cwd(), 'examples/ledgerly');
     this.port = options?.port || 8080;
-    this.baseUrl = `http://localhost:${this.port}`;
+    this.baseUrl = (options?.baseUrl || `http://localhost:${this.port}`).replace(/\/+$/, '');
   }
 
-  async start(opts?: { env?: Record<string, string>; commit?: string }): Promise<{ pid: number; port: number; commit?: string }> {
-    // Stop any existing instance on the port
+  private resolveCheckoutCommit(): string | undefined {
+    try {
+      const sha = execSync('git rev-parse HEAD', {
+        cwd: this.appDir,
+        encoding: 'utf-8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      }).trim();
+      return sha || undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private isPortOccupied(): boolean {
+    try {
+      const check = execSync(`lsof -ti :${this.port}`, { stdio: ['ignore', 'pipe', 'ignore'] })
+        .toString()
+        .trim();
+      return Boolean(check);
+    } catch {
+      return false;
+    }
+  }
+
+  async start(opts?: LifecycleStartOptions): Promise<{ pid: number; port: number; commit?: string }> {
+    // Stop any existing Ledgerly instance on the port
     await this.stop();
 
-    const env = {
+    if (opts?.strictPort && this.isPortOccupied()) {
+      throw new Error(
+        `Oracle Port Conflict: Port ${this.port} is occupied by an unrelated external process.`
+      );
+    }
+
+    const resolvedCommit = opts?.commit ?? process.env.APP_COMMIT ?? this.resolveCheckoutCommit() ?? '';
+    const env: Record<string, string | undefined> = {
       ...process.env,
       PORT: String(this.port),
-      APP_COMMIT: opts?.commit || process.env.APP_COMMIT || '',
+      ...(resolvedCommit ? { APP_COMMIT: resolvedCommit } : {}),
       ...(opts?.env || {}),
     };
 
     console.log(`[Lifecycle] Starting Ledgerly from ${this.appDir} on port ${this.port}...`);
     const serverPath = path.join(this.appDir, 'server/index.js');
 
-    // Ensure built frontend dist assets exist; if missing in worktree, link from root
-    const distDir = path.join(this.appDir, 'dist');
-    const rootDist = path.resolve(process.cwd(), 'examples/ledgerly/dist');
-    if (!fs.existsSync(distDir) && fs.existsSync(rootDist)) {
-      try {
-        fs.symlinkSync(rootDist, distDir, 'junction');
-      } catch {}
-    }
-
-    // Ensure node_modules exists; if in a worktree, link from root repo
+    // Ensure node_modules exists; if in an isolated checkout/worktree, link from root repo
     const appNodeModules = path.join(this.appDir, 'node_modules');
     const rootAppNodeModules = path.resolve(process.cwd(), 'examples/ledgerly/node_modules');
     if (!fs.existsSync(appNodeModules) && fs.existsSync(rootAppNodeModules)) {
       try {
         fs.symlinkSync(rootAppNodeModules, appNodeModules, 'junction');
       } catch {}
+    }
+
+    // Ensure built frontend dist assets exist
+    const distDir = path.join(this.appDir, 'dist');
+    const rootDist = path.resolve(process.cwd(), 'examples/ledgerly/dist');
+    if (!fs.existsSync(path.join(distDir, 'index.html'))) {
+      if (opts?.buildDistIfMissing) {
+        console.log(`[Lifecycle] Building Ledgerly frontend assets in ${this.appDir}...`);
+        execSync('npm run build', { cwd: this.appDir, stdio: 'inherit' });
+      } else if (!fs.existsSync(distDir) && fs.existsSync(rootDist)) {
+        try {
+          fs.symlinkSync(rootDist, distDir, 'junction');
+        } catch {}
+      }
     }
 
     this.serverProcess = spawn(process.execPath, [serverPath], {
@@ -56,12 +103,20 @@ export class LedgerlyLifecycleAdapter implements AppLifecycleAdapter {
     });
 
     let serverStderr = '';
+    let childExited = false;
+    let childExitCode: number | null = null;
     this.serverProcess.stderr?.on('data', (chunk) => {
       serverStderr += chunk.toString();
+    });
+    this.serverProcess.on('exit', (code) => {
+      childExited = true;
+      childExitCode = code;
     });
 
     const pid = this.serverProcess.pid!;
     this.serverProcess.unref();
+
+    const requireCommitMatch = opts?.requireHealthyCommitMatch ?? true;
 
     // Poll healthcheck until ready (max 15s)
     const startTime = Date.now();
@@ -69,12 +124,17 @@ export class LedgerlyLifecycleAdapter implements AppLifecycleAdapter {
     let lastCommit: string | undefined;
 
     while (Date.now() - startTime < 15000) {
+      if (childExited) {
+        throw new Error(
+          `Lifecycle Error: Server process exited early (code=${childExitCode}).${serverStderr ? `\nServer stderr:\n${serverStderr}` : ''}`
+        );
+      }
       try {
         const res = await fetch(`${this.baseUrl}/api/health`);
         if (res.ok) {
           const body: any = await res.json();
           lastCommit = body.commit;
-          if (!opts?.commit || body.commit === opts.commit) {
+          if (!requireCommitMatch || !opts?.commit || body.commit === opts.commit) {
             isHealthy = true;
             break;
           }
@@ -86,7 +146,7 @@ export class LedgerlyLifecycleAdapter implements AppLifecycleAdapter {
     }
 
     if (!isHealthy) {
-      if (opts?.commit && lastCommit && lastCommit !== opts.commit) {
+      if (requireCommitMatch && opts?.commit && lastCommit && lastCommit !== opts.commit) {
         throw new Error(
           `Lifecycle Error: Server started but returned commit '${lastCommit}' instead of expected candidate commit '${opts.commit}'`
         );
@@ -139,39 +199,69 @@ export class LedgerlyLifecycleAdapter implements AppLifecycleAdapter {
 
     // Wait until port is actually free (up to 3 seconds)
     for (let i = 0; i < 30; i++) {
-      try {
-        const check = execSync(`lsof -ti :${this.port}`, { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
-        if (!check) break;
-      } catch {
-        break; // Port is free
-      }
+      if (!this.isPortOccupied()) break;
       await new Promise((r) => setTimeout(r, 100));
     }
   }
 
-  async healthCheck(expectedCommit?: string): Promise<boolean> {
+  async getHealthInfo(): Promise<{ ok: boolean; commit?: string; bug?: string | null } | null> {
     try {
       const res = await fetch(`${this.baseUrl}/api/health`);
-      if (!res.ok) return false;
+      if (!res.ok) return null;
       const body: any = await res.json();
-      if (expectedCommit && body.commit !== expectedCommit) {
-        console.warn(`[Lifecycle] Health check commit mismatch: got '${body.commit}', expected '${expectedCommit}'`);
-        return false;
-      }
-      return true;
+      return {
+        ok: true,
+        commit: body.commit,
+        bug: body.bug || null,
+      };
     } catch {
-      return false;
+      return null;
     }
   }
 
-  async resetSeedData(): Promise<void> {
-    const res = await fetch(`${this.baseUrl}/api/reset`, { method: 'POST' });
+  async healthCheck(expectedCommit?: string): Promise<boolean> {
+    const info = await this.getHealthInfo();
+    if (!info?.ok) return false;
+    if (expectedCommit && info.commit !== expectedCommit) {
+      console.warn(`[Lifecycle] Health check commit mismatch: got '${info.commit}', expected '${expectedCommit}'`);
+      return false;
+    }
+    return true;
+  }
+
+  async resetSeedData(seedId?: string): Promise<void> {
+    if (seedId && !SUPPORTED_LEDGERLY_SEED_IDS.has(seedId)) {
+      throw new Error(
+        `Unsupported seed_id '${seedId}'. Supported Ledgerly seed IDs: ${Array.from(SUPPORTED_LEDGERLY_SEED_IDS).join(', ')}`
+      );
+    }
+
+    const res = await fetch(`${this.baseUrl}/api/reset`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ seed_id: seedId || 'ledgerly-default-v1' }),
+    });
     if (!res.ok) {
       throw new Error(`Failed to reset seed data: HTTP ${res.status}`);
     }
   }
 
-  async verifyUnderlyingState(expected?: Record<string, any>): Promise<boolean> {
+  async verifyUnderlyingState(expected?: Record<string, any> | OutcomeSpec[]): Promise<boolean> {
+    if (Array.isArray(expected)) {
+      const result = await verifyApiStateOutcomes(this.baseUrl, expected);
+      if (!result.passed) {
+        for (const failure of result.failures) {
+          console.error(`[State Verify] ${failure}`);
+        }
+        return false;
+      }
+      if (result.checkedCount === 0) {
+        console.error('[State Verify] No api_state outcome_specs provided; oracle mode requires backend truth assertions.');
+        return false;
+      }
+      return true;
+    }
+
     try {
       const targetInvoice = expected?.invoiceId || 'INV-1042';
       const expectedStatus = expected?.status || 'Approved';
@@ -185,4 +275,3 @@ export class LedgerlyLifecycleAdapter implements AppLifecycleAdapter {
     }
   }
 }
-

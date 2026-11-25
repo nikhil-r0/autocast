@@ -94,6 +94,12 @@ export function normalizeKaneExecution(raw: RawKaneExecution): KaneRunResult {
     category = 'unconfirmed_failure';
   }
 
+  const evidencePack =
+    runEndData?.evidence_pack ||
+    runEndData?.evidence_pack_path ||
+    runEndData?.evidence_zip ||
+    undefined;
+
   return {
     passed,
     category,
@@ -105,6 +111,7 @@ export function normalizeKaneExecution(raw: RawKaneExecution): KaneRunResult {
     verdict,
     sessionDir: runEndData?.session_dir,
     runDir: runEndData?.run_dir,
+    evidencePack,
     creditsConsumed: runEndData?.credits_consumed,
     testUrl: runEndData?.test_url,
     steps: capturedSteps,
