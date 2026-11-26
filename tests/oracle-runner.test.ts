@@ -11,7 +11,11 @@ import { computePublicKeyId } from '../src/oracle/sign.js';
 import { computeSpecSha256 } from '../src/oracle/spec.js';
 import { verifyOracleManifest } from '../src/manifest.js';
 import { AcceptanceSpec, AppLifecycleAdapter, KaneRunResult } from '../src/types.js';
-import { LedgerlyLifecycleAdapter } from '../src/app/lifecycle.js';
+import {
+  DeliverableBuildError,
+  LedgerlyLifecycleAdapter,
+  RunnerInfraError,
+} from '../src/app/lifecycle.js';
 
 function createTestKeys() {
   const { privateKey, publicKey } = crypto.generateKeyPairSync('ed25519');
@@ -747,6 +751,109 @@ test('Declared UI outcome_specs failure seals hold (state_mismatch) and strict -
   assert.equal(uiMismatch.exitCode, 1);
   assert.equal(uiMismatch.verdict, 'hold');
   assert.equal(uiMismatch.holdReason, 'state_mismatch');
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('Oracle splits runner faults (missing actions.ndjson, RunnerInfraError -> inconclusive exit 4) from deliverable build failure (hold exit 1)', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'autocast-oracle-split-'));
+  const keys = createTestKeys();
+  const commit = '9999111122223333444455556666777788889999';
+  const spec = makeSpec();
+  const { specPath } = writeSpecFile(tmpDir, spec);
+
+  // 1. Missing actions.ndjson trace when deterministic UI check is enabled -> inconclusive / missing_trace (exit 4)
+  const missingTraceOutcome = await runOraclePipeline({
+    specPath,
+    commit,
+    outDir: path.join(tmpDir, 'out-missing'),
+    manifestOutPath: path.join(tmpDir, 'out-missing', 'run-manifest.json'),
+    signingKey: keys.privatePem,
+    requireCleanTree: false,
+    deps: {
+      preflightFn: () => ({ headCommit: commit, clean: true }),
+      prepareCheckoutFn: () => ({ appDir: tmpDir }),
+      createAdapterFn: () => ({
+        name: 'mock',
+        appDir: tmpDir,
+        start: async () => ({ pid: 1, port: 8080, commit }),
+        stop: async () => {},
+        getHealthInfo: async () => ({ ok: true, commit }),
+        healthCheck: async (c) => c === commit,
+        resetSeedData: async () => {},
+        verifyUnderlyingState: async () => true,
+      }),
+      executeKaneRunFn: async () => ({
+        passed: true,
+        category: 'pass',
+        isProductDefect: false,
+        exitCode: 0,
+        resultCode: 100,
+        summary: 'Verified',
+        sessionDir: path.join(tmpDir, 'empty-session-dir'),
+        steps: [],
+      }),
+    },
+  });
+  assert.equal(missingTraceOutcome.exitCode, 4);
+  assert.equal(missingTraceOutcome.verdict, 'inconclusive');
+  assert.equal(missingTraceOutcome.holdReason, 'missing_trace');
+
+  // 2. DeliverableBuildError -> contractual hold / build_failed (exit 1)
+  const buildFailOutcome = await runOraclePipeline({
+    specPath,
+    commit,
+    outDir: path.join(tmpDir, 'out-build'),
+    manifestOutPath: path.join(tmpDir, 'out-build', 'run-manifest.json'),
+    signingKey: keys.privatePem,
+    requireCleanTree: false,
+    deps: {
+      preflightFn: () => ({ headCommit: commit, clean: true }),
+      prepareCheckoutFn: () => ({ appDir: tmpDir }),
+      createAdapterFn: () => ({
+        name: 'mock',
+        appDir: tmpDir,
+        start: async () => {
+          throw new DeliverableBuildError('npm run build exited 1');
+        },
+        stop: async () => {},
+        healthCheck: async () => false,
+        resetSeedData: async () => {},
+        verifyUnderlyingState: async () => false,
+      }),
+    },
+  });
+  assert.equal(buildFailOutcome.exitCode, 1);
+  assert.equal(buildFailOutcome.verdict, 'hold');
+  assert.equal(buildFailOutcome.holdReason, 'build_failed');
+
+  // 3. RunnerInfraError -> inconclusive / runner_error (exit 4)
+  const infraFailOutcome = await runOraclePipeline({
+    specPath,
+    commit,
+    outDir: path.join(tmpDir, 'out-infra'),
+    manifestOutPath: path.join(tmpDir, 'out-infra', 'run-manifest.json'),
+    signingKey: keys.privatePem,
+    requireCleanTree: false,
+    deps: {
+      preflightFn: () => ({ headCommit: commit, clean: true }),
+      prepareCheckoutFn: () => ({ appDir: tmpDir }),
+      createAdapterFn: () => ({
+        name: 'mock',
+        appDir: tmpDir,
+        start: async () => {
+          throw new RunnerInfraError('EAI_AGAIN npm registry outage');
+        },
+        stop: async () => {},
+        healthCheck: async () => false,
+        resetSeedData: async () => {},
+        verifyUnderlyingState: async () => false,
+      }),
+    },
+  });
+  assert.equal(infraFailOutcome.exitCode, 4);
+  assert.equal(infraFailOutcome.verdict, 'inconclusive');
+  assert.equal(infraFailOutcome.holdReason, 'runner_error');
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });

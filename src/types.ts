@@ -151,7 +151,6 @@ export type OracleVerdict = 'release' | 'hold' | 'inconclusive';
 
 export type ApplicationEnvironment =
   | 'runner_pinned'
-  | 'deployment_attested'
   | 'external_unverified';
 
 export type OracleHoldReason =
@@ -159,7 +158,10 @@ export type OracleHoldReason =
   | 'state_mismatch'
   | 'commit_mismatch'
   | 'spec_mismatch'
-  | 'timeout';
+  | 'build_failed'
+  | 'timeout'
+  | 'missing_trace'
+  | 'runner_error';
 
 export interface OracleManifestSection {
   spec_sha256: string;

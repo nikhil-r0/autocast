@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import { KaneRunResult, KaneStep } from '../types.js';
 import { normalizeKaneExecution } from './kaneAdapter.js';
 import { stripOracleSecrets } from '../oracle/env.js';
+import { findActionsLog } from '../capture/actionIR.js';
 
 export interface KaneRunOptions {
   objective: string;
@@ -108,7 +109,7 @@ export async function executeKaneRun(options: KaneRunOptions): Promise<KaneRunRe
       let enrichedSteps = normalized.steps;
       let evidencePack = normalized.evidencePack;
       if (normalized.sessionDir) {
-        enrichedSteps = enrichStepsFromSession(normalized.sessionDir, normalized.steps);
+        enrichedSteps = enrichStepsFromSession(normalized.sessionDir, normalized.steps, evidencePack);
         if (!evidencePack) {
           evidencePack = findEvidencePack(normalized.sessionDir) || undefined;
         }
@@ -137,9 +138,9 @@ export async function executeKaneRun(options: KaneRunOptions): Promise<KaneRunRe
   });
 }
 
-function enrichStepsFromSession(sessionDir: string, fallbackSteps: KaneStep[]): KaneStep[] {
+function enrichStepsFromSession(sessionDir: string, fallbackSteps: KaneStep[], evidencePack?: string): KaneStep[] {
   try {
-    const actionsLog = findActionsLog(sessionDir);
+    const actionsLog = findActionsLog(sessionDir, evidencePack);
     if (!actionsLog || !fs.existsSync(actionsLog)) {
       return fallbackSteps;
     }
@@ -203,27 +204,4 @@ function findEvidencePack(dir: string): string | null {
     return null;
   }
   return null;
-}
-
-function findActionsLog(dir: string): string | null {
-  const findRecursive = (current: string): string | null => {
-    const entries = fs.readdirSync(current, { withFileTypes: true });
-    for (const entry of entries) {
-      const full = path.join(current, entry.name);
-      if (entry.isFile() && (entry.name === '0-actions.ndjson' || entry.name.endsWith('-actions.ndjson'))) {
-        return full;
-      }
-      if (entry.isDirectory() && entry.name !== 'node_modules' && !entry.name.startsWith('.')) {
-        const found = findRecursive(full);
-        if (found) return found;
-      }
-    }
-    return null;
-  };
-
-  try {
-    return findRecursive(dir);
-  } catch {
-    return null;
-  }
 }

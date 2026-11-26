@@ -134,6 +134,89 @@ export class WebhookVerdictPublisher implements VerdictPublisher {
   }
 }
 
+export interface WebhookVerifyOptions {
+  payloadBody: string;
+  signatureHeader: string;
+  timestampHeader: string;
+  secret: string;
+  seenManifestSha256s?: Set<string>;
+  maxSkewSeconds?: number;
+  nowMs?: number;
+}
+
+export interface WebhookVerifyResult {
+  valid: boolean;
+  error?: string;
+  payload?: VerdictPayload;
+}
+
+/**
+ * Verifies an incoming Autocast Oracle webhook delivery:
+ * 1. Rejects missing or expired X-Autocast-Timestamp headers outside maxSkewSeconds (default 300s).
+ * 2. Validates X-Autocast-Signature (`sha256=<hex>`) over `${timestamp}.${body}` in constant time.
+ * 3. Deduplicates deliveries by `payload.manifest_sha256` against caller-supplied seenManifestSha256s.
+ */
+export function verifyWebhookSignature(options: WebhookVerifyOptions): WebhookVerifyResult {
+  const maxSkewSec = options.maxSkewSeconds ?? 300;
+  const nowMs = options.nowMs ?? Date.now();
+
+  if (!options.secret) {
+    return { valid: false, error: 'Missing webhook secret' };
+  }
+  if (!options.timestampHeader || !options.signatureHeader) {
+    return { valid: false, error: 'Missing X-Autocast-Timestamp or X-Autocast-Signature header' };
+  }
+
+  const parsedMs = Date.parse(options.timestampHeader);
+  if (!Number.isFinite(parsedMs)) {
+    return { valid: false, error: 'Invalid X-Autocast-Timestamp format' };
+  }
+  const skewSec = Math.abs(nowMs - parsedMs) / 1000;
+  if (skewSec > maxSkewSec) {
+    return {
+      valid: false,
+      error: `Webhook timestamp outside allowed ${maxSkewSec}s replay window (${Math.round(skewSec)}s skew)`,
+    };
+  }
+
+  const sigMatch = /^sha256=([a-fA-F0-9]{64})$/.exec(options.signatureHeader.trim());
+  if (!sigMatch) {
+    return { valid: false, error: 'Malformed X-Autocast-Signature header (expected sha256=<64-hex>)' };
+  }
+
+  const expectedHex = crypto
+    .createHmac('sha256', options.secret)
+    .update(`${options.timestampHeader}.${options.payloadBody}`, 'utf8')
+    .digest('hex');
+
+  const receivedBuf = Buffer.from(sigMatch[1].toLowerCase(), 'utf8');
+  const expectedBuf = Buffer.from(expectedHex.toLowerCase(), 'utf8');
+  if (receivedBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(receivedBuf, expectedBuf)) {
+    return { valid: false, error: 'Webhook HMAC signature mismatch' };
+  }
+
+  let payload: VerdictPayload;
+  try {
+    payload = JSON.parse(options.payloadBody) as VerdictPayload;
+  } catch {
+    return { valid: false, error: 'Webhook body is not valid JSON' };
+  }
+
+  if (!payload.manifest_sha256) {
+    return { valid: false, error: 'Webhook payload missing manifest_sha256' };
+  }
+
+  const dedupeKey = payload.manifest_sha256.toLowerCase();
+  if (options.seenManifestSha256s) {
+    if (options.seenManifestSha256s.has(dedupeKey)) {
+      return { valid: false, error: `Duplicate manifest_sha256 replay detected (${dedupeKey})` };
+    }
+    options.seenManifestSha256s.add(dedupeKey);
+  }
+
+  return { valid: true, payload };
+}
+
 export class EvmVerdictPublisher implements VerdictPublisher {
   readonly name = 'evm' as const;
 

@@ -7,7 +7,7 @@ export interface OracleEndCardProps {
   holdReason?: string;
   specSha256: string;
   testedCommit: string;
-  resultCode: number;
+  resultCode?: number | null;
   stateVerified: boolean;
   repairOccurred: boolean;
   signatureKeyId: string;
@@ -49,7 +49,11 @@ export const OracleEndCard: React.FC<OracleEndCardProps> = ({
   const stampScale = interpolate(stampSpring, [0, 1], [1.6, 1]);
 
   const rows = [
-    { label: 'Kane', value: String(resultCode), color: resultCode === 100 ? '#22c55e' : '#ef4444' },
+    {
+      label: 'Kane',
+      value: resultCode != null ? String(resultCode) : '—',
+      color: resultCode === 100 ? '#22c55e' : '#ef4444',
+    },
     { label: 'State', value: stateVerified ? 'verified' : 'unverified', color: stateVerified ? '#22c55e' : '#ef4444' },
     { label: 'Repair', value: repairOccurred ? 'ran' : 'locked off', color: '#f59e0b' },
     { label: 'Spec', value: specSha256 ? shortHash(specSha256, 8, 4) : '—', color: '#38bdf8' },

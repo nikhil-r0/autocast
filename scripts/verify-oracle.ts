@@ -28,11 +28,11 @@ function parseArgs(argv: string[]): VerifyOracleCliArgs {
     } else if (arg.startsWith('--spec=')) {
       specPath = arg.slice('--spec='.length);
     } else if (arg === '--spec-sha256' && argv[i + 1]) {
-      specSha256 = arg[++i];
+      specSha256 = argv[++i];
     } else if (arg.startsWith('--spec-sha256=')) {
       specSha256 = arg.slice('--spec-sha256='.length);
     } else if (arg === '--commit' && argv[i + 1]) {
-      commit = arg[++i];
+      commit = argv[++i];
     } else if (arg.startsWith('--commit=')) {
       commit = arg.slice('--commit='.length);
     } else if (arg === '--trusted-keys' && argv[i + 1]) {

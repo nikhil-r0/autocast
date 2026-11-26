@@ -335,9 +335,9 @@ export function verifyOracleManifest(
   }
 
   const appEnv = manifest.application?.environment;
-  if (appEnv !== 'runner_pinned' && appEnv !== 'deployment_attested') {
+  if (appEnv !== 'runner_pinned') {
     errors.push(
-      `Oracle application.environment must be 'runner_pinned' or 'deployment_attested' (got: '${appEnv || 'undefined'}')`
+      `Oracle application.environment must be 'runner_pinned' (got: '${appEnv || 'undefined'}')`
     );
   }
 
@@ -443,9 +443,9 @@ export function verifyOracleHoldManifest(
   }
 
   const appEnv = manifest.application?.environment;
-  if (appEnv !== 'runner_pinned' && appEnv !== 'deployment_attested') {
+  if (appEnv !== 'runner_pinned') {
     errors.push(
-      `Hold manifest application.environment must be 'runner_pinned' or 'deployment_attested' (got: '${appEnv || 'undefined'}')`
+      `Hold manifest application.environment must be 'runner_pinned' (got: '${appEnv || 'undefined'}')`
     );
   }
 

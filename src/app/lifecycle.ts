@@ -7,6 +7,22 @@ import { scrubChildEnv } from '../oracle/env.js';
 
 export const SUPPORTED_LEDGERLY_SEED_IDS = new Set(['ledgerly-default-v1', 'default']);
 
+export class DeliverableBuildError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'DeliverableBuildError';
+  }
+}
+
+export class RunnerInfraError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'RunnerInfraError';
+  }
+}
+
+const INFRA_NETWORK_ERROR_RE = /EAI_AGAIN|ENOTFOUND|ETIMEDOUT|ECONNRESET|ECONNREFUSED|ERR_SOCKET|network|getaddrinfo/i;
+
 export interface LifecycleStartOptions {
   env?: Record<string, string>;
   commit?: string;
@@ -59,7 +75,7 @@ export class LedgerlyLifecycleAdapter implements AppLifecycleAdapter {
     await this.stop();
 
     if (opts?.strictPort && this.isPortOccupied()) {
-      throw new Error(
+      throw new RunnerInfraError(
         `Oracle Port Conflict: Port ${this.port} is occupied by an unrelated external process.`
       );
     }
@@ -91,9 +107,20 @@ export class LedgerlyLifecycleAdapter implements AppLifecycleAdapter {
         } catch {}
       } else if (!allowSymlink) {
         const hasLockfile = fs.existsSync(path.join(this.appDir, 'package-lock.json'));
-        const installCmd = hasLockfile ? 'npm ci --no-audit --no-fund' : 'npm install --no-audit --no-fund';
+        const installCmd = hasLockfile
+          ? 'npm ci --ignore-scripts --no-audit --no-fund'
+          : 'npm install --ignore-scripts --no-audit --no-fund';
         console.log(`[Lifecycle] Installing pinned dependencies in ${this.appDir} via "${installCmd}"...`);
-        execSync(installCmd, { cwd: this.appDir, env, stdio: 'inherit' });
+        try {
+          execSync(installCmd, { cwd: this.appDir, env, stdio: 'pipe' });
+        } catch (err: any) {
+          const stderr = err?.stderr ? String(err.stderr) : '';
+          const message = `${err?.message || ''}\n${stderr}`.trim();
+          if (INFRA_NETWORK_ERROR_RE.test(message)) {
+            throw new RunnerInfraError(`Runner dependency install failed due to network/registry outage: ${message}`);
+          }
+          throw new DeliverableBuildError(`Deliverable dependency install failed (${installCmd}): ${message}`);
+        }
       }
     }
 
@@ -103,7 +130,15 @@ export class LedgerlyLifecycleAdapter implements AppLifecycleAdapter {
     if (!fs.existsSync(path.join(distDir, 'index.html'))) {
       if (opts?.buildDistIfMissing) {
         console.log(`[Lifecycle] Building Ledgerly frontend assets in ${this.appDir}...`);
-        execSync('npm run build', { cwd: this.appDir, env, stdio: 'inherit' });
+        try {
+          execSync('npm run build', { cwd: this.appDir, env, stdio: 'pipe' });
+        } catch (err: any) {
+          const stderr = err?.stderr ? String(err.stderr) : '';
+          const stdout = err?.stdout ? String(err.stdout) : '';
+          throw new DeliverableBuildError(
+            `Deliverable frontend build failed (npm run build): ${stderr || stdout || err?.message}`
+          );
+        }
       } else if (allowSymlink && !fs.existsSync(distDir) && fs.existsSync(rootDist)) {
         try {
           fs.symlinkSync(rootDist, distDir, 'junction');
@@ -141,7 +176,7 @@ export class LedgerlyLifecycleAdapter implements AppLifecycleAdapter {
 
     while (Date.now() - startTime < 15000) {
       if (childExited) {
-        throw new Error(
+        throw new DeliverableBuildError(
           `Lifecycle Error: Server process exited early (code=${childExitCode}).${serverStderr ? `\nServer stderr:\n${serverStderr}` : ''}`
         );
       }
@@ -163,11 +198,11 @@ export class LedgerlyLifecycleAdapter implements AppLifecycleAdapter {
 
     if (!isHealthy) {
       if (requireCommitMatch && opts?.commit && lastCommit && lastCommit !== opts.commit) {
-        throw new Error(
+        throw new DeliverableBuildError(
           `Lifecycle Error: Server started but returned commit '${lastCommit}' instead of expected candidate commit '${opts.commit}'`
         );
       }
-      throw new Error(
+      throw new DeliverableBuildError(
         `Lifecycle Error: Server at ${this.baseUrl} failed to become healthy within 15 seconds.${serverStderr ? `\nServer stderr:\n${serverStderr}` : ''}`
       );
     }

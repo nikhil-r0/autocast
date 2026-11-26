@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { execFileSync } from 'child_process';
 import { isDeepStrictEqual } from 'util';
 import { chromium, Page } from 'playwright';
 import { OutcomeSpec } from '../types.js';
@@ -95,10 +96,13 @@ export function parseActionsLogToActionIR(actionsNdjsonContent: string, options?
     };
     defaultViewport = viewport;
 
+    const rawSelector = event.selectors?.[0]?.selector;
+    const normalizedSelector = normalizeActionSelector(rawSelector);
+
     actions.push({
       id: event.action_id || `action-${idx}`,
       type: actionType as ReplayAction['type'],
-      selector: event.selectors?.[0]?.selector,
+      selector: normalizedSelector,
       value: event.action_params?.value || event.action_params?.text,
       targetRect,
       viewport,
@@ -135,7 +139,36 @@ export function parseActionsLogToActionIR(actionsNdjsonContent: string, options?
   };
 }
 
-export function findActionsLog(dir: string): string | null {
+export function normalizeActionSelector(selector?: string): string | undefined {
+  if (!selector) return undefined;
+  const trimmed = selector.trim();
+  const internalTestId = /^internal:testid=\[(data-testid="[^"]+")s?\]$/i.exec(trimmed);
+  if (internalTestId) {
+    return `[${internalTestId[1]}]`;
+  }
+  return trimmed;
+}
+
+function findEvidenceArchive(dir: string): string | null {
+  try {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      if (entry.isFile() && entry.name.endsWith('.evidence')) {
+        return full;
+      }
+      if (entry.isDirectory() && entry.name !== 'node_modules' && !entry.name.startsWith('.git')) {
+        const sub = findEvidenceArchive(full);
+        if (sub) return sub;
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+export function findActionsLog(dir: string, evidencePackPath?: string): string | null {
   const findRecursive = (current: string): string | null => {
     try {
       const entries = fs.readdirSync(current, { withFileTypes: true });
@@ -155,7 +188,47 @@ export function findActionsLog(dir: string): string | null {
     return null;
   };
 
-  return findRecursive(dir);
+  const looseFile = findRecursive(dir);
+  if (looseFile) {
+    return looseFile;
+  }
+
+  // Kane CLI v0.10.x bundles logs/0-actions.ndjson inside evidence/*.evidence ZIP archives
+  const archiveCandidate =
+    evidencePackPath && fs.existsSync(evidencePackPath)
+      ? evidencePackPath
+      : findEvidenceArchive(dir);
+
+  if (archiveCandidate) {
+    try {
+      const archiveStats = fs.statSync(archiveCandidate);
+      if (archiveStats.isFile()) {
+        const entryList = execFileSync('unzip', ['-Z1', archiveCandidate], {
+          encoding: 'utf8',
+          stdio: ['ignore', 'pipe', 'ignore'],
+        });
+        const matchEntry = entryList
+          .split('\n')
+          .map((l) => l.trim())
+          .find((l) => l.endsWith('/0-actions.ndjson') || l.endsWith('-actions.ndjson') || l === '0-actions.ndjson');
+        if (matchEntry) {
+          const extractedContent = execFileSync('unzip', ['-p', archiveCandidate, matchEntry], {
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'ignore'],
+            maxBuffer: 10 * 1024 * 1024,
+          });
+          const outPath = path.join(dir, '0-actions.ndjson');
+          fs.mkdirSync(dir, { recursive: true });
+          fs.writeFileSync(outPath, extractedContent, 'utf8');
+          return outPath;
+        }
+      }
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
 }
 
 export function resolveJsonPath(data: unknown, rawPath: string): unknown {
@@ -324,7 +397,18 @@ export async function replayActionIRAndVerifyOutcomes(
         }
       } else if (action.type === 'click') {
         if (action.selector) {
-          await page.locator(action.selector).first().click({ timeout: 5000 });
+          try {
+            await page.locator(action.selector).first().click({ timeout: 5000 });
+          } catch {
+            if (action.targetRect) {
+              await page.mouse.click(
+                action.targetRect.x + action.targetRect.width / 2,
+                action.targetRect.y + action.targetRect.height / 2
+              );
+            } else {
+              throw new Error(`Failed clicking selector '${action.selector}'`);
+            }
+          }
         } else if (action.targetRect) {
           await page.mouse.click(
             action.targetRect.x + action.targetRect.width / 2,
@@ -347,6 +431,7 @@ export async function replayActionIRAndVerifyOutcomes(
       }
     }
 
+    await page.waitForLoadState('networkidle').catch(() => {});
     return await verifyOutcomeSpecs(page, specs, apiBase);
   } finally {
     await browser.close();

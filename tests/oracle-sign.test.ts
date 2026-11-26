@@ -223,9 +223,10 @@ test('signOracleManifest matches disk JSON round-trip with undefined optional fi
   assert.equal(verifyRes.valid, true, verifyRes.error);
 });
 
-test('verifyOracleManifest rejects external_unverified environment and verifyOracleHoldManifest validates signed holds', () => {
+test('verifyOracleManifest rejects non-runner_pinned environments and verifyOracleHoldManifest validates signed holds', () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'autocast-oracle-env-gate-'));
   const externalManifestPath = path.join(tmpDir, 'external-manifest.json');
+  const legacyAttestedPath = path.join(tmpDir, 'legacy-attested-manifest.json');
   const holdManifestPath = path.join(tmpDir, 'hold-manifest.json');
   const { privatePem, publicPem, keyId } = createEd25519Pair();
 
@@ -256,7 +257,36 @@ test('verifyOracleManifest rejects external_unverified environment and verifyOra
     trustedKeys: { [keyId]: publicPem },
   });
   assert.equal(extCheck.valid, false);
-  assert.ok(extCheck.errors.some((e) => /environment/i.test(e)));
+  assert.ok(extCheck.errors.some((e) => /environment must be 'runner_pinned'/i.test(e)));
+
+  generateRunManifest({
+    outputPath: legacyAttestedPath,
+    mode: 'oracle',
+    status: 'verified',
+    runId: 'oracle-legacy-env',
+    applicationUrl: 'https://external.example.com',
+    applicationEnvironment: 'deployment_attested' as any,
+    testedCommit: COMMIT_SHA,
+    stateVerified: true,
+    kaneVerification: { run_id: 'kane-ext-2', result_code: 100 },
+    closedLoopRepair: { occurred: false },
+    oracle: {
+      spec_sha256: SPEC_SHA,
+      seed_id: 'ledgerly-default-v1',
+      expected_commit: COMMIT_SHA,
+      runner_id: 'ci-runner-1',
+      verdict: 'release',
+    },
+    signingKey: privatePem,
+  });
+
+  const legacyCheck = verifyOracleManifest(legacyAttestedPath, {
+    expectedSpecSha256: SPEC_SHA,
+    expectedCommit: COMMIT_SHA,
+    trustedKeys: { [keyId]: publicPem },
+  });
+  assert.equal(legacyCheck.valid, false);
+  assert.ok(legacyCheck.errors.some((e) => /environment must be 'runner_pinned'/i.test(e)));
 
   generateRunManifest({
     outputPath: holdManifestPath,

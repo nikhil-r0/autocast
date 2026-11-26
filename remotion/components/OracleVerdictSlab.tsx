@@ -3,7 +3,7 @@ import { Audio, Sequence, interpolate, spring, staticFile, useCurrentFrame, useV
 import { shortHash } from '../oracle/format';
 
 export interface OracleVerdictFace {
-  resultCode: number;
+  resultCode?: number | null;
   taskTitle: string;
   summaryText: string;
   verdict: 'release' | 'hold';
@@ -38,7 +38,10 @@ export const OracleVerdictSlab: React.FC<OracleVerdictSlabProps> = ({
   });
   const isRelease = face.verdict === 'release';
   const accent = isRelease ? '#22c55e' : '#ef4444';
-  const kaneAccent = face.resultCode === 100 ? '#22c55e' : '#ef4444';
+  const kaneAccent = isRelease && face.resultCode === 100 ? '#22c55e' : '#ef4444';
+  const hasNumericCode = typeof face.resultCode === 'number' && Number.isFinite(face.resultCode);
+  const preSwapHeading = hasNumericCode ? 'KANE RESULT' : 'ORACLE GATE';
+  const preSwapValue = hasNumericCode ? String(face.resultCode) : (face.holdReason || 'HOLD').toUpperCase();
   const stamp = spring({
     frame: Math.max(0, frame - swapFrame),
     fps,
@@ -59,8 +62,10 @@ export const OracleVerdictSlab: React.FC<OracleVerdictSlabProps> = ({
       }}
     >
       <div style={{ position: 'absolute', inset: 0, padding: '28px 32px', opacity: 1 - reveal }}>
-        <div style={{ color: kaneAccent, fontSize: 13, fontWeight: 800, letterSpacing: 1.2 }}>KANE RESULT</div>
-        <div style={{ color: kaneAccent, fontSize: 84, fontWeight: 900, lineHeight: 1, marginTop: 8 }}>{face.resultCode}</div>
+        <div style={{ color: kaneAccent, fontSize: 13, fontWeight: 800, letterSpacing: 1.2 }}>{preSwapHeading}</div>
+        <div style={{ color: kaneAccent, fontSize: hasNumericCode ? 84 : 52, fontWeight: 900, lineHeight: 1.05, marginTop: 8 }}>
+          {preSwapValue}
+        </div>
         <div style={{ color: '#f8fafc', fontSize: 22, fontWeight: 700, marginTop: 18 }}>{face.taskTitle}</div>
         <div style={{ color: '#cbd5e1', fontSize: 16, lineHeight: 1.45, marginTop: 12 }}>{face.summaryText}</div>
       </div>

@@ -47,7 +47,7 @@ export interface OracleDropProps {
 }
 
 const emptyFace = (verdict: 'release' | 'hold'): OracleVerdictFace => ({
-  resultCode: verdict === 'release' ? 100 : 740,
+  resultCode: verdict === 'release' ? 100 : null,
   taskTitle: 'Props required',
   summaryText: 'Render with --props from scripts/finalize-oracle-drop.ts.',
   verdict,
@@ -128,7 +128,7 @@ const PolicyBeat: React.FC<{ props: OracleDropProps; durationInFrames: number }>
         />
         <div style={{ display: 'flex', gap: 40, opacity: interpolate(fork, [0, 1], [0, 1]) }}>
           <PolicyPanel label="DEMO MODE" body="740 → auto-fix" color="#38bdf8" />
-          <PolicyPanel label="ORACLE MODE" body="740 → HOLD" color="#ef4444" />
+          <PolicyPanel label="ORACLE MODE" body="Fail → HOLD" color="#ef4444" />
         </div>
         <div style={{ marginTop: 28, color: '#38bdf8', fontFamily: 'ui-monospace, monospace', fontSize: 16 }}>
           {props.contractId || 'contract not loaded'} · spec {spec}
@@ -166,7 +166,7 @@ const HoldBeat: React.FC<{ props: OracleDropProps; durationInFrames: number }> =
         <BeatTitle
           kicker="FAIL CLOSED"
           title="Buggy commit seals a hold"
-          subtitle="Deliberate test fixture (C_bug). Kane fails. No worktree. No repair. Signed hold, exit 1."
+          subtitle="Deliberate test fixture (C_bug). Acceptance gate fails. No worktree. No repair. Signed hold, exit 1."
         />
       </div>
       <div style={{ position: 'absolute', top: 210, left: 80, display: 'flex', gap: 40 }}>

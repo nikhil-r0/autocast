@@ -60,7 +60,7 @@ function readManifest(filePath: string): RunManifest {
 
 function faceFromManifest(manifest: RunManifest, taskTitle: string, summaryText: string) {
   return {
-    resultCode: manifest.kane_verification?.result_code ?? 0,
+    resultCode: manifest.kane_verification?.result_code ?? null,
     taskTitle,
     summaryText,
     verdict: manifest.oracle?.verdict ?? 'hold',
@@ -75,7 +75,7 @@ function faceFromManifest(manifest: RunManifest, taskTitle: string, summaryText:
 
 function classify(line: string): 'command' | 'error' | 'success' | 'warn' | 'info' | 'dim' {
   if (/^\$ /.test(line) || line.includes('autocast')) return 'command';
-  if (/error|fail|hold|740/i.test(line)) return 'error';
+  if (/error|fail|hold|mismatch/i.test(line)) return 'error';
   if (/pass|release|verified|100/i.test(line)) return 'success';
   if (/warn/i.test(line)) return 'warn';
   return 'info';

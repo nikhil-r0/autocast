@@ -1,6 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseActionsLogToActionIR, verifyOutcomeSpecs } from '../src/capture/actionIR.js';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import { execFileSync } from 'child_process';
+import {
+  findActionsLog,
+  normalizeActionSelector,
+  parseActionsLogToActionIR,
+  verifyOutcomeSpecs,
+} from '../src/capture/actionIR.js';
 import { OutcomeSpec } from '../types.js';
 
 test('parseActionsLogToActionIR successfully parses supported action types and skips assertions to outcomeSpecs', () => {
@@ -94,5 +103,39 @@ test('OutcomeSpec passes when conditions are satisfied', async () => {
   const result = await verifyOutcomeSpecs(mockPage, specs);
   assert.equal(result.passed, true);
   assert.equal(result.failures.length, 0);
+});
+
+test('normalizeActionSelector converts Kane internal:testid selectors and findActionsLog extracts .evidence ZIP entries', () => {
+  assert.equal(
+    normalizeActionSelector('internal:testid=[data-testid="btn-review-INV-1042"s]'),
+    '[data-testid="btn-review-INV-1042"]'
+  );
+  assert.equal(normalizeActionSelector('#plain-css'), '#plain-css');
+
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'autocast-evidence-zip-'));
+  try {
+    const innerDir = path.join(tmpDir, 'pack-src', 'tests', 'run-1', 'logs');
+    fs.mkdirSync(innerDir, { recursive: true });
+    const ndjson = JSON.stringify({
+      action_id: 'step-2',
+      action_type: 'click',
+      selectors: [{ selector: 'internal:testid=[data-testid="btn-review-INV-1042"s]' }],
+      step: 2,
+    });
+    fs.writeFileSync(path.join(innerDir, '0-actions.ndjson'), ndjson + '\n', 'utf8');
+
+    const sessionDir = path.join(tmpDir, 'kane-session');
+    const evidenceDir = path.join(sessionDir, 'evidence');
+    fs.mkdirSync(evidenceDir, { recursive: true });
+    const archivePath = path.join(evidenceDir, 'run.evidence');
+    execFileSync('zip', ['-rq', archivePath, 'tests'], { cwd: path.join(tmpDir, 'pack-src') });
+
+    const found = findActionsLog(sessionDir, archivePath);
+    assert.ok(found && fs.existsSync(found), 'findActionsLog must extract 0-actions.ndjson from .evidence archive');
+    const ir = parseActionsLogToActionIR(fs.readFileSync(found, 'utf8'));
+    assert.equal(ir.actions[0].selector, '[data-testid="btn-review-INV-1042"]');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 });
 

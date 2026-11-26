@@ -13,6 +13,7 @@ import {
   EvmVerdictPublisher,
   NotImplementedError,
   publishVerdict,
+  verifyWebhookSignature,
 } from '../src/oracle/publish.js';
 import { reverifyOracle } from '../scripts/reverify-oracle.js';
 import { finalizeOracleDrop } from '../scripts/finalize-oracle-drop.js';
@@ -406,7 +407,7 @@ test('finalizeOracleDrop verifies both HOLD and RELEASE manifests and requires t
     /two distinct commits/i
   );
 
-  // Distinct commit, valid signatures -> succeeds with 9 gates and updated copy
+  // Distinct commit, valid signatures -> succeeds with 9 gates and updated copy (resultCode stays null when omitted, never 0 or fake 740)
   generateRunManifest({
     outputPath: holdPath,
     mode: 'oracle',
@@ -416,7 +417,6 @@ test('finalizeOracleDrop verifies both HOLD and RELEASE manifests and requires t
     applicationEnvironment: 'runner_pinned',
     testedCommit: cBug,
     stateVerified: false,
-    kaneVerification: { run_id: 'k-hold', result_code: 740 },
     closedLoopRepair: { occurred: false },
     oracle: {
       spec_sha256: specSha256,
@@ -424,7 +424,7 @@ test('finalizeOracleDrop verifies both HOLD and RELEASE manifests and requires t
       expected_commit: cBug,
       runner_id: 'runner-1',
       verdict: 'hold',
-      hold_reason: 'kane_failed',
+      hold_reason: 'state_mismatch',
     },
     signingKey: keys.privatePem,
   });
@@ -438,6 +438,7 @@ test('finalizeOracleDrop verifies both HOLD and RELEASE manifests and requires t
     audioDir: path.join(tmpDir, 'no-audio'),
   });
   assert.equal(finalized.props.gates.length, 9);
+  assert.equal(finalized.props.hold.resultCode, null);
   assert.match(finalized.props.closingTitle, /Milestone payouts, gated by signed and verifiable proof/i);
 
   // Tampered HOLD manifest -> rejected
@@ -458,4 +459,68 @@ test('finalizeOracleDrop verifies both HOLD and RELEASE manifests and requires t
   );
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('verifyWebhookSignature enforces 300s replay window, constant-time HMAC, and manifest_sha256 deduplication', () => {
+  const secret = 'whsec_test_replay_window';
+  const payload = {
+    spec_sha256: 'a'.repeat(64),
+    tested_commit: COMMIT,
+    manifest_sha256: 'b'.repeat(64),
+    verdict: 'release',
+    signature: { alg: 'ed25519', key_id: 'k1', sig: 'sig' },
+  };
+  const body = JSON.stringify(payload);
+  const nowMs = Date.UTC(2026, 10, 26, 12, 0, 0);
+  const freshTs = new Date(nowMs - 60_000).toISOString();
+  const expiredTs = new Date(nowMs - 600_000).toISOString();
+
+  const makeSig = (ts: string, rawBody: string) =>
+    `sha256=${crypto.createHmac('sha256', secret).update(`${ts}.${rawBody}`, 'utf8').digest('hex')}`;
+
+  const seen = new Set<string>();
+  const freshCheck = verifyWebhookSignature({
+    payloadBody: body,
+    signatureHeader: makeSig(freshTs, body),
+    timestampHeader: freshTs,
+    secret,
+    seenManifestSha256s: seen,
+    nowMs,
+  });
+  assert.equal(freshCheck.valid, true, freshCheck.error);
+
+  // Replay of identical manifest_sha256 fails
+  const replayCheck = verifyWebhookSignature({
+    payloadBody: body,
+    signatureHeader: makeSig(freshTs, body),
+    timestampHeader: freshTs,
+    secret,
+    seenManifestSha256s: seen,
+    nowMs,
+  });
+  assert.equal(replayCheck.valid, false);
+  assert.match(replayCheck.error || '', /duplicate manifest_sha256/i);
+
+  // Stale timestamp outside 300s window fails
+  const expiredCheck = verifyWebhookSignature({
+    payloadBody: body,
+    signatureHeader: makeSig(expiredTs, body),
+    timestampHeader: expiredTs,
+    secret,
+    nowMs,
+  });
+  assert.equal(expiredCheck.valid, false);
+  assert.match(expiredCheck.error || '', /replay window/i);
+
+  // Tampered body fails constant-time HMAC check
+  const tamperedBody = JSON.stringify({ ...payload, verdict: 'hold' });
+  const tamperedCheck = verifyWebhookSignature({
+    payloadBody: tamperedBody,
+    signatureHeader: makeSig(freshTs, body),
+    timestampHeader: freshTs,
+    secret,
+    nowMs,
+  });
+  assert.equal(tamperedCheck.valid, false);
+  assert.match(tamperedCheck.error || '', /hmac signature mismatch/i);
 });

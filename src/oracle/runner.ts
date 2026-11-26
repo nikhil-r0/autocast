@@ -12,7 +12,11 @@ import {
   OutcomeSpec,
   RunManifest,
 } from '../types.js';
-import { LedgerlyLifecycleAdapter } from '../app/lifecycle.js';
+import {
+  DeliverableBuildError,
+  LedgerlyLifecycleAdapter,
+  RunnerInfraError,
+} from '../app/lifecycle.js';
 import { executeKaneRun } from '../shoot/kane.js';
 import { classifyKaneRun } from '../shoot/classify.js';
 import { generateRunManifest } from '../manifest.js';
@@ -669,7 +673,9 @@ export async function runOraclePipeline(options: OracleRunOptions): Promise<Orac
           resetSeedFn: resetFn,
         });
       } else {
-        const actionsLogPath = kaneResult.sessionDir ? findActionsLog(kaneResult.sessionDir) : null;
+        const actionsLogPath = kaneResult.sessionDir
+          ? findActionsLog(kaneResult.sessionDir, kaneResult.evidencePack)
+          : null;
         if (actionsLogPath && fs.existsSync(actionsLogPath)) {
           const actionIR = parseActionsLogToActionIR(fs.readFileSync(actionsLogPath, 'utf-8'), {
             fallbackUrl: spec.target.url,
@@ -682,11 +688,25 @@ export async function runOraclePipeline(options: OracleRunOptions): Promise<Orac
             resetFn
           );
         } else if (options.requireDeterministicUiVerification !== false) {
-          uiOutcomeResult = {
-            passed: false,
-            failures: [
-              'Deterministic UI verification failed: Kane session produced no actions.ndjson to verify declared DOM/visibility/URL outcome_specs.',
-            ],
+          const msg =
+            'Deterministic UI verification inconclusive: Kane session produced no actions.ndjson trace to replay declared DOM/visibility/URL outcome_specs.';
+          logErr(`⏱️ [Oracle INCONCLUSIVE] ${msg}`);
+          const manifest = await sealAndOptionallyPublish({
+            status: 'failed',
+            verdict: 'inconclusive',
+            holdReason: 'missing_trace',
+            testedCommit,
+            stateVerified: false,
+            kaneResult,
+          });
+          return {
+            exitCode: 4,
+            verdict: 'inconclusive',
+            holdReason: 'missing_trace',
+            manifest,
+            manifestPath: manifestOutPath,
+            specSha256,
+            error: msg,
           };
         }
       }
@@ -756,6 +776,52 @@ export async function runOraclePipeline(options: OracleRunOptions): Promise<Orac
     if (err instanceof OracleConfigError || err instanceof OracleSpecError || err instanceof OracleSigningConfigError) {
       logErr(`❌ [Oracle] ${err.message}`);
       return { exitCode: 2, specSha256, error: err.message };
+    }
+    if (err instanceof DeliverableBuildError) {
+      logErr(`🚨 [Oracle HOLD] ${err.message}`);
+      try {
+        const manifest = await sealAndOptionallyPublish({
+          status: 'failed',
+          verdict: 'hold',
+          holdReason: 'build_failed',
+          testedCommit: expectedCommit,
+          stateVerified: false,
+        });
+        return {
+          exitCode: 1,
+          verdict: 'hold',
+          holdReason: 'build_failed',
+          manifest,
+          manifestPath: manifestOutPath,
+          specSha256,
+          error: err.message,
+        };
+      } catch {
+        return { exitCode: 2, specSha256, error: err.message };
+      }
+    }
+    if (err instanceof RunnerInfraError) {
+      logErr(`⏱️ [Oracle INCONCLUSIVE] ${err.message}`);
+      try {
+        const manifest = await sealAndOptionallyPublish({
+          status: 'failed',
+          verdict: 'inconclusive',
+          holdReason: 'runner_error',
+          testedCommit: expectedCommit,
+          stateVerified: false,
+        });
+        return {
+          exitCode: 4,
+          verdict: 'inconclusive',
+          holdReason: 'runner_error',
+          manifest,
+          manifestPath: manifestOutPath,
+          specSha256,
+          error: err.message,
+        };
+      } catch {
+        return { exitCode: 2, specSha256, error: err.message };
+      }
     }
     logErr(`❌ [Oracle] Environment/execution error: ${err.message}`);
     return { exitCode: 2, specSha256, error: err.message };

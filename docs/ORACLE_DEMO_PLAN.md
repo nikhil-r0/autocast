@@ -9,15 +9,15 @@
 ## 1. Beat Sheet & Visual Direction (~74.5s Baseline · 2,235+ Frames @ 30 FPS)
 
 ### Color Grammar (Locked Across All Beats, <= 2 Visual Effects per Beat)
-- **Red (`#ef4444`):** `740` failure, `HOLD`, `state_verified: false`
+- **Red (`#ef4444`):** Acceptance failure (`kane_failed` / `state_mismatch`), `HOLD`, `state_verified: false`
 - **Emerald (`#22c55e`):** `100` pass, `RELEASE`, `state_verified: true`, verified gates
 - **Amber (`#f59e0b`):** Frozen policy constraints (`closed_loop_repair: false`, Day-1 lock)
 - **Cyan (`#38bdf8`):** Cryptographic identifiers (`spec_sha256`, `tested_commit`, `key_id`, `manifest_sha256`)
 
 | Beat | Time / Frames | Layout & Visual Source | Voiceover, Captions & Audio Cues |
 |---|---|---|---|
-| **Beat 1: Problem & Policy Flip** | `0:00 – 0:14` (`14s` / `420f` min) | **Remotion Split Policy Card** (`AuroraBackground` + Policy Panels) + compact **Frozen Spec Pill** (`contract_id`, `spec_sha256`) | **Voiceover (~38 words):** *"Client says it's broken. Contractor says it works. Who's right? On Day 1, both lock one acceptance contract. In Autocast Demo Mode, failures trigger auto-repair. In Oracle Mode, failures seal a signed hold without touching code."*<br>**LowerThird Caption:** `Frozen contract · Demo repairs · Oracle seals HOLD`<br>**SFX:** `sfx-click.wav` on policy fork reveal. |
-| **Beat 2: Fail-Closed `hold` on `C_bug`** | `0:14 – 0:32` (`18s` / `540f` min) | **2-Column Staggered Layout**:<br>• **Left (`width: 860`):** Filtered `TerminalCard` (6–8 key lines from `hold-terminal.log`)<br>• **Right (`width: 860`):** `KaneCard (740 FAIL)` swapping at `f280` to `ManifestBadge (HOLD · repair: false)` | **Voiceover (~40 words):** *"Against a deliberate buggy test commit, the UI claims success while storage stays Pending. Kane catches it. Oracle Mode refuses to touch the deliverable—zero worktrees, zero `agy` calls—and seals a signed `hold` manifest exiting code 1."*<br>**LowerThird Caption:** `Deliberate test fixture (C_bug) → zero repair → signed HOLD`<br>**SFX:** `sfx-stamp.wav` on `HOLD` seal (`f280`). |
+| **Beat 1: Problem & Policy Flip** | `0:00 – 0:14` (`14s` / `420f` min) | **Remotion Split Policy Card** (`AuroraBackground` + Policy Panels: Demo `740 → auto-fix`, Oracle `Fail → HOLD`) + compact **Frozen Spec Pill** (`contract_id`, `spec_sha256`) | **Voiceover (~38 words):** *"Client says it's broken. Contractor says it works. Who's right? On Day 1, both lock one acceptance contract. In Autocast Demo Mode, failures trigger auto-repair. In Oracle Mode, failures seal a signed hold without touching code."*<br>**LowerThird Caption:** `Frozen contract · Demo repairs · Oracle seals HOLD`<br>**SFX:** `sfx-click.wav` on policy fork reveal. |
+| **Beat 2: Fail-Closed `hold` on `C_bug`** | `0:14 – 0:32` (`18s` / `540f` min) | **2-Column Staggered Layout**:<br>• **Left (`width: 860`):** Filtered `TerminalCard` (6–8 key lines from `hold-terminal.log`)<br>• **Right (`width: 860`):** `OracleVerdictSlab` (live Kane/gate failure card swapping at `f280` to `ManifestBadge`: `HOLD · repair: locked off`) | **Voiceover (~40 words):** *"Against a deliberate buggy test commit, the UI claims success while storage stays Pending. The oracle catches it, refuses to touch the deliverable—zero worktrees, zero `agy` calls—and seals a signed `hold` manifest exiting code 1."*<br>**LowerThird Caption:** `Deliberate test fixture (C_bug) → zero repair → signed HOLD`<br>**SFX:** `sfx-stamp.wav` on `HOLD` seal (`f280`). |
 | **Beat 3a: Signed `release` on `C_fix`** | `0:32 – 0:50` (`18s` / `540f` min) | **3D-Tilted `BrowserFrame`** playing `public/oracle-source.mp4` + **Backend State Pill** (`GET /api/invoices/INV-1042 → status: "Approved"`) + **`LowerThird`** | **Voiceover (~34 words):** *"On the fixed commit, `--oracle --commit --with-video` passes Kane 100, verifies every declared UI and `/api/invoices/INV-1042` backend assertion, and captures 1080p browser proof as optional evidence."*<br>**LowerThird Caption:** `Commit C_fix · Kane + backend state verified → signed RELEASE` |
 | **Beat 3b: Oracle Verified End Card** | `0:50 – 0:54.5` (`4.5s` / `135f` min) | **`OracleEndCard`** bound to `release-manifest.json` (`verdict: RELEASE`, `spec_sha256`, `tested_commit`, `state_verified: true`, `repair: false`, `key_id`) | **Voiceover:** *"Ed25519-signed for verification."* *(snappy 4.5s stamp beat)*<br>**SFX:** `sfx-stamp.wav` on `RELEASE` seal. |
 | **Beat 4a: 9-Gate Offline Verification & Publisher** | `0:54.5 – 1:08.5` (`14s` / `420f` min) | **2-Column Layout**:<br>• **Left (`width: 860`):** `TerminalCard` (`verify:oracle` + `--publish stdout-json`)<br>• **Right (`width: 860`):** **9-Gate Payment Checklist** animating gates 1–9 green | **Voiceover (~36 words):** *"Any client verifies all nine payment gates and the runner's Ed25519 signature completely offline—no browser or video required—or streams the payload straight to signed webhooks or future escrow adapters."*<br>**LowerThird Caption:** `9 payment gates verified offline · zero video required` |
@@ -51,9 +51,8 @@
      console.log('Trusted key_id:', keyId);
    "
    ```
-3. Install `examples/ledgerly` dependencies (required for isolated commit builds; ignored by `examples/ledgerly/.gitignore`), build TypeScript, verify Kane CLI auth, and confirm a clean working tree:
+3. Build TypeScript, verify Kane CLI auth, and confirm a clean working tree (`runOraclePipeline` isolates commit dependencies via `npm ci --ignore-scripts --no-audit --no-fund`):
    ```bash
-   npm --prefix examples/ledgerly ci
    npm run build
    kane-cli --version
    git status --porcelain   # Must be empty before oracle runs
@@ -65,38 +64,40 @@
    export ORACLE_RUNNER_ID="autocast-demo-runner-01"
    export GEMINI_API_KEY=""   # Guarantees deterministic DEFAULT_NARRATIONS during --with-video
    ```
-5. Compute the Day-1 frozen `spec_sha256` and capture the 40-char delivery `--commit` SHA:
+5. Compute the Day-1 frozen `spec_sha256` and identify two genuinely distinct 40-char git commits (`BUG_COMMIT` = `C_bug` containing a code defect on disk, `FIX_COMMIT` = `C_fix` resolving it):
    ```bash
    SPEC_PATH="examples/oracle/ledgerly-approval.json"
    SPEC_SHA256=$(node -e "import('./dist/oracle/spec.js').then(m => console.log(m.loadAcceptanceSpec('${SPEC_PATH}').specSha256))")
-   DELIVERY_COMMIT=$(git rev-parse HEAD)
+   BUG_COMMIT="<40-char-sha-C_bug>"
+   FIX_COMMIT="$(git rev-parse HEAD)"   # or distinct 40-char C_fix SHA
    echo "SPEC_SHA256=${SPEC_SHA256}"
-   echo "DELIVERY_COMMIT=${DELIVERY_COMMIT}"
+   echo "BUG_COMMIT=${BUG_COMMIT}"
+   echo "FIX_COMMIT=${FIX_COMMIT}"
    ```
 
-### Step 1 — Run 1: Real Fail-Closed `hold` on Buggy Behavior (Exit `1`)
+### Step 1 — Run 1: Real Fail-Closed `hold` on Buggy Commit `C_bug` (Exit `1`)
 
-Run with `APP_BUG=approve-noop` and `RUN_ID=oracle-hold`, passing both `--commit` and `--expect-spec-sha256`, capturing verbatim terminal output for Beat 2:
+Run with `--commit "${BUG_COMMIT}"` and `--expect-spec-sha256 "${SPEC_SHA256}"`, capturing verbatim terminal output for Beat 2 (`Oracle Mode` runs `--bug-detection off` + deterministic `outcome_specs`, so `hold_reason` is `kane_failed` or `state_mismatch` and `kane_verification.result_code` comes directly from the actual run—do not hardcode `740`):
 ```bash
 mkdir -p out/oracle-drop
-RUN_ID=oracle-hold APP_BUG=approve-noop \
+RUN_ID=oracle-hold \
   node bin/autocast.js --oracle "${SPEC_PATH}" \
-  --commit "${DELIVERY_COMMIT}" \
+  --commit "${BUG_COMMIT}" \
   --expect-spec-sha256 "${SPEC_SHA256}" \
   2>&1 | tee out/oracle-drop/hold-terminal.log
 HOLD_EXIT=${PIPESTATUS[0]}
 echo "Hold exit code: ${HOLD_EXIT}"   # Must be 1
 cp out/runs/oracle-hold/run-manifest.json out/oracle-drop/hold-manifest.json
 ```
-*Expected sealed evidence:* `out/oracle-drop/hold-manifest.json` with `status: "failed"`, `oracle.verdict: "hold"`, `oracle.hold_reason: "kane_failed"`, `kane_verification.result_code: 740`, `closed_loop_repair.occurred: false`, and valid Ed25519 `signature`.
+*Expected sealed evidence:* `out/oracle-drop/hold-manifest.json` with `status: "failed"`, `oracle.verdict: "hold"`, `oracle.hold_reason` (`"kane_failed"` or `"state_mismatch"`), `application.environment: "runner_pinned"`, `application.tested_commit === BUG_COMMIT`, `closed_loop_repair.occurred: false`, and valid Ed25519 `signature`.
 
-### Step 2 — Run 2: Real Signed `release` + 1080p Playwright Evidence (Exit `0`)
+### Step 2 — Run 2: Real Signed `release` on Fixed Commit `C_fix` + 1080p Playwright Proof (Exit `0`)
 
-Run cleanly (no `APP_BUG`) with `--with-video` and `--publish stdout-json` under `RUN_ID=oracle-release`:
+Run `--commit "${FIX_COMMIT}"` with `--with-video` and `--publish stdout-json` under `RUN_ID=oracle-release`:
 ```bash
 RUN_ID=oracle-release \
   node bin/autocast.js --oracle "${SPEC_PATH}" \
-  --commit "${DELIVERY_COMMIT}" \
+  --commit "${FIX_COMMIT}" \
   --expect-spec-sha256 "${SPEC_SHA256}" \
   --with-video \
   --publish stdout-json \
@@ -108,36 +109,34 @@ cp out/runs/oracle-release/run-manifest.json out/oracle-drop/release-manifest.js
 cp public/source.mp4 public/oracle-source.mp4   # Preserve isolated copy so demo runs never clobber Beat 3a
 ```
 *Expected sealed evidence:*
-- `out/oracle-drop/release-manifest.json`: `status: "verified"`, `oracle.verdict: "release"`, `kane_verification.result_code: 100`, `application.state_verified: true`, `closed_loop_repair.occurred: false`, `artifacts.video` + `artifacts.poster` hashed, and valid Ed25519 `signature`.
-- `public/oracle-source.mp4`: genuine 1080p Playwright replay generated by `replayAndRecord()` during Run 2.
+- `out/oracle-drop/release-manifest.json`: `status: "verified"`, `oracle.verdict: "release"`, `application.environment: "runner_pinned"`, `application.tested_commit === FIX_COMMIT`, `kane_verification.result_code: 100`, `application.state_verified: true`, `closed_loop_repair.occurred: false`, `artifacts.video` + `artifacts.poster` hashed, and valid Ed25519 `signature`.
+- `public/oracle-source.mp4`: genuine 1080p Playwright replay generated during Run 2.
 - `out/oracle-drop/release-verdict.json`: pure `VerdictPayload` JSON (`spec_sha256`, `tested_commit`, `manifest_sha256`, `verdict: "release"`, `signature`). *(When `--publish stdout-json` is passed, `runOraclePipeline` routes human progress logs to `stderr`, keeping `stdout` clean JSON.)*
 
-### Step 3 — Run 3: Offline 8-Gate Verification (Exit `0`)
+### Step 3 — Run 3: Offline 9-Gate Verification (Exit `0`)
 
 Verify the sealed release manifest completely offline (capturing verbatim output for Beat 4a):
 ```bash
 npm run verify:oracle -- out/oracle-drop/release-manifest.json \
   --spec "${SPEC_PATH}" \
-  --commit "${DELIVERY_COMMIT}" \
+  --commit "${FIX_COMMIT}" \
   --trusted-keys .oracle-keys/trusted-keys.json \
   | tee out/oracle-drop/verify-oracle.log
 ```
-*(Optional confidence check: running `npm run verify:oracle -- out/oracle-drop/hold-manifest.json ...` exits `1`, proving payment gates reject the `hold` artifact.)*
+*(Optional confidence check: running `npm run verify:oracle -- out/oracle-drop/hold-manifest.json --spec "${SPEC_PATH}" --commit "${BUG_COMMIT}" ...` exits `1`, proving payment gates reject the `hold` artifact while `verifyOracleHoldManifest` accepts it.)*
 
 ### Step 4 — Bind Artifacts, Render `OracleDrop`, & Run OCR + FFprobe Audit
 
-1. Generate voiceover audio stems (via ElevenLabs TTS if `ELEVENLABS_API_KEY` is set, or recorded `.wav`/`.mp3` stems under `public/audio/oracle-beat-*.mp3`), then assemble props from the real sealed manifests, captured logs, and `public/oracle-source.mp4` SHA-256 via `scripts/finalize-oracle-drop.ts` (which validates via `verifyOracleManifest` and probes each voiceover stem with `ffprobe` to pad `beatFrames` dynamically so no narration gets clipped):
+1. Generate voiceover audio stems (under `public/audio/oracle-beat-*.mp3`/`.wav`), then assemble props from the real sealed manifests, captured logs, and `public/oracle-source.mp4` via `scripts/finalize-oracle-drop.ts` (which refuses `holdCommit === releaseCommit`, validates `hold-manifest.json` via `verifyOracleHoldManifest`, validates `release-manifest.json` via `verifyOracleManifest`, and probes audio stems with `ffprobe` to pad `beatFrames`):
    ```bash
    npx tsx scripts/finalize-oracle-drop.ts \
      --spec "${SPEC_PATH}" \
-     --commit "${DELIVERY_COMMIT}" \
      --hold-manifest out/oracle-drop/hold-manifest.json \
      --release-manifest out/oracle-drop/release-manifest.json \
      --hold-log out/oracle-drop/hold-terminal.log \
-     --release-log out/oracle-drop/release-terminal.log \
      --verify-log out/oracle-drop/verify-oracle.log \
-     --verdict-json out/oracle-drop/release-verdict.json \
      --source-video public/oracle-source.mp4 \
+     --trusted-keys .oracle-keys/trusted-keys.json \
      --out out/oracle-drop/oracle-drop-props.json
    ```
 2. Render the ~74.5-second Part 2 feature drop video:
@@ -180,11 +179,9 @@ To keep Part 1 (`Demo` and `AutoCastShowcase`) 100% unchanged and risk-free, app
 
 ## 4. Pre-Flight Risks & Checks
 
-1. **Single-Commit Bug Injection vs. Two Distinct Commits (`--commit` separation)**
-   - Since `expected_commit` is passed via `--commit <40-char-sha>` (not hashed inside `AcceptanceSpec`), **one frozen `spec.json` (`spec_sha256` + `contract_id`)** now works identically for both:
-     - **Single commit (`APP_BUG=approve-noop` vs. clean):** Simplest for filming (`DELIVERY_COMMIT=$(git rev-parse HEAD)`). Pair this with phrasing like *"Once the persistence bug is resolved..."* (avoid *"On the fixed commit..."* since both manifests carry the same `tested_commit`).
-     - **Two commits (`--commit C_bug` vs. `--commit C_fix`):** Contrasts two real git commits under the **exact same `spec_sha256`** (`preparePinnedAppCheckout()` extracts each commit via `git archive`) so `tested_commit` visibly changes between `HOLD` and `RELEASE`.
-   - Either way, verify `examples/ledgerly/node_modules` is installed first (`npm --prefix examples/ledgerly ci`) so isolated checkouts can symlink `node_modules` and run `npm run build` cleanly.
+1. **Two Distinct Commits Required (`--commit C_bug` vs. `C_fix`)**
+   - Since `expected_commit` is passed via `--commit <40-char-sha>` (not hashed inside `AcceptanceSpec`), **one frozen `spec.json` (`spec_sha256` + `contract_id`)** verifies both `--commit C_bug` and `--commit C_fix` (`preparePinnedAppCheckout()` extracts historical commits via `git archive` and installs dependencies via `npm ci --ignore-scripts --no-audit --no-fund`).
+   - `scripts/finalize-oracle-drop.ts` throws if `holdManifest.application.tested_commit === releaseManifest.application.tested_commit`. Single-commit `APP_BUG` toggles are rejected for Demo 2.0.
 2. **Do Not Use `scripts/finalize-showcase.ts` for Oracle Drops**
    - `scripts/finalize-showcase.ts:30` and `scripts/verify-provenance.ts:28-33` require `mode: 'demo'` + `visual_qa`. Use `npm run verify:oracle` and `scripts/finalize-oracle-drop.ts` backed by `verifyOracleManifest()`.
 3. **`out/run-manifest.json` Overwrite Between Run 1 and Run 2**

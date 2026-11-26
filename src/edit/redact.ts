@@ -49,11 +49,21 @@ export const DEFAULT_REDACTION_RULES: RedactionRule[] = [
     regex: /\beyJ[a-zA-Z0-9_\-]{8,}\.eyJ[a-zA-Z0-9_\-]{8,}\.[a-zA-Z0-9_\-]{8,}\b/g,
     replacement: '[REDACTED_JWT]',
   },
-  // 7. Private Keys (RSA/EC/OpenSSH) & Oracle env secret assignments
+  // 7. Private Keys (RSA/EC/OpenSSH/Ed25519 PEM blocks & partial headers) & Oracle paths/secret assignments
   {
     name: 'private_key',
     regex: /-----BEGIN (?:[A-Z ]+)PRIVATE KEY-----[\s\S]*?-----END (?:[A-Z ]+)PRIVATE KEY-----/g,
     replacement: '[REDACTED_PRIVATE_KEY]',
+  },
+  {
+    name: 'pem_private_key_header',
+    regex: /-----BEGIN\s+(?:[A-Z0-9 ]+\s+)?PRIVATE KEY-----/gi,
+    replacement: '[REDACTED_PEM_HEADER]',
+  },
+  {
+    name: 'oracle_keys_path',
+    regex: /\.oracle-keys(?:[/\\][^\s"'`]*)?/gi,
+    replacement: '[REDACTED_ORACLE_KEY_PATH]',
   },
   {
     name: 'oracle_secret_assignment',
