@@ -7,18 +7,19 @@ import http from 'http';
 import crypto from 'crypto';
 import {
   runOraclePipeline,
-  runOracleWithInconclusivePolicy,
+  runOracleWithSymmetricConsensus,
   validateOracleTargetUrl,
 } from '../src/oracle/runner.js';
 import { scrubChildEnv, stripOracleSecrets } from '../src/oracle/env.js';
 import { computePublicKeyId } from '../src/oracle/sign.js';
 import { computeSpecSha256 } from '../src/oracle/spec.js';
-import { verifyOracleManifest } from '../src/manifest.js';
+import { generateRunManifest, verifyOracleManifest } from '../src/manifest.js';
 import { AcceptanceSpec, AppLifecycleAdapter, KaneRunResult } from '../src/types.js';
 import {
   DeliverableBuildError,
   LedgerlyLifecycleAdapter,
   RunnerInfraError,
+  validateDeliverableLockfile,
 } from '../src/app/lifecycle.js';
 
 function createTestKeys() {
@@ -875,59 +876,188 @@ test('Oracle splits runner faults (missing actions.ndjson, RunnerInfraError -> i
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
-test('Oracle fails closed (exit 2) on untested Kane CLI version and enforces 3-attempt inconclusive retry policy', async () => {
+test('Oracle fails closed (exit 2) on unverified Kane patch version and enforces 2-consecutive symmetric consensus', async () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'autocast-oracle-kane-pin-'));
   const keys = createTestKeys();
   const commit = 'abab111122223333444455556666777788889999';
   const spec = makeSpec();
-  const { specPath } = writeSpecFile(tmpDir, spec);
+  const { specPath, specSha256 } = writeSpecFile(tmpDir, spec);
 
-  // Untested kane-cli version fails closed with exitCode 2 before starting app
+  // Unverified patch release kane-cli version ('0.10.5') fails closed with exitCode 2
   const badVerOutcome = await runOraclePipeline({
     specPath,
     commit,
     outDir: path.join(tmpDir, 'out-badver'),
     signingKey: keys.privatePem,
     deps: {
-      getKaneVersionFn: () => '0.11.0',
+      getKaneVersionFn: () => '0.10.5',
     },
   });
   assert.equal(badVerOutcome.exitCode, 2);
-  assert.match(badVerOutcome.error || '', /Unsupported kane-cli version '0.11.0'/i);
+  assert.match(badVerOutcome.error || '', /Unsupported kane-cli version '0\.10\.5'/i);
 
-  // Retry policy caps at max 2 retries (3 total runs) then escalates to arbitration
-  let calls = 0;
-  const escalated = await runOracleWithInconclusivePolicy(
-    { specPath, commit, maxInconclusiveRetries: 2 },
+  // Invariant test: NO option or env var can forge application.isolation === 'container' in Tier A
+  const prevIsoEnv = process.env.ORACLE_ISOLATION;
+  process.env.ORACLE_ISOLATION = 'container';
+  try {
+    const isoManifestPath = path.join(tmpDir, 'out-iso', 'run-manifest.json');
+    const homeSessionDir = path.join(os.homedir(), '.testmuai', 'kaneai', 'sessions', 'fake-session');
+    const isoOutcome = await runOraclePipeline({
+      specPath,
+      commit,
+      outDir: path.join(tmpDir, 'out-iso'),
+      manifestOutPath: isoManifestPath,
+      signingKey: keys.privatePem,
+      requireCleanTree: false,
+      deps: {
+        preflightFn: () => ({ headCommit: commit, clean: true }),
+        prepareCheckoutFn: () => ({ appDir: tmpDir }),
+        createAdapterFn: () => ({
+          name: 'mock',
+          appDir: tmpDir,
+          start: async () => ({ pid: 1, port: 8080, commit }),
+          stop: async () => {},
+          getHealthInfo: async () => ({ ok: true, commit }),
+          healthCheck: async (c) => c === commit,
+          resetSeedData: async () => {},
+          verifyUnderlyingState: async () => true,
+        }),
+        executeKaneRunFn: async () => ({
+          passed: true,
+          category: 'pass',
+          isProductDefect: false,
+          exitCode: 0,
+          resultCode: 100,
+          summary: 'Verified',
+          sessionDir: homeSessionDir,
+          evidencePack: `${homeSessionDir}/evidence/run.evidence`,
+          steps: [],
+        }),
+        verifyUiOutcomesFn: async () => ({ passed: true, failures: [] }),
+      },
+    });
+    assert.equal(isoOutcome.manifest?.application.isolation, 'none');
+    assert.equal(
+      (generateRunManifest as any)({
+        outputPath: path.join(tmpDir, 'direct-iso.json'),
+        mode: 'oracle',
+        status: 'verified',
+        applicationUrl: 'http://localhost:8080/',
+        applicationEnvironment: 'runner_pinned',
+        applicationIsolation: 'container',
+        testedCommit: commit,
+        stateVerified: true,
+        kaneVerification: { run_id: 'r1', kane_cli_version: '0.10.4', result_code: 100 },
+        closedLoopRepair: { occurred: false },
+        oracle: { spec_sha256: specSha256, seed_id: spec.target.seed_id, expected_commit: commit, runner_id: 'autocast-oracle-runner', verdict: 'release' },
+        signingKey: keys.privatePem,
+      }).application.isolation,
+      'none',
+      'generateRunManifest must reject/ignore container isolation injection in Tier A'
+    );
+    assert.ok(isoOutcome.manifest?.kane_verification?.session_id?.startsWith('~'));
+    assert.equal(isoOutcome.manifest?.oracle?.runner_id, 'autocast-oracle-runner');
+  } finally {
+    if (prevIsoEnv === undefined) delete process.env.ORACLE_ISOLATION;
+    else process.env.ORACLE_ISOLATION = prevIsoEnv;
+  }
+
+  // Symmetric Consensus 1: Two consecutive agreeing 'release' runs -> release
+  let releaseCalls = 0;
+  const twoRelease = await runOracleWithSymmetricConsensus(
+    { specPath, commit, signingKey: keys.privatePem, outDir: path.join(tmpDir, 'c-rel') },
     async () => {
-      calls++;
-      return { exitCode: 4, verdict: 'inconclusive', holdReason: 'timeout' };
+      releaseCalls++;
+      return { exitCode: 0, verdict: 'release', specSha256 };
     }
   );
-  assert.equal(calls, 3);
-  assert.equal(escalated.attempts, 3);
-  assert.equal(escalated.escalatedToArbitration, true);
+  assert.equal(releaseCalls, 2);
+  assert.equal(twoRelease.outcome.verdict, 'release');
+  assert.equal(twoRelease.escalatedToArbitration, false);
 
-  // Hold / Release stops immediately without retrying
+  // Symmetric Consensus 2: Two consecutive agreeing 'hold' runs -> hold (single flaky hold is not enough)
   let holdCalls = 0;
-  const nonRetryHold = await runOracleWithInconclusivePolicy(
-    { specPath, commit, maxInconclusiveRetries: 2 },
+  const twoHold = await runOracleWithSymmetricConsensus(
+    { specPath, commit, signingKey: keys.privatePem, outDir: path.join(tmpDir, 'c-hold') },
     async () => {
       holdCalls++;
-      return { exitCode: 1, verdict: 'hold', holdReason: 'build_failed' };
+      return { exitCode: 1, verdict: 'hold', holdReason: 'kane_failed', specSha256 };
     }
   );
-  assert.equal(holdCalls, 1);
-  assert.equal(nonRetryHold.escalatedToArbitration, false);
+  assert.equal(holdCalls, 2);
+  assert.equal(twoHold.outcome.verdict, 'hold');
+
+  // Symmetric Consensus 3: release followed by hold (disagreement) -> inconclusive (verdict_disagreement, exit 4)
+  const disagreeManifestPath = path.join(tmpDir, 'c-disagree', 'run-manifest.json');
+  const seq = ['release', 'hold'] as const;
+  let seqIdx = 0;
+  const disagreeRes = await runOracleWithSymmetricConsensus(
+    { specPath, commit, signingKey: keys.privatePem, outDir: path.join(tmpDir, 'c-disagree'), manifestOutPath: disagreeManifestPath },
+    async () => {
+      const v = seq[seqIdx++];
+      return v === 'release'
+        ? { exitCode: 0, verdict: 'release', specSha256 }
+        : { exitCode: 1, verdict: 'hold', holdReason: 'kane_failed', specSha256 };
+    }
+  );
+  assert.equal(disagreeRes.outcome.exitCode, 4);
+  assert.equal(disagreeRes.outcome.verdict, 'inconclusive');
+  assert.equal(disagreeRes.outcome.holdReason, 'verdict_disagreement');
+  assert.equal(disagreeRes.escalatedToArbitration, true);
+  assert.equal(JSON.parse(fs.readFileSync(disagreeManifestPath, 'utf-8')).oracle.hold_reason, 'verdict_disagreement');
+
+  // Symmetric Consensus 4: inconclusive + release + release -> recovers cleanly at 3 attempts
+  const recSeq = ['inconclusive', 'release', 'release'] as const;
+  let recIdx = 0;
+  const recovered = await runOracleWithSymmetricConsensus(
+    { specPath, commit, maxAttempts: 3 },
+    async () => {
+      const v = recSeq[recIdx++];
+      if (v === 'inconclusive') return { exitCode: 4, verdict: 'inconclusive', holdReason: 'timeout', specSha256 };
+      return { exitCode: 0, verdict: 'release', specSha256 };
+    }
+  );
+  assert.equal(recovered.attempts, 3);
+  assert.equal(recovered.outcome.verdict, 'release');
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
-test('LedgerlyLifecycleAdapter registry ping separates runner outage (RunnerInfraError) from lockfile 404 (DeliverableBuildError)', async () => {
+test('LedgerlyLifecycleAdapter enforces lockfile registry host allowlist, retries CDN blips once, and isolates 404 vs outage', async () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'autocast-oracle-regcheck-'));
   const appDir = path.join(tmpDir, 'ledgerly');
   fs.mkdirSync(path.join(appDir, 'server'), { recursive: true });
+  fs.writeFileSync(path.join(appDir, 'server', 'index.js'), '');
+
+  // 1. Non-allowlisted registry host or git:/file: in lockfile/package.json -> immediate DeliverableBuildError before install
+  fs.writeFileSync(path.join(appDir, 'package.json'), JSON.stringify({ name: 'bad-pkg', version: '1.0.0', dependencies: { evil: 'git+https://evil.example.com/repo.git' } }));
+  assert.throws(
+    () => validateDeliverableLockfile(appDir, ['registry.npmjs.org']),
+    (err: any) => err instanceof DeliverableBuildError && /Forbidden dependency specifier/i.test(err.message)
+  );
+
   fs.writeFileSync(path.join(appDir, 'package.json'), JSON.stringify({ name: 'bad-pkg', version: '1.0.0' }));
+  fs.writeFileSync(
+    path.join(appDir, 'package-lock.json'),
+    JSON.stringify({
+      name: 'bad-pkg',
+      version: '1.0.0',
+      lockfileVersion: 3,
+      packages: {
+        '': { name: 'bad-pkg', version: '1.0.0' },
+        'node_modules/evil-pkg': {
+          version: '1.0.0',
+          resolved: 'https://rogue.example.net/evil-pkg-1.0.0.tgz',
+        },
+      },
+    })
+  );
+  assert.throws(
+    () => validateDeliverableLockfile(appDir, ['registry.npmjs.org']),
+    (err: any) => err instanceof DeliverableBuildError && /Non-allowlisted registry host/i.test(err.message)
+  );
+
+  // Reset lockfile to valid allowlisted registry.npmjs.org host
   fs.writeFileSync(
     path.join(appDir, 'package-lock.json'),
     JSON.stringify({
@@ -943,11 +1073,10 @@ test('LedgerlyLifecycleAdapter registry ping separates runner outage (RunnerInfr
       },
     })
   );
-  fs.writeFileSync(path.join(appDir, 'server', 'index.js'), '');
 
   const adapter = new LedgerlyLifecycleAdapter({ appDir, port: 18999 });
 
-  // 1. Registry ping fails -> RunnerInfraError (runner outage -> inconclusive)
+  // 2. Registry ping fails -> RunnerInfraError (runner outage -> inconclusive)
   await assert.rejects(
     () =>
       adapter.start({
@@ -958,16 +1087,49 @@ test('LedgerlyLifecycleAdapter registry ping separates runner outage (RunnerInfr
     (err: any) => err instanceof RunnerInfraError
   );
 
-  // 2. Registry ping succeeds, but lockfile tarball returns E404 / fails -> DeliverableBuildError (hold)
+  // 3. Transient 404 on attempt 1 that succeeds on retry 2 completes install cleanly!
+  let installCalls = 0;
+  let transientSucceeded = false;
+  try {
+    await adapter.start({
+      scrubEnv: true,
+      allowNodeModulesSymlink: false,
+      checkRegistryFn: async () => true,
+      installExecFn: () => {
+        installCalls++;
+        if (installCalls === 1) {
+          throw new Error('npm error code E404 (transient CDN blip)');
+        }
+        // Populate minimal node_modules & dist so start proceeds to spawn check cleanly
+        fs.mkdirSync(path.join(appDir, 'node_modules'), { recursive: true });
+        fs.mkdirSync(path.join(appDir, 'dist'), { recursive: true });
+        fs.writeFileSync(path.join(appDir, 'dist', 'index.html'), '<html></html>');
+        transientSucceeded = true;
+      },
+    });
+  } catch {
+    // Expected server exited early after empty server/index.js
+  }
+  assert.equal(installCalls, 2);
+  assert.equal(transientSucceeded, true);
+
+  // 4. Persistent E404 across both attempts on healthy registry -> DeliverableBuildError (hold)
+  fs.rmSync(path.join(appDir, 'node_modules'), { recursive: true, force: true });
+  let persistentCalls = 0;
   await assert.rejects(
     () =>
       adapter.start({
         scrubEnv: true,
         allowNodeModulesSymlink: false,
         checkRegistryFn: async () => true,
+        installExecFn: () => {
+          persistentCalls++;
+          throw new Error('npm error code E404 Not Found - missing tarball');
+        },
       }),
     (err: any) => err instanceof DeliverableBuildError
   );
+  assert.equal(persistentCalls, 2);
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });

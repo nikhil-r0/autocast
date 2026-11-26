@@ -82,7 +82,7 @@ export async function reverifyOracle(options: {
     expectedSpecSha256: loaded.specSha256,
     expectedCommit,
     trustedKeysPath: options.trustedKeysPath,
-    allowUnisolatedBeta: options.allowUnisolatedBeta ?? true,
+    allowUnisolatedBeta: Boolean(options.allowUnisolatedBeta),
   });
 
   if (!options.reshoot) {

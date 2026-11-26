@@ -505,9 +505,9 @@ All core architecture phases are complete, tested, and verified:
 
 ---
 
-## 6. Verification Test Suite Matrix (80 Automated Tests: 78 Passing + 2 Tier-B Red-Team Boundaries)
+## 6. Verification Test Suite Matrix (81 Automated Tests: 79 Passing + 2 Tier-B Red-Team Boundaries)
 
-The test suite consists of **80 unit, integration, and red-team tests** (44 core/demo tests, 33 Oracle Mode & manifest tests across `tests/oracle-*.test.ts` and `tests/manifest.test.ts`, plus 3 red-team probes in `tests/oracle-redteam.test.ts`) executing via Node's native test runner (`node scripts/run-tests.mjs`). All 78 active assertions pass (100%), and the 2 OS-user filesystem/egress red-team boundary probes are explicitly tracked as `TODO` until Tier B container & separate signer isolation ship.
+The test suite consists of **81 unit, integration, and red-team tests** (45 core/demo tests, 33 Oracle Mode & manifest tests across `tests/oracle-*.test.ts` and `tests/manifest.test.ts`, plus 3 red-team probes in `tests/oracle-redteam.test.ts`) executing via Node's native test runner (`node scripts/run-tests.mjs`). All 79 active assertions pass (100%), and the 2 OS-user filesystem/egress red-team boundary probes are explicitly tracked as `TODO` until Tier B container & separate signer isolation ship.
 
 | Test ID | Module | Scenario | Expected Behavior | Status |
 |---|---|---|---|---|
@@ -541,8 +541,8 @@ The test suite consists of **80 unit, integration, and red-team tests** (44 core
 | `TEST-27` | `Showcase` | Showcase finalizer / verifier detects `run_id` mismatch | Aborts with provenance mismatch error. | **Pass** |
 | `TEST-28` | `Preflight` | Dirty working tree, wrong branch, or unsynced remote | Preflight audit halts pipeline. | **Pass** |
 | `TEST-29` | `Manifest` | Manifest preserves and verifies Kane hosted ShareLinks | Verifies ShareLink presence and accessibility. | **Pass** |
-| Unit (14) | Various | Action IR parsing (`wait` support, `internal:testid`/Playwright normalization & multi-flow `.evidence` ZIP merge), OutcomeSpec satisfaction, gallery HTTP, zoom floor, caption shortening, cursor centering, lint revert, pattern matching | All 14 unit specifications pass. | **Pass** |
-| Oracle (37) | `tests/oracle-*.test.ts`, `manifest.test.ts` | Canonical JSON & `spec_sha256`, Day-1 frozen spec (`contract_id`, `milestone_id`, `escrow_address`), delivery `--commit` 40-char SHA, scrubbed child envs (`--ignore-scripts` + registry ping), Kane CLI version pin (`0.10.x`), strict Gate 9 (`runner_pinned`) + Gate 10 (`isolation === 'container'`), archived real fixture cryptographic checks, Ed25519 signing/tampering, single-write signing, `verifyOracleHoldManifest`, timeout/missing trace/`RunnerInfraError` -> `inconclusive` (exit 4) vs lockfile 404/`DeliverableBuildError` -> `hold` (exit 1), 3-run retry escalation policy, timestamped webhook HMAC + `verifyWebhookSignature` 300s replay guard, `finalizeOracleDrop` two-commit verification, and 3 red-team isolation probes | 35 Pass + 2 Tier-B TODO | **Pass / Tracked** |
+| Unit (15) | Various | Action IR parsing (`wait` support, Playwright selector normalization, multi-flow `.evidence` ZIP merge & real Kane log regression fixtures), OutcomeSpec satisfaction, gallery HTTP, zoom floor, caption shortening, cursor centering, lint revert, pattern matching | All 15 unit specifications pass. | **Pass** |
+| Oracle (37) | `tests/oracle-*.test.ts`, `manifest.test.ts` | Canonical JSON & `spec_sha256`, Day-1 frozen spec (`contract_id`, `milestone_id`, `escrow_address`), delivery `--commit` 40-char SHA, scrubbed child envs (`--ignore-scripts` + registry allowlist + ping + CDN retry), exact Kane CLI version pin (`0.10.4`), strict Gate 9 (`runner_pinned`) + unforgeable Gate 10 (`isolation: 'none'` invariant), archived real fixture checks, home-dir anonymization (`~`), Ed25519 signing/tampering, single-write signing, `verifyOracleHoldManifest`, symmetric 2-run consensus (`verdict_disagreement` -> exit 4), timestamped webhook HMAC + `verifyWebhookSignature` 300s replay guard, `finalizeOracleDrop` two-commit verification, and 3 red-team isolation probes | 35 Pass + 2 Tier-B TODO | **Pass / Tracked** |
 
 ---
 

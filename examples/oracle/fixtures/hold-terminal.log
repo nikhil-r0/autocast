@@ -1,0 +1,19 @@
+================================================================
+⚖️  AUTOCAST ORACLE MODE: ACCEPTANCE PROOF RUNNER
+   Spec: "Ledgerly INV-1042 Invoice Approval" (db11e9ad3ee1...)
+   Pinned Commit: d1a734311a3af46307199c98b6ee75852116b7c7 | Seed: ledgerly-default-v1
+   Kane Pin: v0.10.4 | Isolation: none
+   ⚠️  BETA WARNING: isolation='none' (shared OS user, no container/separate signer).
+       Trusted code only — DO NOT use for untrusted code or real funds.
+================================================================
+
+[Lifecycle] Starting Ledgerly from <runner-workspace>/examples/ledgerly on port 8080...
+[Lifecycle] Installing pinned dependencies in <runner-workspace>/examples/ledgerly via "npm ci --ignore-scripts --no-audit --no-fund"...
+[Lifecycle] Building Ledgerly frontend assets in <runner-workspace>/examples/ledgerly...
+[Lifecycle] Ledgerly is healthy on http://localhost:8080 (commit: d1a734311a3af46307199c98b6ee75852116b7c7, pid: 66038)
+
+--- ORACLE VERIFICATION: KANE EXECUTION (FAIL-CLOSED) ---
+Verbatim Objective: "On the login page, fill Corporate Email with demo.user@example.com, fill Password with demo1234, click Sign In to Dashboard, then click the Review button for row INV-1042, click Approve Invoice in the drawer, enter approval note, click Confirm Approval, then verify drawer status badge shows Approved"
+[Shoot Loop] Invoking Kane CLI: kane-cli run On the login page, fill Corporate Email with demo.user@example.com, fill Password with demo1234, click Sign In to Dashboard, then click the Review button for row INV-1042, click Approve Invoice in the drawer, enter approval note, click Confirm Approval, then verify drawer status badge shows Approved --url http://localhost:8080/ --headless --agent --mode action --bug-detection off --final-validation on --assertion-failure-mode stop --name oracle-fixture-hold --timeout 300
+🚨 [Oracle HOLD] Kane failed (confirmed_product_bug, code=740): The invoice approval was accepted, but INV-1042 still showed Pending instead of Approved.
+[Provenance] Sealed tamper-evident run-manifest.json -> <runner-workspace>/out/run-manifest.json

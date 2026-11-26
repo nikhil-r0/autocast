@@ -1,0 +1,6 @@
+{"action_id": "1f71ed43-3607-4c15-8573-6a93b29f4ed7", "step": 1, "action_type": "click", "selectors": [{"selector": "internal:testid=[data-testid=\"btn-review-INV-1042\"s]", "score": 100, "isXPath": false}], "action_params": {}, "status": "success"}
+{"action_id": "2f71ed43-3607-4c15-8573-6a93b29f4ed8", "step": 2, "action_type": "click", "selectors": [{"selector": "internal:testid=[data-testid=\"btn-open-approve-modal\"s]", "score": 100, "isXPath": false}], "action_params": {}, "status": "success"}
+{"action_id": "3f71ed43-3607-4c15-8573-6a93b29f4ed9", "step": 3, "action_type": "fill", "selectors": [{"selector": "internal:testid=[data-testid=\"input-approval-note\"s]", "score": 100, "isXPath": false}], "action_params": {"text": "Approved"}, "status": "success"}
+{"action_id": "4f71ed43-3607-4c15-8573-6a93b29f4ed0", "step": 4, "action_type": "click", "selectors": [{"selector": "internal:testid=[data-testid=\"btn-confirm-approve\"s]", "score": 100, "isXPath": false}], "action_params": {}, "status": "success"}
+{"action_id": "c1c3c53c-4c85-42d6-b5dd-2e89b6dd737f", "step": 5, "action_type": "analyze", "action_params": {"condition": "the drawer status badge shows Approved"}, "status": "success"}
+{"action_id": "bfd22082-37cd-4aeb-9620-8a83a63bd9fa", "step": 6, "action_type": "assert", "action_params": {"assertion_tree": {"status": "passed"}}, "status": "success"}

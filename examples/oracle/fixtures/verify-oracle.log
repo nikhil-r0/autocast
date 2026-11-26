@@ -1,0 +1,23 @@
+
+================================================================
+⚖️  AUTOCAST ORACLE PAYMENT GATE VERIFIER
+================================================================
+Manifest:        <repo>/examples/oracle/fixtures/release-manifest.json
+Expected Spec:   db11e9ad3ee1067b528ed8ea185782ae60d9b4091497ee99cd597cbab16013df
+Expected Commit: d502e5c1c67941e7684473e5cfc7e9f39bf51f44
+
+✓ Gate 1: Mode -> "oracle"
+✓ Gate 2: Status & Verdict -> "verified" / "release"
+✓ Gate 3: Kane Verification -> result_code 100 (kane-cli 0.10.4)
+✓ Gate 4: Backend State Verified -> true
+✓ Gate 5: Closed-Loop Repair Disabled -> occurred=false
+✓ Gate 6: Pinned Commit Match -> d502e5c1c67941e7684473e5cfc7e9f39bf51f44
+✓ Gate 7: Spec SHA-256 Match -> db11e9ad3ee1067b528ed8ea185782ae60d9b4091497ee99cd597cbab16013df
+✓ Gate 8: Ed25519 Signature Valid -> key_id=7b5ff4c13ce5df98b60e23e172677a19779dcd5c385c7c42936f8340d2d67060
+✓ Gate 9: Environment Pinned -> runner_pinned
+⚠ Gate 10: Beta Isolation Bypassed (--allow-unisolated-beta) -> isolation='none' (DO NOT USE FOR REAL FUNDS)
+✓ Runner ID: autocast-oracle-runner
+
+================================================================
+🎉 ORACLE PAYMENT VERDICT: RELEASE CONFIRMED
+================================================================

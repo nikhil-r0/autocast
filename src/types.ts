@@ -163,7 +163,8 @@ export type OracleHoldReason =
   | 'build_failed'
   | 'timeout'
   | 'missing_trace'
-  | 'runner_error';
+  | 'runner_error'
+  | 'verdict_disagreement';
 
 export interface OracleManifestSection {
   spec_sha256: string;

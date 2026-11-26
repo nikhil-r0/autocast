@@ -9,7 +9,9 @@ tools/
 .worktrees/
 .quarantine/
 *.log
+!examples/oracle/fixtures/*.log
 *.ndjson
+!tests/fixtures/kane-logs/*.ndjson
 *.pem
 *.key
 oracle-key*

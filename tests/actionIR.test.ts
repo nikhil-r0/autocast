@@ -164,3 +164,24 @@ test('normalizeActionSelector converts Kane internal Playwright selectors and fi
   }
 });
 
+test('Committed real Kane v0.10.4 bifurcated logs merge & parse cleanly without stale partial masking', () => {
+  const realLogsDir = path.resolve(process.cwd(), 'tests/fixtures/kane-logs');
+  const mergedPath = findActionsLog(realLogsDir);
+  assert.ok(mergedPath && fs.existsSync(mergedPath));
+  try {
+    const ir = parseActionsLogToActionIR(fs.readFileSync(mergedPath, 'utf8'));
+    assert.equal(ir.actions.length, 9);
+    assert.equal(ir.actions[0].type, 'navigate');
+    assert.equal(ir.actions[1].type, 'wait');
+    assert.equal(ir.actions[2].selector, '[data-testid="input-email"]');
+    assert.equal(ir.actions[4].selector, '[data-testid="btn-login"]');
+    assert.equal(ir.actions[5].selector, '[data-testid="btn-review-INV-1042"]');
+    assert.equal(ir.actions[8].selector, '[data-testid="btn-confirm-approve"]');
+  } finally {
+    const generatedMerged = path.join(realLogsDir, 'merged-actions.ndjson');
+    if (fs.existsSync(generatedMerged)) {
+      fs.unlinkSync(generatedMerged);
+    }
+  }
+});
+

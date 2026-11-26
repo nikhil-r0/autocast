@@ -77,13 +77,14 @@
 
 ### Step 1 — Run 1: Real Fail-Closed `hold` on Buggy Commit `C_bug` (Exit `1`)
 
-Run with `--commit "${BUG_COMMIT}"` and `--expect-spec-sha256 "${SPEC_SHA256}"`, capturing verbatim terminal output for Beat 2 (`Oracle Mode` runs `--bug-detection off` + deterministic `outcome_specs`, so `hold_reason` is `kane_failed` or `state_mismatch` and `kane_verification.result_code` comes directly from the actual run—do not hardcode `740`):
+Run with `--commit "${BUG_COMMIT}"`, `--expect-spec-sha256 "${SPEC_SHA256}"`, and `--single-run` (or omit `--single-run` to require 2-run symmetric consensus), capturing verbatim terminal output for Beat 2 (`Oracle Mode` runs `--bug-detection off` + deterministic `outcome_specs`, so `hold_reason` is `kane_failed` or `state_mismatch` and `kane_verification.result_code` comes directly from the actual run—do not hardcode `740`):
 ```bash
 mkdir -p out/oracle-drop
 RUN_ID=oracle-hold \
   node bin/autocast.js --oracle "${SPEC_PATH}" \
   --commit "${BUG_COMMIT}" \
   --expect-spec-sha256 "${SPEC_SHA256}" \
+  --single-run \
   2>&1 | tee out/oracle-drop/hold-terminal.log
 HOLD_EXIT=${PIPESTATUS[0]}
 echo "Hold exit code: ${HOLD_EXIT}"   # Must be 1
@@ -93,12 +94,13 @@ cp out/runs/oracle-hold/run-manifest.json out/oracle-drop/hold-manifest.json
 
 ### Step 2 — Run 2: Real Signed `release` on Fixed Commit `C_fix` + 1080p Playwright Proof (Exit `0`)
 
-Run `--commit "${FIX_COMMIT}"` with `--with-video` and `--publish stdout-json` under `RUN_ID=oracle-release`:
+Run `--commit "${FIX_COMMIT}"` with `--single-run` (or omit `--single-run` for 2-run symmetric consensus), `--with-video`, and `--publish stdout-json` under `RUN_ID=oracle-release`:
 ```bash
 RUN_ID=oracle-release \
   node bin/autocast.js --oracle "${SPEC_PATH}" \
   --commit "${FIX_COMMIT}" \
   --expect-spec-sha256 "${SPEC_SHA256}" \
+  --single-run \
   --with-video \
   --publish stdout-json \
   > out/oracle-drop/release-verdict.json \

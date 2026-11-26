@@ -24,6 +24,106 @@ export class RunnerInfraError extends Error {
 const INFRA_NETWORK_ERROR_RE = /EAI_AGAIN|ENOTFOUND|ETIMEDOUT|ECONNRESET|ECONNREFUSED|ERR_SOCKET|getaddrinfo/i;
 const LOCKFILE_OR_CONTRACTOR_INSTALL_RE = /E404|ETARGET|EINTEGRITY|ENOLOCK|EUSAGE|sha512-|integrity checksum|notarget|404 Not Found|invalid package|ERESOLVE/i;
 
+export const DEFAULT_ALLOWED_REGISTRY_HOSTS = ['registry.npmjs.org'];
+const FORBIDDEN_DEP_PROTOCOL_RE = /^(?:git(?:\+(?:https?|ssh|file))?:|github:|file:|link:|ssh:|https?:)/i;
+
+export function getAllowedRegistryHosts(overrideHosts?: string[]): Set<string> {
+  if (overrideHosts && overrideHosts.length > 0) {
+    return new Set(overrideHosts.map((h) => h.trim().toLowerCase()).filter(Boolean));
+  }
+  const fromEnv = (process.env.ORACLE_ALLOWED_REGISTRY_HOSTS || '')
+    .split(',')
+    .map((h) => h.trim().toLowerCase())
+    .filter(Boolean);
+  return new Set(fromEnv.length > 0 ? fromEnv : DEFAULT_ALLOWED_REGISTRY_HOSTS);
+}
+
+/**
+ * Enforces an explicit allowlist of npm registry hosts and rejects git:/file:/link:
+ * dependencies in package.json and package-lock.json before running `npm ci --ignore-scripts`.
+ */
+export function validateDeliverableLockfile(appDir: string, allowedHosts?: string[]): void {
+  const allowSet = getAllowedRegistryHosts(allowedHosts);
+
+  const pkgPath = path.join(appDir, 'package.json');
+  if (fs.existsSync(pkgPath)) {
+    let pkg: any;
+    try {
+      pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+    } catch (err: any) {
+      throw new DeliverableBuildError(`Invalid package.json in deliverable: ${err.message}`);
+    }
+    for (const section of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies']) {
+      const deps = pkg?.[section];
+      if (!deps || typeof deps !== 'object') continue;
+      for (const [name, rawVer] of Object.entries(deps)) {
+        const ver = String(rawVer || '').trim();
+        if (FORBIDDEN_DEP_PROTOCOL_RE.test(ver)) {
+          throw new DeliverableBuildError(
+            `Forbidden dependency specifier for '${name}' in package.json (${section}): '${ver}' (git/file/url specs are blocked in oracle mode).`
+          );
+        }
+      }
+    }
+  }
+
+  const lockPath = path.join(appDir, 'package-lock.json');
+  if (fs.existsSync(lockPath)) {
+    let lock: any;
+    try {
+      lock = JSON.parse(fs.readFileSync(lockPath, 'utf-8'));
+    } catch (err: any) {
+      throw new DeliverableBuildError(`Invalid package-lock.json in deliverable: ${err.message}`);
+    }
+
+    const checkEntry = (entryName: string, entry: any) => {
+      if (!entry || typeof entry !== 'object') return;
+      if (entry.link === true) {
+        throw new DeliverableBuildError(
+          `Forbidden symlinked dependency in package-lock.json ('${entryName}'): link=true is disallowed.`
+        );
+      }
+      if (typeof entry.resolved === 'string' && entry.resolved.trim()) {
+        const resolved = entry.resolved.trim();
+        if (!/^https?:\/\//i.test(resolved)) {
+          throw new DeliverableBuildError(
+            `Forbidden non-registry dependency resolved URL for '${entryName}': '${resolved}'.`
+          );
+        }
+        let parsed: URL;
+        try {
+          parsed = new URL(resolved);
+        } catch {
+          throw new DeliverableBuildError(
+            `Malformed resolved URL in package-lock.json for '${entryName}': '${resolved}'.`
+          );
+        }
+        if (parsed.protocol !== 'https:' || !allowSet.has(parsed.hostname.toLowerCase())) {
+          throw new DeliverableBuildError(
+            `Non-allowlisted registry host '${parsed.hostname}' in package-lock.json for '${entryName}' (allowed: ${Array.from(allowSet).join(', ')}).`
+          );
+        }
+      }
+      if (entry.dependencies && typeof entry.dependencies === 'object') {
+        for (const [depName, depObj] of Object.entries(entry.dependencies)) {
+          checkEntry(depName, depObj);
+        }
+      }
+    };
+
+    if (lock.packages && typeof lock.packages === 'object') {
+      for (const [pkgKey, pkgEntry] of Object.entries(lock.packages)) {
+        checkEntry(pkgKey || '<root>', pkgEntry);
+      }
+    }
+    if (lock.dependencies && typeof lock.dependencies === 'object') {
+      for (const [depName, depEntry] of Object.entries(lock.dependencies)) {
+        checkEntry(depName, depEntry);
+      }
+    }
+  }
+}
+
 export async function checkNpmRegistryHealth(
   registryUrl: string = process.env.npm_config_registry || 'https://registry.npmjs.org/'
 ): Promise<boolean> {
@@ -47,7 +147,9 @@ export interface LifecycleStartOptions {
   buildDistIfMissing?: boolean;
   scrubEnv?: boolean;
   allowNodeModulesSymlink?: boolean;
+  allowedRegistryHosts?: string[];
   checkRegistryFn?: () => Promise<boolean>;
+  installExecFn?: (cmd: string, cwd: string, env: Record<string, string | undefined>) => void;
 }
 
 export class LedgerlyLifecycleAdapter implements AppLifecycleAdapter {
@@ -123,31 +225,58 @@ export class LedgerlyLifecycleAdapter implements AppLifecycleAdapter {
           fs.symlinkSync(rootAppNodeModules, appNodeModules, 'junction');
         } catch {}
       } else if (!allowSymlink) {
+        validateDeliverableLockfile(this.appDir, opts?.allowedRegistryHosts);
+
         const hasLockfile = fs.existsSync(path.join(this.appDir, 'package-lock.json'));
         const installCmd = hasLockfile
           ? 'npm ci --ignore-scripts --no-audit --no-fund'
           : 'npm install --ignore-scripts --no-audit --no-fund';
-        const registryHealthy = await (opts?.checkRegistryFn
-          ? opts.checkRegistryFn()
-          : checkNpmRegistryHealth(env?.npm_config_registry));
-        if (!registryHealthy) {
+        const runRegistryCheck = () =>
+          opts?.checkRegistryFn
+            ? opts.checkRegistryFn()
+            : checkNpmRegistryHealth(env?.npm_config_registry);
+
+        if (!(await runRegistryCheck())) {
           throw new RunnerInfraError(
             'Runner npm registry health check failed prior to deliverable dependency install.'
           );
         }
+
+        const execInstall =
+          opts?.installExecFn ||
+          ((cmd: string, cwd: string, childEnv: Record<string, string | undefined>) => {
+            execSync(cmd, { cwd, env: childEnv, stdio: 'pipe' });
+          });
+
         console.log(`[Lifecycle] Installing pinned dependencies in ${this.appDir} via "${installCmd}"...`);
-        try {
-          execSync(installCmd, { cwd: this.appDir, env, stdio: 'pipe' });
-        } catch (err: any) {
-          const stderr = err?.stderr ? String(err.stderr) : '';
-          const stdout = err?.stdout ? String(err.stdout) : '';
-          const message = `${err?.message || ''}\n${stderr}\n${stdout}`.trim();
-          // On a verified healthy runner registry, 404/integrity/lockfile failures belong to contractor lockfile
+        let lastErr: any = null;
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          try {
+            execInstall(installCmd, this.appDir, env);
+            lastErr = null;
+            break;
+          } catch (err: any) {
+            lastErr = err;
+            if (attempt < 2) {
+              await new Promise((r) => setTimeout(r, 800));
+            }
+          }
+        }
+
+        if (lastErr) {
+          const stderr = lastErr?.stderr ? String(lastErr.stderr) : '';
+          const stdout = lastErr?.stdout ? String(lastErr.stdout) : '';
+          const message = `${lastErr?.message || ''}\n${stderr}\n${stdout}`.trim();
+          const stillHealthy = await runRegistryCheck();
+          if (!stillHealthy) {
+            throw new RunnerInfraError(`Runner registry unreachable on retry during install: ${message}`);
+          }
+          // After retry on verified healthy runner registry, 404/integrity/lockfile failures belong to contractor lockfile
           if (LOCKFILE_OR_CONTRACTOR_INSTALL_RE.test(message)) {
             throw new DeliverableBuildError(`Deliverable lockfile/dependency install failed (${installCmd}): ${message}`);
           }
           if (INFRA_NETWORK_ERROR_RE.test(message)) {
-            throw new RunnerInfraError(`Runner dependency install failed due to transient network error: ${message}`);
+            throw new RunnerInfraError(`Runner dependency install failed after retry due to transient network error: ${message}`);
           }
           throw new DeliverableBuildError(`Deliverable dependency install failed (${installCmd}): ${message}`);
         }

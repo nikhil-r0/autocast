@@ -1,13 +1,1 @@
-{
-  "spec_sha256": "db11e9ad3ee1067b528ed8ea185782ae60d9b4091497ee99cd597cbab16013df",
-  "tested_commit": "5f8bfc48879d7fb5544eb2392260f2d90d4e0209",
-  "manifest_sha256": "c796eca39fb0854a98f73bab596c8ff453f57f332cba3e5a2a7994434b53217a",
-  "verdict": "release",
-  "signature": {
-    "alg": "ed25519",
-    "key_id": "30782eb5b386f11eb54f723e8fe50ddc987ef8b0027fec3017b2d7e58c1d8231",
-    "sig": "62NgKPmvoFnh6DQCKf7lCsov47/juYzbP0DB/LArLtK9TY/C4nGBv8L7izp5/9z4pHafJ2/dcnfkS1TcIWZUDg=="
-  },
-  "run_id": "oracle-fixture-release",
-  "milestone_id": "ledgerly-inv-1042-approval"
-}
+{"spec_sha256":"db11e9ad3ee1067b528ed8ea185782ae60d9b4091497ee99cd597cbab16013df","tested_commit":"d502e5c1c67941e7684473e5cfc7e9f39bf51f44","manifest_sha256":"3cc57a5259ea52860e2568100d70beaf80d17c4f7e641f79c0f71a065d16be00","verdict":"release","signature":{"alg":"ed25519","key_id":"7b5ff4c13ce5df98b60e23e172677a19779dcd5c385c7c42936f8340d2d67060","sig":"dJTJWnxtQ4525Ti9f2vDBV+JuDA92sK+SLGost63Zllii4g8K3q2PXtTUEpMUkfWRT4w7Sw6JKLhQM2+2676Dw=="},"run_id":"oracle-fixture-release","milestone_id":"ledgerly-inv-1042-approval"}

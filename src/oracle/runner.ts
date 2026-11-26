@@ -6,7 +6,6 @@ import {
   AcceptanceSpec,
   AppLifecycleAdapter,
   ApplicationEnvironment,
-  ApplicationIsolation,
   KaneRunResult,
   OracleHoldReason,
   OracleVerdict,
@@ -21,7 +20,7 @@ import {
 import {
   executeKaneRun,
   probeKaneCliVersion,
-  SUPPORTED_ORACLE_KANE_VERSION_PATTERN,
+  SUPPORTED_ORACLE_KANE_VERSIONS,
 } from '../shoot/kane.js';
 import { classifyKaneRun } from '../shoot/classify.js';
 import { generateRunManifest } from '../manifest.js';
@@ -384,13 +383,24 @@ async function runOraclePipelineImpl(options: OracleRunOptions): Promise<OracleR
   const runDir = path.join(outDir, 'runs', runId);
   const manifestOutPath = options.manifestOutPath || path.join(outDir, 'run-manifest.json');
   const runManifestPath = path.join(runDir, 'run-manifest.json');
-  const runnerId = options.runnerId || process.env.ORACLE_RUNNER_ID || os.hostname() || 'autocast-oracle-runner';
+function sanitizeManifestSessionPath(rawPath: string | undefined): string | undefined {
+  if (!rawPath) return rawPath;
+  const home = os.homedir();
+  let cleaned = rawPath;
+  if (home && cleaned.startsWith(home)) {
+    cleaned = `~${cleaned.slice(home.length)}`;
+  }
+  return cleaned
+    .replace(/^\/home\/[^/]+/, '~')
+    .replace(/^\/Users\/[^/]+/, '~');
+}
+
+  const runnerId = options.runnerId || process.env.ORACLE_RUNNER_ID || 'autocast-oracle-runner';
 
   fs.mkdirSync(runDir, { recursive: true });
   let applicationEnvironment: ApplicationEnvironment = 'external_unverified';
-  const applicationIsolation: ApplicationIsolation = 'none';
 
-  // Fail closed on untested Kane CLI versions (Oracle is pinned to tested 0.10.x format & flags)
+  // Fail closed on untested Kane CLI versions (Oracle is pinned to exact tested version allowlist)
   let kaneCliVersion: string;
   try {
     if (options.deps?.getKaneVersionFn) {
@@ -406,8 +416,8 @@ async function runOraclePipelineImpl(options: OracleRunOptions): Promise<OracleR
     return { exitCode: 2, specSha256, error: msg };
   }
 
-  if (!SUPPORTED_ORACLE_KANE_VERSION_PATTERN.test(kaneCliVersion)) {
-    const msg = `Unsupported kane-cli version '${kaneCliVersion}': Oracle Mode is pinned to tested 0.10.x releases.`;
+  if (!SUPPORTED_ORACLE_KANE_VERSIONS.has(kaneCliVersion)) {
+    const msg = `Unsupported kane-cli version '${kaneCliVersion}': Oracle Mode is pinned to [${Array.from(SUPPORTED_ORACLE_KANE_VERSIONS).join(', ')}].`;
     logErr(`❌ [Oracle] ${msg}`);
     return { exitCode: 2, specSha256, error: msg };
   }
@@ -423,6 +433,9 @@ async function runOraclePipelineImpl(options: OracleRunOptions): Promise<OracleR
     posterPath?: string;
   }): Promise<RunManifest> => {
     const resolvedSigningKey = options.signingKey ?? process.env.ORACLE_SIGNING_KEY;
+    const sanitizedRunId = params.kaneResult?.sessionDir
+      ? sanitizeManifestSessionPath(params.kaneResult.sessionDir) || runId
+      : runId;
     const signedManifest = generateRunManifest({
       outputPath: manifestOutPath,
       additionalOutputPaths: [runManifestPath],
@@ -431,16 +444,15 @@ async function runOraclePipelineImpl(options: OracleRunOptions): Promise<OracleR
       runId,
       applicationUrl: spec.target.url,
       applicationEnvironment,
-      applicationIsolation,
       baselineCommit: expectedCommit,
       testedCommit: params.testedCommit,
       stateVerified: params.stateVerified,
       kaneVerification: params.kaneResult
         ? {
-            run_id: params.kaneResult.sessionDir || runId,
+            run_id: sanitizedRunId,
             kane_cli_version: kaneCliVersion,
-            session_id: params.kaneResult.sessionDir,
-            evidence_pack: params.kaneResult.evidencePack,
+            session_id: sanitizeManifestSessionPath(params.kaneResult.sessionDir),
+            evidence_pack: sanitizeManifestSessionPath(params.kaneResult.evidencePack),
             result_code: params.kaneResult.resultCode,
             share_url: params.kaneResult.testUrl,
             test_url: params.kaneResult.testUrl,
@@ -482,7 +494,7 @@ async function runOraclePipelineImpl(options: OracleRunOptions): Promise<OracleR
   log('⚖️  AUTOCAST ORACLE MODE: ACCEPTANCE PROOF RUNNER');
   log(`   Spec: "${spec.title}" (${specSha256.slice(0, 12)}...)`);
   log(`   Pinned Commit: ${expectedCommit} | Seed: ${spec.target.seed_id}`);
-  log(`   Kane Pin: v${kaneCliVersion} | Isolation: ${applicationIsolation}`);
+  log(`   Kane Pin: v${kaneCliVersion} | Isolation: none`);
   log('   ⚠️  BETA WARNING: isolation=\'none\' (shared OS user, no container/separate signer).');
   log('       Trusted code only — DO NOT use for untrusted code or real funds.');
   log('================================================================\n');
@@ -896,26 +908,32 @@ export interface OraclePolicyRunResult {
 }
 
 /**
- * Enforces the inconclusive retry & arbitration escalation policy:
- * runs single-shot verification and retries only on `verdict === 'inconclusive'`
- * up to `maxInconclusiveRetries` (default 2 -> max 3 total runs) before escalating
- * to arbitration.
+ * Symmetric consensus verifier:
+ * - Requires two consecutive agreeing runs for any decisive verdict (`release` or `hold`).
+ * - Any disagreement between `release` and `hold` immediately yields `inconclusive`
+ *   (`hold_reason: 'verdict_disagreement'`, exit 4) and overwrites any unconfirmed release manifest.
+ * - Transient `inconclusive` runs retry up to `maxAttempts` (default 3) looking for 2 agreeing runs.
  */
-export async function runOracleWithInconclusivePolicy(
-  options: OracleRunOptions & { maxInconclusiveRetries?: number },
+export async function runOracleWithSymmetricConsensus(
+  options: OracleRunOptions & { maxAttempts?: number },
   runFn: (opts: OracleRunOptions) => Promise<OracleRunOutcome> = runOraclePipeline
 ): Promise<OraclePolicyRunResult> {
-  const maxRetries = Math.max(0, Math.min(2, options.maxInconclusiveRetries ?? 2));
+  const maxAttempts = Math.max(2, Math.min(4, options.maxAttempts ?? 3));
   const history: OraclePolicyRunResult['history'] = [];
   const baseRunId = options.runId || process.env.RUN_ID || `autocast-oracle-${Date.now()}`;
+  const outDir = options.outDir || path.join(process.cwd(), 'out');
+  const manifestOutPath = options.manifestOutPath || path.join(outDir, 'run-manifest.json');
 
+  let prevDecisive: OracleRunOutcome | null = null;
   let lastOutcome: OracleRunOutcome = { exitCode: 2, error: 'Oracle did not execute' };
-  for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
-    const attemptRunId = attempt === 1 ? baseRunId : `${baseRunId}-retry-${attempt - 1}`;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const attemptRunId = `${baseRunId}-attempt-${attempt}`;
     lastOutcome = await runFn({
       ...options,
       runId: attemptRunId,
     });
+
     history.push({
       attempt,
       exitCode: lastOutcome.exitCode,
@@ -923,7 +941,8 @@ export async function runOracleWithInconclusivePolicy(
       holdReason: lastOutcome.holdReason,
     });
 
-    if (lastOutcome.verdict !== 'inconclusive') {
+    // Config/spec/signing errors (exit 2) abort immediately
+    if (lastOutcome.exitCode === 2 || !lastOutcome.verdict) {
       return {
         outcome: lastOutcome,
         attempts: attempt,
@@ -931,12 +950,95 @@ export async function runOracleWithInconclusivePolicy(
         history,
       };
     }
+
+    if (lastOutcome.verdict === 'inconclusive') {
+      prevDecisive = null;
+      continue;
+    }
+
+    if (prevDecisive && prevDecisive.verdict === lastOutcome.verdict) {
+      return {
+        outcome: lastOutcome,
+        attempts: attempt,
+        escalatedToArbitration: false,
+        history,
+      };
+    }
+
+    if (prevDecisive && prevDecisive.verdict !== lastOutcome.verdict) {
+      const msg = `Symmetry disagreement across runs (${prevDecisive.verdict} then ${lastOutcome.verdict}); verdict sealed inconclusive.`;
+      let disagreeManifest: RunManifest | undefined;
+      try {
+        const spec = loadAcceptanceSpec(options.specPath);
+        const signingKey = options.signingKey ?? process.env.ORACLE_SIGNING_KEY;
+        const runnerId = options.runnerId || process.env.ORACLE_RUNNER_ID || 'autocast-oracle-runner';
+        if (signingKey) {
+          disagreeManifest = generateRunManifest({
+            outputPath: manifestOutPath,
+            mode: 'oracle',
+            status: 'failed',
+            runId: `${baseRunId}-disagreement`,
+            applicationUrl: spec.spec.target.url,
+            applicationEnvironment: lastOutcome.manifest?.application?.environment || 'runner_pinned',
+            baselineCommit: options.commit,
+            testedCommit: lastOutcome.manifest?.application?.tested_commit || options.commit,
+            stateVerified: false,
+            closedLoopRepair: { occurred: false },
+            oracle: {
+              spec_sha256: spec.specSha256,
+              seed_id: spec.spec.target.seed_id,
+              expected_commit: options.commit,
+              runner_id: runnerId,
+              verdict: 'inconclusive',
+              hold_reason: 'verdict_disagreement',
+            },
+            signingKey,
+          });
+        }
+      } catch {
+        // ignore if manifest overwrite fails; still return exitCode 4
+      }
+      return {
+        outcome: {
+          exitCode: 4,
+          verdict: 'inconclusive',
+          holdReason: 'verdict_disagreement',
+          manifest: disagreeManifest,
+          manifestPath: disagreeManifest ? manifestOutPath : undefined,
+          specSha256: lastOutcome.specSha256,
+          error: msg,
+        },
+        attempts: attempt,
+        escalatedToArbitration: true,
+        history,
+      };
+    }
+
+    prevDecisive = lastOutcome;
   }
 
   return {
-    outcome: lastOutcome,
+    outcome: {
+      ...lastOutcome,
+      exitCode: 4,
+      verdict: 'inconclusive',
+      holdReason: lastOutcome.holdReason || 'timeout',
+    },
     attempts: history.length,
     escalatedToArbitration: true,
     history,
   };
+}
+
+/**
+ * Legacy helper alias retained cleanly alongside runOracleWithSymmetricConsensus.
+ */
+export async function runOracleWithInconclusivePolicy(
+  options: OracleRunOptions & { maxInconclusiveRetries?: number },
+  runFn: (opts: OracleRunOptions) => Promise<OracleRunOutcome> = runOraclePipeline
+): Promise<OraclePolicyRunResult> {
+  return runOracleWithSymmetricConsensus(
+    { ...options, maxAttempts: Math.max(2, Math.min(4, (options.maxInconclusiveRetries ?? 2) + 1)) },
+    runFn
+  );
 }

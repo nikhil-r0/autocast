@@ -24,7 +24,10 @@ import { LedgerlyLifecycleAdapter } from './app/lifecycle.js';
 import { generateRunManifest } from './manifest.js';
 import { RunManifest } from './types.js';
 import { runPreflightAudit } from './preflight.js';
-import { runOraclePipeline, runOracleWithInconclusivePolicy } from './oracle/runner.js';
+import {
+  runOraclePipeline,
+  runOracleWithSymmetricConsensus,
+} from './oracle/runner.js';
 import { PublishAdapterName } from './oracle/publish.js';
 
 import dns from 'dns';
@@ -91,6 +94,7 @@ interface ParsedCliFlags {
   expectSpecSha256?: string;
   withVideo: boolean;
   publishAdapter?: PublishAdapterName;
+  singleRun: boolean;
   maxInconclusiveRetries?: number;
   agentRepairFlag: boolean;
   promptArg?: string;
@@ -107,6 +111,7 @@ export function parseCliArgs(argv: string[]): ParsedCliFlags {
   let expectSpecSha256: string | undefined;
   let withVideo = false;
   let publishAdapter: PublishAdapterName | undefined;
+  let singleRun = false;
   let maxInconclusiveRetries: number | undefined;
   let agentRepairFlag = false;
   let skipReview = false;
@@ -142,6 +147,8 @@ export function parseCliArgs(argv: string[]): ParsedCliFlags {
       publishAdapter = argv[++i] as PublishAdapterName;
     } else if (arg.startsWith('--publish=')) {
       publishAdapter = arg.slice('--publish='.length) as PublishAdapterName;
+    } else if (arg === '--single-run') {
+      singleRun = true;
     } else if (arg === '--max-inconclusive-retries' && argv[i + 1]) {
       maxInconclusiveRetries = Number(argv[++i]);
     } else if (arg.startsWith('--max-inconclusive-retries=')) {
@@ -170,6 +177,7 @@ export function parseCliArgs(argv: string[]): ParsedCliFlags {
     expectSpecSha256,
     withVideo,
     publishAdapter,
+    singleRun,
     maxInconclusiveRetries,
     agentRepairFlag,
     promptArg: positionals[0],
@@ -198,24 +206,24 @@ async function main() {
       publishAdapter: parsed.publishAdapter,
       agentRepairRequested: parsed.agentRepairFlag,
     };
-    if (
-      parsed.maxInconclusiveRetries !== undefined &&
-      Number.isFinite(parsed.maxInconclusiveRetries) &&
-      parsed.maxInconclusiveRetries > 0
-    ) {
-      const policyRes = await runOracleWithInconclusivePolicy({
-        ...oracleOptions,
-        maxInconclusiveRetries: parsed.maxInconclusiveRetries,
-      });
-      if (policyRes.escalatedToArbitration) {
-        console.error(
-          `⚠️ [Oracle Policy] Verdict remained inconclusive after ${policyRes.attempts} attempts; escalated to arbitration.`
-        );
-      }
-      process.exit(policyRes.outcome.exitCode);
+    if (parsed.singleRun) {
+      const outcome = await runOraclePipeline(oracleOptions);
+      process.exit(outcome.exitCode);
     }
-    const outcome = await runOraclePipeline(oracleOptions);
-    process.exit(outcome.exitCode);
+    const maxAttempts =
+      parsed.maxInconclusiveRetries !== undefined && Number.isFinite(parsed.maxInconclusiveRetries)
+        ? Math.max(2, Math.min(4, parsed.maxInconclusiveRetries + 1))
+        : 3;
+    const consensusRes = await runOracleWithSymmetricConsensus({
+      ...oracleOptions,
+      maxAttempts,
+    });
+    if (consensusRes.escalatedToArbitration) {
+      console.error(
+        `⚠️ [Oracle Consensus] No 2-run agreement after ${consensusRes.attempts} attempts (${consensusRes.outcome.holdReason || 'inconclusive'}); escalated to arbitration.`
+      );
+    }
+    process.exit(consensusRes.outcome.exitCode);
   }
 
   const userPrompt = parsed.promptArg || 'Create a demo of the invoice approval flow';

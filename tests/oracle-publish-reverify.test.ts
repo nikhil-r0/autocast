@@ -172,13 +172,25 @@ test('reverifyOracle offline & --reshoot divergence reports inconclusive rather 
     signingKey: keys.privatePem,
   });
 
-  // Offline verification passes
+  // Offline verification requires explicit beta flag for isolation:'none'
+  const offlineStrict = await reverifyOracle({
+    specPath,
+    commit: COMMIT,
+    manifestPath,
+    trustedKeysPath: trustedPath,
+    reshoot: false,
+  });
+  assert.equal(offlineStrict.status, 'failed');
+  assert.equal(offlineStrict.exitCode, 1);
+
+  // Offline verification passes with allowUnisolatedBeta
   const offline = await reverifyOracle({
     specPath,
     commit: COMMIT,
     manifestPath,
     trustedKeysPath: trustedPath,
     reshoot: false,
+    allowUnisolatedBeta: true,
   });
   assert.equal(offline.status, 'verified');
   assert.equal(offline.exitCode, 0);
@@ -190,6 +202,7 @@ test('reverifyOracle offline & --reshoot divergence reports inconclusive rather 
     manifestPath,
     trustedKeysPath: trustedPath,
     reshoot: true,
+    allowUnisolatedBeta: true,
     outDir: path.join(tmpDir, 'reverify-matched'),
     runOracleFn: async () => ({
       exitCode: 0,
@@ -207,6 +220,7 @@ test('reverifyOracle offline & --reshoot divergence reports inconclusive rather 
     manifestPath,
     trustedKeysPath: trustedPath,
     reshoot: true,
+    allowUnisolatedBeta: true,
     outDir: path.join(tmpDir, 'reverify-diverged'),
     runOracleFn: async () => ({
       exitCode: 1,
@@ -263,6 +277,7 @@ test('reverifyOracle --reshoot accepts authentic signed hold manifests without k
     manifestPath: commitMismatchManifest,
     trustedKeysPath: trustedPath,
     reshoot: true,
+    allowUnisolatedBeta: true,
     outDir: path.join(tmpDir, 'reverify-cm'),
     runOracleFn: async () => ({
       exitCode: 1,
@@ -302,6 +317,7 @@ test('reverifyOracle --reshoot accepts authentic signed hold manifests without k
     manifestPath: specMismatchManifest,
     trustedKeysPath: trustedPath,
     reshoot: true,
+    allowUnisolatedBeta: true,
     outDir: path.join(tmpDir, 'reverify-sm'),
     runOracleFn: async () => ({
       exitCode: 0,

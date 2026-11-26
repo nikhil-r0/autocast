@@ -10,10 +10,11 @@ Autocast Oracle Mode turns a sealed `run-manifest.json` into a verifiable, fail-
 ## Core Guarantees & Design Principles
 
 1. **Fail closed on contractor defects; isolate runner faults.** Objective, backend/UI state, commit, and deterministic build failures seal a signed `hold` verdict and exit `1` (`kane_failed`, `state_mismatch`, `commit_mismatch`, `build_failed`). Timeouts, missing `actions.ndjson` traces, and runner/network outages seal `inconclusive` (`timeout`, `missing_trace`, `runner_error`) and exit `4` rather than assigning false contractual fault. No repair worktree, no `agy`, and no auto-patch re-shoot execute (`closed_loop_repair.occurred: false`).
-2. **Frozen Day-1 spec input & Kane CLI version pin.** Both parties agree on an `AcceptanceSpec` JSON file before work starts (locking `spec_sha256` alongside required `contract_id` and `milestone_id`, plus optional `escrow_address`). Its `objective` is passed to Kane verbatim with `--bug-detection off`; `runOraclePipeline` probes `kane-cli --version` upfront, fails closed (`exit 2`) outside the tested `0.10.x` series, and stamps `kane_verification.kane_cli_version`. *(Inspection of live `74aa2392-...` `events.ndjson` confirms that under `--bug-detection off --final-validation on`, `740` fires only on objective-target contradictions such as the reopened drawer remaining `Pending`, not unrelated page heuristics.)*
-3. **Scrubbed runner, registry ping & pinned checkout.** The runner requires `--commit <40-char-sha>` and `--expect-spec-sha256 <64-hex>` at verification time, validates `target.url` against `ORACLE_ALLOWED_HOSTS`, extracts the commit via `git archive`, checks runner npm registry health before running `npm ci --ignore-scripts --no-audit --no-fund` (so contractor 404/integrity lockfile defects seal `hold` / `build_failed` instead of forcing retries), scrubs secrets from build/app/Kane child envs, enforces `strictPort`, stamps `application.environment: "runner_pinned"` and `application.isolation: "none"`.
-4. **Full `outcome_specs` enforcement.** After Kane passes, the runner verifies all `api_state` endpoints directly AND extracts `0-actions.ndjson` (including from `.evidence` ZIP bundles in `kane-cli 0.10.x`) to deterministically replay `ActionIR` in headless Playwright for `dom_text`, `visible`, and `url` assertions (`networkidle` capped at `3000ms` with fallback).
-5. **Payment gates separated from cinematic gates & Gate 10 beta lock.** `verifyOracleManifest` enforces 10 payment gates—including strict `application.environment === 'runner_pinned'` and Gate 10 `application.isolation === 'container'`. By default, any payment verifier refuses today's `isolation: 'none'` manifests (`--allow-unisolated-beta` is strictly an explicit local beta inspection override).
+2. **Frozen Day-1 spec input & exact Kane CLI pin.** Both parties agree on an `AcceptanceSpec` JSON file before work starts (locking `spec_sha256` alongside required `contract_id` and `milestone_id`, plus optional `escrow_address`). Its `objective` is passed to Kane verbatim with `--bug-detection off`; `runOraclePipeline` probes `kane-cli --version` upfront, fails closed (`exit 2`) outside `SUPPORTED_ORACLE_KANE_VERSIONS` (`['0.10.4']`), and stamps `kane_verification.kane_cli_version`. *(Inspection of live `74aa2392-...` `events.ndjson` confirms that under `--bug-detection off --final-validation on`, `740` fires only on objective-target contradictions such as the reopened drawer remaining `Pending`, not unrelated page heuristics.)*
+   - *Credentials in real specs:* `examples/oracle/ledgerly-approval.json` uses seeded demo credentials solely as a runnable fixture. For production contracts, resolve credentials at verification time from a runner vault / ephemeral seed account and redact captured evidence rather than hashing reusable secrets into `AcceptanceSpec`.
+3. **Scrubbed runner, lockfile allowlist & unforgeable `isolation: "none"`.** The runner validates `target.url` against `ORACLE_ALLOWED_HOSTS`, extracts `--commit` via `git archive`, validates `package.json`/`package-lock.json` against `DEFAULT_ALLOWED_REGISTRY_HOSTS` (`registry.npmjs.org`, rejecting `git:`/`file:`/`link:` specs as `build_failed`), checks npm registry health, retries transient install blips once before classifying 404/integrity errors as `hold`, runs `npm ci --ignore-scripts --no-audit --no-fund`, scrubs child envs, enforces `strictPort`, anonymizes OS home directories (`~`) inside `kane_verification` paths before signing, stamps `environment: "runner_pinned"`, and unconditionally stamps `isolation: "none"` (nothing in `runOraclePipeline` or `generateRunManifest` can forge `'container'` in Tier A).
+4. **Full `outcome_specs` enforcement.** After Kane passes, the runner verifies all `api_state` endpoints directly AND merges/extracts all numbered `*-actions.ndjson` traces from `.evidence` ZIP bundles in `kane-cli 0.10.4` to deterministically replay `ActionIR` (including `wait` steps) in headless Playwright for `dom_text`, `visible`, and `url` assertions (`networkidle` capped at `3000ms` with fallback).
+5. **Payment gates separated from cinematic gates & Gate 10 beta lock.** `verifyOracleManifest` enforces 10 payment gates—including strict `application.environment === 'runner_pinned'` and Gate 10 `application.isolation === 'container'`. By default, any payment/escrow verifier refuses today's `isolation: 'none'` manifests. `--allow-unisolated-beta` exists strictly on local CLI inspection tools (never via env vars, publishers, or webhook verifiers).
 
 ---
 
@@ -78,6 +79,7 @@ Autocast Oracle Mode turns a sealed `run-manifest.json` into a verifiable, fail-
 autocast --oracle examples/oracle/ledgerly-approval.json \
   --commit <40-char-sha> \
   --expect-spec-sha256 <64-hex> \
+  [--single-run] \
   [--max-inconclusive-retries 2] \
   [--with-video] \
   [--publish stdout-json|webhook|evm]
@@ -92,10 +94,17 @@ autocast --oracle examples/oracle/ledgerly-approval.json \
 
 `--agent-repair` is ignored with a warning in oracle mode (`closed_loop_repair.occurred` is always sealed as `false`).
 
-### `inconclusive` Retry & Arbitration Policy
+### Symmetric 2-Run Consensus & `inconclusive` Policy
 
-- **Enforced in code (`runOracleWithInconclusivePolicy` & `--max-inconclusive-retries`):** The single-shot CLI defaults to `0` retries (`exit 4`). When `--max-inconclusive-retries 2` (or `runOracleWithInconclusivePolicy()` in [`src/oracle/runner.ts`](../src/oracle/runner.ts)) is used, the runner retries **only** when `verdict === 'inconclusive'` up to **2 times (3 total attempts)** and sets `escalatedToArbitration: true` if all 3 attempts stay `inconclusive`.
-- **Contractor-caused lockfile/timeout stalls:** A runner-side npm registry ping runs before `npm ci --ignore-scripts`; when the runner's registry connection is healthy, contractor HTTP `404` / integrity / lockfile errors classify directly as `hold` (`build_failed`, exit `1`) instead of triggering retries. For repeated app-server timeout stalls, arbitration inspects `kane-stderr.log` / server latency telemetry to convert reproducible SLA breaches into `hold`.
+- **Enforced by default (`runOracleWithSymmetricConsensus`):** By default, `autocast --oracle` requires **two consecutive agreeing runs** for any decisive verdict (`release` + `release`, or `hold` + `hold`). Any disagreement between `release` and `hold` seals `verdict: 'inconclusive'` (`hold_reason: 'verdict_disagreement'`, exit `4`) and escalates to arbitration (`--single-run` is available explicitly for single-pass local development/fixture tests).
+- **Retry cap & escalation:** Transient `inconclusive` outcomes (`timeout`, `missing_trace`, `runner_error`) retry up to `--max-inconclusive-retries` (default 3 total attempts max); if two consecutive agreeing runs cannot be reached, execution halts as `inconclusive` with `escalatedToArbitration: true`.
+- **Contractor-caused lockfile/timeout stalls:** Lockfile source validation (`git:`/`file:`/rogue registry hosts) fails immediately as `build_failed` (`hold`). Healthy runner pings retry transient install blips once before classifying persistent 404/integrity errors as `hold`.
+
+### Release Checklist for Kane CLI Version Bumps
+
+When upgrading `kane-cli` beyond `0.10.4`:
+1. Re-run `C_bug` (`hold`) and `C_fix` (`release`) live against `examples/oracle/ledgerly-approval.json` verifying `.evidence` ZIP `*-actions.ndjson` layout and Playwright `ActionIR` replay.
+2. Add the verified version string to `SUPPORTED_ORACLE_KANE_VERSIONS` in [`src/shoot/kane.ts`](../src/shoot/kane.ts) and capture sanitized log fixtures under [`tests/fixtures/kane-logs/`](../tests/fixtures/kane-logs/).
 
 ---
 
@@ -115,7 +124,7 @@ All ten gates must pass for payment release:
 
 1. `manifest.mode === 'oracle'`
 2. `manifest.status === 'verified'` and `manifest.oracle.verdict === 'release'` (no `hold_reason`)
-3. `manifest.kane_verification.result_code === 100` (and `kane_cli_version` matches pinned `0.10.x` if recorded)
+3. `manifest.kane_verification.result_code === 100` (and `kane_cli_version` is in exact allowlist `SUPPORTED_ORACLE_KANE_VERSIONS = ['0.10.4']`)
 4. `manifest.application.state_verified === true`
 5. `manifest.closed_loop_repair.occurred === false`
 6. `manifest.application.tested_commit === expectedCommit` and `manifest.oracle.expected_commit === expectedCommit`

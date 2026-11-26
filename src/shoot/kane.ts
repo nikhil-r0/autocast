@@ -7,10 +7,10 @@ import { stripOracleSecrets } from '../oracle/env.js';
 import { findActionsLog } from '../capture/actionIR.js';
 
 /**
- * Oracle Mode is pinned to the tested Kane CLI 0.10.x series whose
+ * Oracle Mode is pinned to the exact tested Kane CLI version allowlist whose
  * --bug-detection off, NDJSON run_end, and .evidence bundle layout are verified.
  */
-export const SUPPORTED_ORACLE_KANE_VERSION_PATTERN = /^0\.10\./;
+export const SUPPORTED_ORACLE_KANE_VERSIONS = new Set<string>(['0.10.4']);
 
 export function probeKaneCliVersion(): string {
   const out = execFileSync('kane-cli', ['--version'], {

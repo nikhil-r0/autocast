@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { ApplicationEnvironment, ApplicationIsolation, RunManifest } from './types.js';
+import { ApplicationEnvironment, RunManifest } from './types.js';
 import {
   TrustedKeyMap,
   computePublicKeyId,
@@ -10,6 +10,7 @@ import {
   verifyManifestSignature,
 } from './oracle/sign.js';
 import { normalizeSha256Hex } from './oracle/spec.js';
+import { SUPPORTED_ORACLE_KANE_VERSIONS } from './shoot/kane.js';
 
 export function computeFileSha256(filePath: string): string {
   const fileBuffer = fs.readFileSync(filePath);
@@ -91,7 +92,6 @@ export function generateRunManifest(params: {
   runId?: string;
   applicationUrl: string;
   applicationEnvironment?: ApplicationEnvironment;
-  applicationIsolation?: ApplicationIsolation;
   baselineCommit?: string;
   testedCommit?: string;
   integrationCommit?: string;
@@ -155,11 +155,9 @@ export function generateRunManifest(params: {
     application: {
       url: params.applicationUrl,
       ...(params.applicationEnvironment ? { environment: params.applicationEnvironment } : {}),
-      ...(mode === 'oracle'
-        ? { isolation: params.applicationIsolation ?? 'none' }
-        : params.applicationIsolation
-        ? { isolation: params.applicationIsolation }
-        : {}),
+      // Tier A unforgeable invariant: single-node runner ALWAYS stamps isolation='none';
+      // nothing in generateRunManifest or runner code paths can emit 'container' until Tier B ships.
+      ...(mode === 'oracle' ? { isolation: 'none' as const } : {}),
       baseline_commit: params.baselineCommit,
       tested_commit: params.testedCommit,
       integration_commit: params.integrationCommit,
@@ -327,10 +325,10 @@ export function verifyOracleManifest(
     }
     if (
       manifest.kane_verification.kane_cli_version &&
-      !/^0\.10\./.test(manifest.kane_verification.kane_cli_version)
+      !SUPPORTED_ORACLE_KANE_VERSIONS.has(manifest.kane_verification.kane_cli_version)
     ) {
       errors.push(
-        `Untested Kane CLI version '${manifest.kane_verification.kane_cli_version}'; Oracle Mode is pinned to 0.10.x`
+        `Untested Kane CLI version '${manifest.kane_verification.kane_cli_version}'; Oracle Mode is pinned to [${Array.from(SUPPORTED_ORACLE_KANE_VERSIONS).join(', ')}]`
       );
     }
   }

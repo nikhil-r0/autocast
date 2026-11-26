@@ -1,0 +1,36 @@
+================================================================
+⚖️  AUTOCAST ORACLE MODE: ACCEPTANCE PROOF RUNNER
+   Spec: "Ledgerly INV-1042 Invoice Approval" (db11e9ad3ee1...)
+   Pinned Commit: d502e5c1c67941e7684473e5cfc7e9f39bf51f44 | Seed: ledgerly-default-v1
+   Kane Pin: v0.10.4 | Isolation: none
+   ⚠️  BETA WARNING: isolation='none' (shared OS user, no container/separate signer).
+       Trusted code only — DO NOT use for untrusted code or real funds.
+================================================================
+
+[Lifecycle] Starting Ledgerly from <runner-workspace>/examples/ledgerly on port 8080...
+[Lifecycle] Installing pinned dependencies in <runner-workspace>/examples/ledgerly via "npm ci --ignore-scripts --no-audit --no-fund"...
+[Lifecycle] Building Ledgerly frontend assets in <runner-workspace>/examples/ledgerly...
+[Lifecycle] Ledgerly is healthy on http://localhost:8080 (commit: d502e5c1c67941e7684473e5cfc7e9f39bf51f44, pid: 66976)
+
+--- ORACLE VERIFICATION: KANE EXECUTION (FAIL-CLOSED) ---
+Verbatim Objective: "On the login page, fill Corporate Email with demo.user@example.com, fill Password with demo1234, click Sign In to Dashboard, then click the Review button for row INV-1042, click Approve Invoice in the drawer, enter approval note, click Confirm Approval, then verify drawer status badge shows Approved"
+[Shoot Loop] Invoking Kane CLI: kane-cli run On the login page, fill Corporate Email with demo.user@example.com, fill Password with demo1234, click Sign In to Dashboard, then click the Review button for row INV-1042, click Approve Invoice in the drawer, enter approval note, click Confirm Approval, then verify drawer status badge shows Approved --url http://localhost:8080/ --headless --agent --mode action --bug-detection off --final-validation on --assertion-failure-mode stop --name oracle-fixture-release --timeout 300
+[Path B Replay] Ingested Action IR from ~/.testmuai/kaneai/sessions/52a0b220-7ad7-463a-a5a2-e91b25dbc596/merged-actions.ndjson (6 action(s), 2 outcome spec(s))
+[Path B Replay] Launching Playwright at 1920x1080 with crisp recording...
+[Path B Replay] ✓ Reset application state to fresh seed data at http://localhost:8080
+[Path B Replay] Scene 1: Centralized Dashboard Overview...
+[Path B Replay] Scene 2: Selecting Invoice INV-1042 for Review...
+[Path B Replay] Scene 3: Inspecting Line Items & Terms in Drawer...
+[Path B Replay] Scene 4: Authorizing Payment Disbursement...
+[Path B Replay] Scene 5: Verifying Digital Approval Seal...
+[Path B Replay] Scene 6: Dismissing Drawer & Viewing Reconciled Ledger...
+[Path B Replay] Verifying 2 Machine OutcomeSpec(s)...
+[Oracle Video] Optional video capture/render failed (Replay rejected for semantic non-equivalence: OutcomeSpec 'default-outcome-seal' failed: selector '[data-testid="approved-seal"]' not visible); proceeding with release manifest.
+[Provenance] Sealed tamper-evident run-manifest.json -> <runner-workspace>/out/run-manifest.json
+
+================================================================
+🎉 ORACLE VERDICT: RELEASE
+   Spec SHA-256:  db11e9ad3ee1067b528ed8ea185782ae60d9b4091497ee99cd597cbab16013df
+   Tested Commit: d502e5c1c67941e7684473e5cfc7e9f39bf51f44
+   Manifest:      <runner-workspace>/out/run-manifest.json
+================================================================
