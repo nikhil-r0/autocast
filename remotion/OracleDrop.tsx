@@ -13,8 +13,6 @@ import {
   useVideoConfig,
 } from 'remotion';
 import { AuroraBackground } from './components/AuroraBackground';
-import { FloatingHud } from './components/FloatingHud';
-import { KineticTransition } from './components/KineticTransition';
 import { LowerThird } from './components/LowerThird';
 import { OracleEndCard } from './components/OracleEndCard';
 import { OracleGate, OracleGateList } from './components/OracleGateList';
@@ -73,7 +71,7 @@ export const defaultOracleDropProps: OracleDropProps = {
   sourceTrimBefore: 0,
   apiStateLine: '',
   gates: ORACLE_GATE_LABELS.map((label: string) => ({ label, passed: false })),
-  closingTitle: "Autocast v0.2 — Demos that can't lie. Code that can't fake a payout.",
+  closingTitle: 'Autocast v0.2 — Milestone payouts, gated by signed and verifiable proof.',
   closingSubtitle: 'Pass --props from a sealed hold commit and a sealed release commit.',
   repoUrl: 'github.com/nikhil-r0/autocast',
   swapAt: 0.52,
@@ -115,7 +113,7 @@ const BeatTitle: React.FC<{ kicker: string; title: string; subtitle: string }> =
   </div>
 );
 
-const PolicyBeat: React.FC<{ props: OracleDropProps; durationInFrames: number }> = ({ props, durationInFrames }) => {
+const PolicyBeat: React.FC<{ props: OracleDropProps; durationInFrames: number }> = ({ props }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const fork = spring({ frame: frame - Math.round(fps * 0.8), fps, config: { damping: 16, stiffness: 90 } });
@@ -124,20 +122,19 @@ const PolicyBeat: React.FC<{ props: OracleDropProps; durationInFrames: number }>
     <Stage>
       <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 40 }}>
         <BeatTitle
-          kicker="ORACLE MODE"
-          title="Same Kane engine. Opposite policy."
-          subtitle="Part 1 repairs a failed demo. Oracle mode seals a hold and does not touch the deliverable."
+          kicker="DISPUTE RESOLUTION"
+          title="Client says it's broken. Contractor says it works. Who's right?"
+          subtitle="One Day-1 frozen contract. Autocast Demo repairs broken flows; Oracle Mode seals a signed hold without touching code."
         />
         <div style={{ display: 'flex', gap: 40, opacity: interpolate(fork, [0, 1], [0, 1]) }}>
-          <PolicyPanel label="PART 1" body="740 → auto-fix" color="#38bdf8" />
-          <PolicyPanel label="ORACLE" body="740 → HOLD" color="#ef4444" />
+          <PolicyPanel label="DEMO MODE" body="740 → auto-fix" color="#38bdf8" />
+          <PolicyPanel label="ORACLE MODE" body="740 → HOLD" color="#ef4444" />
         </div>
         <div style={{ marginTop: 28, color: '#38bdf8', fontFamily: 'ui-monospace, monospace', fontSize: 16 }}>
           {props.contractId || 'contract not loaded'} · spec {spec}
         </div>
       </div>
-      <LowerThird caption="Part 1: 740 → auto-fix · Oracle: 740 → HOLD" tone="policy" />
-      <KineticTransition durationInFrames={durationInFrames} />
+      <LowerThird caption="Frozen contract · Demo repairs · Oracle seals HOLD" tone="policy" />
       <Sequence from={Math.round(fps * 0.8)}>
         <Audio src={staticFile('sfx-click.wav')} volume={0.45} />
       </Sequence>
@@ -169,21 +166,20 @@ const HoldBeat: React.FC<{ props: OracleDropProps; durationInFrames: number }> =
         <BeatTitle
           kicker="FAIL CLOSED"
           title="Buggy commit seals a hold"
-          subtitle="Kane 740. No worktree. No repair. Signed hold, exit 1."
+          subtitle="Deliberate test fixture (C_bug). Kane fails. No worktree. No repair. Signed hold, exit 1."
         />
       </div>
       <div style={{ position: 'absolute', top: 210, left: 80, display: 'flex', gap: 40 }}>
         <TerminalCard title="oracle hold" lines={props.holdTerminalLines} width={860} height={560} typingSpeed={speed} />
         <OracleVerdictSlab {...props.hold} swapAt={props.swapAt ?? 0.52} durationInFrames={durationInFrames} />
       </div>
-      <LowerThird caption="Kane 740 caught → zero repair → signed HOLD" tone="hold" />
-      <KineticTransition durationInFrames={durationInFrames} />
+      <LowerThird caption="Deliberate test fixture (C_bug) → zero repair → signed HOLD" tone="hold" />
       <BeatAudio src={props.audio?.beat2} />
     </Stage>
   );
 };
 
-const ReleaseBeat: React.FC<{ props: OracleDropProps; durationInFrames: number }> = ({ props, durationInFrames }) => {
+const ReleaseBeat: React.FC<{ props: OracleDropProps; durationInFrames: number }> = ({ props }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const flatten = spring({
@@ -232,17 +228,10 @@ const ReleaseBeat: React.FC<{ props: OracleDropProps; durationInFrames: number }
           {props.apiStateLine}
         </div>
       ) : null}
-      <FloatingHud
-        oracle={{
-          verdict: 'release',
-          resultCode: props.release.resultCode,
-          stateVerified: props.release.stateVerified,
-          repairOccurred: props.release.repairOccurred,
-        }}
-        title={props.release.testedCommit ? `commit ${shortHash(props.release.testedCommit)}` : 'release commit'}
+      <LowerThird
+        caption={`Commit ${props.release.testedCommit ? shortHash(props.release.testedCommit) : 'C_fix'} · Kane + backend state verified → signed RELEASE`}
+        tone="release"
       />
-      <LowerThird caption="Kane 100 + API state verified → signed RELEASE" tone="release" />
-      <KineticTransition durationInFrames={durationInFrames} />
       <BeatAudio src={props.audio?.beat3a} />
     </Stage>
   );
@@ -272,7 +261,7 @@ const VerifyBeat: React.FC<{ props: OracleDropProps; durationInFrames: number }>
       <div style={{ position: 'absolute', top: 28, left: 0, right: 0 }}>
         <BeatTitle
           kicker="OFFLINE"
-          title="Eight gates. No browser required."
+          title="Nine gates. No browser required."
           subtitle="A client checks the signed manifest. The video is not a payment gate."
         />
       </div>
@@ -280,8 +269,7 @@ const VerifyBeat: React.FC<{ props: OracleDropProps; durationInFrames: number }>
         <TerminalCard title="verify:oracle" lines={props.verifyTerminalLines} width={860} height={560} typingSpeed={speed} />
         <OracleGateList gates={props.gates} durationInFrames={durationInFrames} />
       </div>
-      <LowerThird caption="8 payment gates verified offline · zero video required" tone="neutral" />
-      <KineticTransition durationInFrames={durationInFrames} />
+      <LowerThird caption="9 payment gates verified offline · zero video required" tone="neutral" />
       <BeatAudio src={props.audio?.beat4a} />
     </Stage>
   );

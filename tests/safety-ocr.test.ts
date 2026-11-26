@@ -21,6 +21,8 @@ test('TEST-18: Secret in transition frame text / payload -> Detected across all 
     { rule: 'google_api_key', val: 'AIzaSyABCDEFGHIJKLMNOPQRSTUVWXYZ1234567' },
     { rule: 'github_token', val: 'ghp_123456789012345678901234567890123456' },
     { rule: 'aws_access_key', val: 'AKIAIOSFODNN7EXAMPLE' },
+    { rule: 'oracle_secret_assignment', val: 'ORACLE_SIGNING_KEY=.oracle-keys/runner-private.pem' },
+    { rule: 'oracle_secret_assignment', val: 'ORACLE_WEBHOOK_SECRET=super-secret-token' },
   ];
 
   for (const s of secrets) {

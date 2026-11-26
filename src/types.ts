@@ -142,12 +142,17 @@ export interface AcceptanceSpec {
     client: string;
     contractor: string;
   };
-  contract_id?: string;
+  contract_id: string;
   escrow_address?: string;
-  milestone_id?: string;
+  milestone_id: string;
 }
 
-export type OracleVerdict = 'release' | 'hold';
+export type OracleVerdict = 'release' | 'hold' | 'inconclusive';
+
+export type ApplicationEnvironment =
+  | 'runner_pinned'
+  | 'deployment_attested'
+  | 'external_unverified';
 
 export type OracleHoldReason =
   | 'kane_failed'
@@ -247,6 +252,7 @@ export interface RunManifest {
   status: 'verified' | 'unverified_draft' | 'quarantined' | 'failed';
   application: {
     url: string;
+    environment?: ApplicationEnvironment;
     baseline_commit?: string;
     tested_commit?: string;
     integration_commit?: string;

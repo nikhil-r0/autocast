@@ -6,6 +6,7 @@ import path from 'path';
 import http from 'http';
 import crypto from 'crypto';
 import { runOraclePipeline, validateOracleTargetUrl } from '../src/oracle/runner.js';
+import { scrubChildEnv, stripOracleSecrets } from '../src/oracle/env.js';
 import { computePublicKeyId } from '../src/oracle/sign.js';
 import { computeSpecSha256 } from '../src/oracle/spec.js';
 import { verifyOracleManifest } from '../src/manifest.js';
@@ -53,6 +54,8 @@ function makeSpec(overrides?: Partial<AcceptanceSpec['target']>): AcceptanceSpec
       seed_id: 'ledgerly-default-v1',
       ...overrides,
     },
+    contract_id: 'contract-test-001',
+    milestone_id: 'milestone-test-001',
   };
 }
 
@@ -412,21 +415,27 @@ test('Kane 100 + matching api_state seals signed release manifest and exits 0', 
         resetSeedData: async () => {},
         verifyUnderlyingState: async () => true,
       }),
-      executeKaneRunFn: async () => ({
-        passed: true,
-        category: 'pass',
-        isProductDefect: false,
-        exitCode: 0,
-        resultCode: 100,
-        summary: 'Verified',
-        sessionDir: '/tmp/kane-release-session',
-        steps: [],
-      }),
+      executeKaneRunFn: async (opts) => {
+        assert.equal(opts.bugDetection, 'off', 'Oracle mode must pass bugDetection=off to Kane');
+        assert.equal(opts.scrubOracleSecrets, true);
+        return {
+          passed: true,
+          category: 'pass',
+          isProductDefect: false,
+          exitCode: 0,
+          resultCode: 100,
+          summary: 'Verified',
+          sessionDir: '/tmp/kane-release-session',
+          steps: [],
+        };
+      },
+      verifyUiOutcomesFn: async () => ({ passed: true, failures: [] }),
     },
   });
 
   assert.equal(outcome.exitCode, 0);
   assert.equal(outcome.verdict, 'release');
+  assert.equal(outcome.manifest?.application.environment, 'runner_pinned');
 
   const verify = verifyOracleManifest(manifestPath, {
     expectedSpecSha256: specSha256,
@@ -488,6 +497,7 @@ test('CLI env ORACLE_SIGNING_KEY signs manifest in a single write (never writes 
           sessionDir: '/tmp/kane-singlewrite',
           steps: [],
         }),
+        verifyUiOutcomesFn: async () => ({ passed: true, failures: [] }),
       },
     });
 
@@ -550,6 +560,7 @@ test('Uppercase 40-char --commit matches lowercase served commit from /api/healt
         sessionDir: '/tmp/kane-case',
         steps: [],
       }),
+      verifyUiOutcomesFn: async () => ({ passed: true, failures: [] }),
     },
   });
 
@@ -597,6 +608,145 @@ test('Invalid or short --commit exits 2 before loading spec or starting app', as
   assert.equal(outcome.exitCode, 2);
   assert.match(outcome.error || '', /40-character hexadecimal/i);
   assert.equal(startCalled, false);
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('scrubChildEnv and stripOracleSecrets remove signing keys, webhook secrets, and AI keys', () => {
+  const dirtyEnv: NodeJS.ProcessEnv = {
+    PATH: '/usr/bin',
+    HOME: '/home/runner',
+    PORT: '8080',
+    ORACLE_SIGNING_KEY: '-----BEGIN PRIVATE KEY-----secret',
+    ORACLE_WEBHOOK_SECRET: 'whsec_12345',
+    ORACLE_TRUSTED_KEYS: '{"abc":"pem"}',
+    GEMINI_API_KEY: 'AIzaSyFakeKey',
+    GITHUB_TOKEN: 'ghp_secret',
+    CUSTOM_API_KEY: 'my_api_key',
+    TESTMU_API_TOKEN: 'kane_session_token',
+  };
+
+  const scrubbed = scrubChildEnv(dirtyEnv, { APP_COMMIT: 'abcd'.repeat(10) });
+  assert.equal(scrubbed.PATH, '/usr/bin');
+  assert.equal(scrubbed.APP_COMMIT, 'abcd'.repeat(10));
+  assert.equal(scrubbed.ORACLE_SIGNING_KEY, undefined);
+  assert.equal(scrubbed.ORACLE_WEBHOOK_SECRET, undefined);
+  assert.equal(scrubbed.ORACLE_TRUSTED_KEYS, undefined);
+  assert.equal(scrubbed.GEMINI_API_KEY, undefined);
+  assert.equal(scrubbed.GITHUB_TOKEN, undefined);
+  assert.equal(scrubbed.CUSTOM_API_KEY, undefined);
+
+  const kaneEnv = stripOracleSecrets(dirtyEnv);
+  assert.equal(kaneEnv.ORACLE_SIGNING_KEY, undefined);
+  assert.equal(kaneEnv.ORACLE_WEBHOOK_SECRET, undefined);
+  assert.equal(kaneEnv.GEMINI_API_KEY, undefined);
+  assert.equal(kaneEnv.TESTMU_API_TOKEN, 'kane_session_token');
+});
+
+test('Kane timeout seals inconclusive manifest (exit 4) instead of contractual hold', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'autocast-oracle-timeout-'));
+  const keys = createTestKeys();
+  const commit = '7777111122223333444455556666777788889999';
+  const spec = makeSpec();
+  const { specPath } = writeSpecFile(tmpDir, spec);
+  const manifestPath = path.join(tmpDir, 'out', 'run-manifest.json');
+
+  const outcome = await runOraclePipeline({
+    specPath,
+    commit,
+    outDir: path.join(tmpDir, 'out'),
+    manifestOutPath: manifestPath,
+    signingKey: keys.privatePem,
+    requireCleanTree: false,
+    deps: {
+      preflightFn: () => ({ headCommit: commit, clean: true }),
+      prepareCheckoutFn: () => ({ appDir: tmpDir }),
+      createAdapterFn: () => ({
+        name: 'mock',
+        appDir: tmpDir,
+        start: async () => ({ pid: 1, port: 8080, commit }),
+        stop: async () => {},
+        getHealthInfo: async () => ({ ok: true, commit }),
+        healthCheck: async (c) => c === commit,
+        resetSeedData: async () => {},
+        verifyUnderlyingState: async () => true,
+      }),
+      executeKaneRunFn: async () => ({
+        passed: false,
+        category: 'timeout',
+        isProductDefect: false,
+        exitCode: 3,
+        summary: 'Kane execution timed out after 300s',
+        steps: [],
+      }),
+    },
+  });
+
+  assert.equal(outcome.exitCode, 4);
+  assert.equal(outcome.verdict, 'inconclusive');
+  assert.equal(outcome.holdReason, 'timeout');
+  const sealed = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+  assert.equal(sealed.oracle.verdict, 'inconclusive');
+  assert.equal(sealed.oracle.hold_reason, 'timeout');
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('Declared UI outcome_specs failure seals hold (state_mismatch) and strict --expect-spec-sha256 rejects missing hash', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'autocast-oracle-uicheck-'));
+  const keys = createTestKeys();
+  const commit = '8888111122223333444455556666777788889999';
+  const spec = makeSpec();
+  const { specPath } = writeSpecFile(tmpDir, spec);
+  const manifestPath = path.join(tmpDir, 'out', 'run-manifest.json');
+
+  const missingHash = await runOraclePipeline({
+    specPath,
+    commit,
+    requireExpectSpecSha256: true,
+    signingKey: keys.privatePem,
+  });
+  assert.equal(missingHash.exitCode, 2);
+
+  const uiMismatch = await runOraclePipeline({
+    specPath,
+    commit,
+    outDir: path.join(tmpDir, 'out'),
+    manifestOutPath: manifestPath,
+    signingKey: keys.privatePem,
+    requireCleanTree: false,
+    deps: {
+      preflightFn: () => ({ headCommit: commit, clean: true }),
+      prepareCheckoutFn: () => ({ appDir: tmpDir }),
+      createAdapterFn: () => ({
+        name: 'mock',
+        appDir: tmpDir,
+        start: async () => ({ pid: 1, port: 8080, commit }),
+        stop: async () => {},
+        getHealthInfo: async () => ({ ok: true, commit }),
+        healthCheck: async (c) => c === commit,
+        resetSeedData: async () => {},
+        verifyUnderlyingState: async () => true,
+      }),
+      executeKaneRunFn: async () => ({
+        passed: true,
+        category: 'pass',
+        isProductDefect: false,
+        exitCode: 0,
+        resultCode: 100,
+        summary: 'Verified',
+        steps: [],
+      }),
+      verifyUiOutcomesFn: async () => ({
+        passed: false,
+        failures: ["OutcomeSpec 'drawer-approved' failed: selector not found"],
+      }),
+    },
+  });
+
+  assert.equal(uiMismatch.exitCode, 1);
+  assert.equal(uiMismatch.verdict, 'hold');
+  assert.equal(uiMismatch.holdReason, 'state_mismatch');
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });

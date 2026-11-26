@@ -157,6 +157,14 @@ test('parseAcceptanceSpec rejects expected_commit in frozen spec, invalid URLs, 
     target: { ...BASE_SPEC.target, url: 'ftp://example.com/app' },
   };
   assert.throws(() => parseAcceptanceSpec(JSON.stringify(withBadUrl)), OracleSpecError);
+
+  const withoutContractId = { ...BASE_SPEC } as Record<string, unknown>;
+  delete withoutContractId.contract_id;
+  assert.throws(() => parseAcceptanceSpec(JSON.stringify(withoutContractId)), OracleSpecError);
+
+  const withoutMilestoneId = { ...BASE_SPEC } as Record<string, unknown>;
+  delete withoutMilestoneId.milestone_id;
+  assert.throws(() => parseAcceptanceSpec(JSON.stringify(withoutMilestoneId)), OracleSpecError);
 });
 
 test('loadAcceptanceSpec loads valid JSON file from disk', () => {

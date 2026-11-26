@@ -49,11 +49,16 @@ export const DEFAULT_REDACTION_RULES: RedactionRule[] = [
     regex: /\beyJ[a-zA-Z0-9_\-]{8,}\.eyJ[a-zA-Z0-9_\-]{8,}\.[a-zA-Z0-9_\-]{8,}\b/g,
     replacement: '[REDACTED_JWT]',
   },
-  // 7. Private Keys (RSA/EC/OpenSSH)
+  // 7. Private Keys (RSA/EC/OpenSSH) & Oracle env secret assignments
   {
     name: 'private_key',
     regex: /-----BEGIN (?:[A-Z ]+)PRIVATE KEY-----[\s\S]*?-----END (?:[A-Z ]+)PRIVATE KEY-----/g,
     replacement: '[REDACTED_PRIVATE_KEY]',
+  },
+  {
+    name: 'oracle_secret_assignment',
+    regex: /\b(?:ORACLE_SIGNING_KEY|ORACLE_WEBHOOK_SECRET)\s*=\s*[^\s"']+/gi,
+    replacement: '[REDACTED_ORACLE_SECRET]',
   },
   // 8. Private RFC1918 IP addresses (10.x.x.x, 192.168.x.x, 172.16-31.x.x)
   {

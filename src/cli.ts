@@ -178,14 +178,15 @@ async function main() {
   const parsed = parseCliArgs(args);
 
   if (parsed.oracleMode) {
-    if (!parsed.oracleSpecPath || !parsed.commit) {
-      console.error('❌ Missing required arguments. Usage: autocast --oracle <spec.json> --commit <40-char-sha> (or autocast oracle <spec.json> --commit <40-char-sha>)');
+    if (!parsed.oracleSpecPath || !parsed.commit || !parsed.expectSpecSha256) {
+      console.error('❌ Missing required arguments. Usage: autocast --oracle <spec.json> --commit <40-char-sha> --expect-spec-sha256 <64-hex> (or autocast oracle <spec.json> --commit <40-char-sha> --expect-spec-sha256 <64-hex>)');
       process.exit(2);
     }
     const outcome = await runOraclePipeline({
       specPath: parsed.oracleSpecPath,
       commit: parsed.commit,
       expectSpecSha256: parsed.expectSpecSha256,
+      requireExpectSpecSha256: true,
       withVideo: parsed.withVideo,
       publishAdapter: parsed.publishAdapter,
       agentRepairRequested: parsed.agentRepairFlag,

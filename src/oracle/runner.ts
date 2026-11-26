@@ -5,9 +5,11 @@ import { execSync, spawn } from 'child_process';
 import {
   AcceptanceSpec,
   AppLifecycleAdapter,
+  ApplicationEnvironment,
   KaneRunResult,
   OracleHoldReason,
   OracleVerdict,
+  OutcomeSpec,
   RunManifest,
 } from '../types.js';
 import { LedgerlyLifecycleAdapter } from '../app/lifecycle.js';
@@ -18,6 +20,11 @@ import { runOraclePreflight } from '../preflight.js';
 import { loadAcceptanceSpec, normalizeSha256Hex, OracleSpecError, validateCommitSha40 } from './spec.js';
 import { loadOracleSigningKey, OracleSigningConfigError } from './sign.js';
 import { buildVerdictPayload, PublishAdapterName, publishVerdict } from './publish.js';
+import {
+  findActionsLog,
+  parseActionsLogToActionIR,
+  replayActionIRAndVerifyOutcomes,
+} from '../capture/actionIR.js';
 import { replayAndRecord } from '../capture/replay.js';
 import { generateNarration } from '../edit/narration.js';
 import { buildStoryboard } from '../edit/storyboard.js';
@@ -30,6 +37,8 @@ export interface OracleRunOptions {
   specPath: string;
   commit: string;
   expectSpecSha256?: string;
+  requireExpectSpecSha256?: boolean;
+  requireDeterministicUiVerification?: boolean;
   withVideo?: boolean;
   publishAdapter?: PublishAdapterName;
   agentRepairRequested?: boolean;
@@ -55,6 +64,13 @@ export interface OracleRunnerDeps {
   prepareCheckoutFn?: (expectedCommit: string, runDir: string, cwd: string) => OracleCheckoutHandle;
   createAdapterFn?: (opts: { appDir?: string; port?: number; baseUrl?: string }) => AppLifecycleAdapter;
   executeKaneRunFn?: typeof executeKaneRun;
+  verifyUiOutcomesFn?: (params: {
+    specs: OutcomeSpec[];
+    kaneResult: KaneRunResult;
+    targetUrl: string;
+    apiBase: string;
+    resetSeedFn: () => Promise<void>;
+  }) => Promise<{ passed: boolean; failures: string[] }>;
   publishVerdictFn?: typeof publishVerdict;
   captureVideoEvidenceFn?: (params: {
     spec: AcceptanceSpec;
@@ -64,7 +80,7 @@ export interface OracleRunnerDeps {
 }
 
 export interface OracleRunOutcome {
-  exitCode: 0 | 1 | 2 | 3;
+  exitCode: 0 | 1 | 2 | 4;
   verdict?: OracleVerdict;
   holdReason?: OracleHoldReason;
   manifest?: RunManifest;
@@ -321,6 +337,13 @@ export async function runOraclePipeline(options: OracleRunOptions): Promise<Orac
     return { exitCode: 2, error: err.message };
   }
 
+  // Enforce --expect-spec-sha256 before executing if strict contract hash binding is enabled
+  if (options.requireExpectSpecSha256 && !options.expectSpecSha256) {
+    const msg = '--expect-spec-sha256 <64-hex> is required in strict oracle payment mode.';
+    logErr(`❌ [Oracle] ${msg}`);
+    return { exitCode: 2, error: msg };
+  }
+
   // Load and strictly validate frozen AcceptanceSpec
   let loadedSpec: ReturnType<typeof loadAcceptanceSpec>;
   try {
@@ -339,6 +362,7 @@ export async function runOraclePipeline(options: OracleRunOptions): Promise<Orac
   const runnerId = options.runnerId || process.env.ORACLE_RUNNER_ID || os.hostname() || 'autocast-oracle-runner';
 
   fs.mkdirSync(runDir, { recursive: true });
+  let applicationEnvironment: ApplicationEnvironment = 'external_unverified';
 
   const sealAndOptionallyPublish = async (params: {
     status: RunManifest['status'];
@@ -358,6 +382,7 @@ export async function runOraclePipeline(options: OracleRunOptions): Promise<Orac
       status: params.status,
       runId,
       applicationUrl: spec.target.url,
+      applicationEnvironment,
       baselineCommit: expectedCommit,
       testedCommit: params.testedCommit,
       stateVerified: params.stateVerified,
@@ -446,6 +471,7 @@ export async function runOraclePipeline(options: OracleRunOptions): Promise<Orac
   let urlInfo: ReturnType<typeof validateOracleTargetUrl>;
   try {
     urlInfo = validateOracleTargetUrl(spec.target.url, runnerOrigin, options.allowedHosts);
+    applicationEnvironment = urlInfo.isRunnerManaged ? 'runner_pinned' : 'external_unverified';
   } catch (err: any) {
     logErr(`❌ [Oracle] ${err.message}`);
     return { exitCode: 2, specSha256, error: err.message };
@@ -496,6 +522,8 @@ export async function runOraclePipeline(options: OracleRunOptions): Promise<Orac
           strictPort: true,
           requireHealthyCommitMatch: false,
           buildDistIfMissing: true,
+          scrubEnv: true,
+          allowNodeModulesSymlink: false,
         });
       } else {
         await adapter.start({ commit: resolvedCommitEnv });
@@ -545,6 +573,8 @@ export async function runOraclePipeline(options: OracleRunOptions): Promise<Orac
       objective: spec.objective,
       url: spec.target.url,
       name: runId,
+      bugDetection: 'off',
+      scrubOracleSecrets: true,
     });
 
     const classification = classifyKaneRun(kaneResult);
@@ -559,18 +589,18 @@ export async function runOraclePipeline(options: OracleRunOptions): Promise<Orac
     }
 
     if (classification.type === 'timeout' || classification.type === 'cancelled') {
-      logErr(`⏱️ [Oracle HOLD] Kane execution ${classification.type}: ${classification.message}`);
+      logErr(`⏱️ [Oracle INCONCLUSIVE] Kane execution ${classification.type}: ${classification.message}`);
       const manifest = await sealAndOptionallyPublish({
         status: 'failed',
-        verdict: 'hold',
+        verdict: 'inconclusive',
         holdReason: 'timeout',
         testedCommit,
         stateVerified: false,
         kaneResult,
       });
       return {
-        exitCode: 3,
-        verdict: 'hold',
+        exitCode: 4,
+        verdict: 'inconclusive',
         holdReason: 'timeout',
         manifest,
         manifestPath: manifestOutPath,
@@ -601,8 +631,8 @@ export async function runOraclePipeline(options: OracleRunOptions): Promise<Orac
     }
 
     // Backend truth verification against api_state outcome_specs
-    const stateVerified = await adapter.verifyUnderlyingState(spec.outcome_specs);
-    if (!stateVerified) {
+    const apiStateVerified = await adapter.verifyUnderlyingState(spec.outcome_specs);
+    if (!apiStateVerified) {
       const msg = 'Backend state verification failed against api_state outcome_specs';
       logErr(`🚨 [Oracle HOLD] ${msg}`);
       const manifest = await sealAndOptionallyPublish({
@@ -622,6 +652,66 @@ export async function runOraclePipeline(options: OracleRunOptions): Promise<Orac
         specSha256,
         error: msg,
       };
+    }
+
+    // Deterministic browser verification for dom_text / visible / url outcome_specs
+    const uiSpecs = spec.outcome_specs.filter((s) => s.verification.type !== 'api_state');
+    if (uiSpecs.length > 0) {
+      let uiOutcomeResult: { passed: boolean; failures: string[] } | null = null;
+      const resetFn = () => adapter!.resetSeedData(spec.target.seed_id);
+
+      if (options.deps?.verifyUiOutcomesFn) {
+        uiOutcomeResult = await options.deps.verifyUiOutcomesFn({
+          specs: spec.outcome_specs,
+          kaneResult,
+          targetUrl: spec.target.url,
+          apiBase: urlInfo.parsedTarget.origin,
+          resetSeedFn: resetFn,
+        });
+      } else {
+        const actionsLogPath = kaneResult.sessionDir ? findActionsLog(kaneResult.sessionDir) : null;
+        if (actionsLogPath && fs.existsSync(actionsLogPath)) {
+          const actionIR = parseActionsLogToActionIR(fs.readFileSync(actionsLogPath, 'utf-8'), {
+            fallbackUrl: spec.target.url,
+          });
+          uiOutcomeResult = await replayActionIRAndVerifyOutcomes(
+            actionIR,
+            spec.target.url,
+            spec.outcome_specs,
+            urlInfo.parsedTarget.origin,
+            resetFn
+          );
+        } else if (options.requireDeterministicUiVerification !== false) {
+          uiOutcomeResult = {
+            passed: false,
+            failures: [
+              'Deterministic UI verification failed: Kane session produced no actions.ndjson to verify declared DOM/visibility/URL outcome_specs.',
+            ],
+          };
+        }
+      }
+
+      if (uiOutcomeResult && !uiOutcomeResult.passed) {
+        const msg = `Deterministic UI outcome verification failed: ${uiOutcomeResult.failures.join('; ')}`;
+        logErr(`🚨 [Oracle HOLD] ${msg}`);
+        const manifest = await sealAndOptionallyPublish({
+          status: 'failed',
+          verdict: 'hold',
+          holdReason: 'state_mismatch',
+          testedCommit,
+          stateVerified: false,
+          kaneResult,
+        });
+        return {
+          exitCode: 1,
+          verdict: 'hold',
+          holdReason: 'state_mismatch',
+          manifest,
+          manifestPath: manifestOutPath,
+          specSha256,
+          error: msg,
+        };
+      }
     }
 
     // Optional cinematic capture/render if --with-video was requested (never gates payment)

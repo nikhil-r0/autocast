@@ -505,9 +505,9 @@ All core architecture phases are complete, tested, and verified:
 
 ---
 
-## 6. Verification Test Suite Matrix (66 Automated Tests)
+## 6. Verification Test Suite Matrix (71 Automated Tests)
 
-The test suite consists of **66 unit and integration tests** (42 core/demo tests plus 24 Oracle Mode & manifest tests across `tests/oracle-*.test.ts` and `tests/manifest.test.ts`) executing via Node's native test runner (`node scripts/run-tests.mjs`). All 66 tests pass with 100% pass rate.
+The test suite consists of **71 unit and integration tests** (42 core/demo tests plus 29 Oracle Mode & manifest tests across `tests/oracle-*.test.ts` and `tests/manifest.test.ts`) executing via Node's native test runner (`node scripts/run-tests.mjs`). All 71 tests pass with 100% pass rate.
 
 | Test ID | Module | Scenario | Expected Behavior | Status |
 |---|---|---|---|---|
@@ -542,7 +542,7 @@ The test suite consists of **66 unit and integration tests** (42 core/demo tests
 | `TEST-28` | `Preflight` | Dirty working tree, wrong branch, or unsynced remote | Preflight audit halts pipeline. | **Pass** |
 | `TEST-29` | `Manifest` | Manifest preserves and verifies Kane hosted ShareLinks | Verifies ShareLink presence and accessibility. | **Pass** |
 | Unit (12) | Various | Action IR parsing, OutcomeSpec satisfaction, gallery HTTP, zoom floor, caption shortening, cursor centering, lint revert, pattern matching | All 12 unit specifications pass. | **Pass** |
-| Oracle (24) | `tests/oracle-*.test.ts`, `manifest.test.ts` | Canonical JSON & `spec_sha256`, Day-1 frozen spec (`contract_id`/`escrow_address`), delivery `--commit` 40-char SHA, Ed25519 signing/tampering, single-write signing, `verifyOracleManifest` split gates, `hold` verdicts (`kane_failed`, `commit_mismatch`, `state_mismatch`, `spec_mismatch`), URL allowlist, `publishVerdict`, `reverify:oracle --reshoot` | All 24 Oracle & manifest tests pass. | **Pass** |
+| Oracle (29) | `tests/oracle-*.test.ts`, `manifest.test.ts` | Canonical JSON & `spec_sha256`, Day-1 frozen spec (`contract_id`, `milestone_id`, `escrow_address`), delivery `--commit` 40-char SHA, scrubbed child envs, Gate 9 `runner_pinned` enforcement, Ed25519 signing/tampering, single-write signing, `verifyOracleHoldManifest`, timeout -> `inconclusive` (exit 4), timestamped webhook HMAC, `finalizeOracleDrop` two-commit verification | All 29 Oracle & manifest tests pass. | **Pass** |
 
 ---
 
@@ -558,7 +558,7 @@ To avoid confusion, AutoCast distinguishes between two distinct video deliverabl
 
 ```mermaid
 flowchart TD
-    P0["Phase 0: Preflight & Safety Matrix (npm test, 66/66 pass)"] --> P1["Phase 1: Closed-Loop Self-Demonstration (APP_BUG=approve-noop)"]
+    P0["Phase 0: Preflight & Safety Matrix (npm test, 71/71 pass)"] --> P1["Phase 1: Closed-Loop Self-Demonstration (APP_BUG=approve-noop)"]
     P1 --> P2["Phase 2: Evidence Generation & Live GitHub PR (npm run evidence:public)"]
     P2 --> P3["Phase 3: Live GitHub PR Recording via Playwright (30 FPS, Files Tab & ShareLink)"]
     P3 --> P4["Phase 4: Stage 2 Props Finalization & Manifest Audit (npm run finalize:showcase)"]
@@ -569,7 +569,7 @@ flowchart TD
 ### Phase 0: Preflight & Environment Audit
 - Run preflight auditor: `npm run preflight`.
 - Verifies active branch is `main`, git working tree is clean (`git status --porcelain === ''`), and local `main` is synchronized with `origin/main`.
-- Validate test suite: `npm run typecheck && npm test` (all 66 automated unit tests pass).
+- Validate test suite: `npm run typecheck && npm test` (all 71 automated unit tests pass).
 - Ensure bug injection healthcheck readiness: `src/cli.ts` verifies `health.bug === 'approve-noop'` via `/api/health`.
 
 ### Phase 1: Produce the Closed-Loop Self-Demonstration
@@ -648,7 +648,7 @@ npm run verify:showcase
 
 In **Oracle Mode** (`autocast --oracle <spec.json> --commit <40-char-sha>` or `autocast oracle <spec.json> --commit <40-char-sha>`), Autocast acts as a deterministic acceptance oracle rather than a repair/demo pipeline:
 
-- **Input:** A Day-1 frozen, strictly validated [`AcceptanceSpec`](../src/oracle/spec.ts) (`version: 1`, omitting commit SHA so parties can lock `spec_sha256` upfront and optionally bind `contract_id`/`escrow_address`) hashed via canonical JSON. `generateKaneObjective` is bypassed completely and `spec.objective` is passed verbatim.
-- **Pinned Environment:** `runOraclePreflight` checks clean git state without enforcing branch `main`; `validateOracleTargetUrl` restricts targets to the runner-started origin unless `ORACLE_ALLOWED_HOSTS` allows external hosts; `preparePinnedAppCheckout` (`git archive` + `strictPort`) isolates the submitted `--commit` as the trust anchor; `resetSeedData(seed_id)` resets seed data; and `/api/health` sanity-checks `tested_commit === expected_commit` (else seals `hold` with `commit_mismatch`).
-- **Fail-Closed Execution:** Kane runs once (`--bug-detection stop`). Any failure (`740` or unconfirmed failure) seals a signed `hold` manifest (`kane_failed`, exit `1`); timeout/cancel seals `timeout` (exit `3`). Antigravity repair (`agy`) and repair worktrees are disabled (`closed_loop_repair.occurred: false`).
-- **Backend Truth & Split Gates:** After Kane `100`, `verifyUnderlyingState` evaluates every `api_state` entry in `outcome_specs` (`state_mismatch` seals `hold`). `verifyOracleManifest` (`npm run verify:oracle`) enforces the 8 payment gates—including Ed25519 signature verification against `ORACLE_TRUSTED_KEYS`—without requiring `visual_qa`, `security_scan`, or `artifacts.video`. See [ORACLE.md](./ORACLE.md) for full details.
+- **Input:** A Day-1 frozen, strictly validated [`AcceptanceSpec`](../src/oracle/spec.ts) (`version: 1`, requiring `contract_id`/`milestone_id` and omitting commit SHA so parties lock `spec_sha256` upfront via required `--expect-spec-sha256`) hashed via canonical JSON. `generateKaneObjective` is bypassed completely and `spec.objective` is passed verbatim with `--bug-detection off`.
+- **Pinned & Scrubbed Environment:** `runOraclePreflight` checks clean git state without enforcing branch `main`; `validateOracleTargetUrl` restricts targets to the runner-started origin unless `ORACLE_ALLOWED_HOSTS` allows external hosts (stamping `application.environment` as `runner_pinned` vs `external_unverified`); `preparePinnedAppCheckout` (`git archive` + lockfile `npm ci` + `strictPort`) isolates the submitted `--commit` with `ORACLE_SIGNING_KEY` / secrets scrubbed from build, app, and Kane child processes; and `/api/health` sanity-checks `tested_commit === expected_commit` (else seals `hold` with `commit_mismatch`).
+- **Fail-Closed Execution & Timeout Policy:** Kane runs once (`--bug-detection off`). Product/assertion failures (`740` or unconfirmed failure) seal a signed `hold` manifest (`kane_failed`, exit `1`); timeout/cancel seals `inconclusive` (`timeout`, exit `4`). Antigravity repair (`agy`) and repair worktrees are disabled (`closed_loop_repair.occurred: false`).
+- **Full `outcome_specs` Truth & Split Gates:** After Kane passes, `verifyUnderlyingState` evaluates `api_state` endpoints and deterministic Playwright `ActionIR` replay evaluates declared `dom_text` / `visible` / `url` assertions (`state_mismatch` seals `hold`). `verifyOracleManifest` (`npm run verify:oracle`) enforces all 9 payment gates—including Ed25519 signature verification against `ORACLE_TRUSTED_KEYS` and `runner_pinned` environment enforcement—without requiring `visual_qa`, `security_scan`, or `artifacts.video`. See [ORACLE.md](./ORACLE.md) for full details and the `v0.3` production hardening roadmap.

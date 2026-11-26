@@ -1,14 +1,15 @@
 import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
-import { verifyOracleManifest } from '../src/manifest.js';
+import { verifyOracleHoldManifest, verifyOracleManifest } from '../src/manifest.js';
 import { loadAcceptanceSpec } from '../src/oracle/spec.js';
+import type { TrustedKeyMap } from '../src/oracle/sign.js';
 import type { RunManifest } from '../src/types.js';
 import { ORACLE_BEAT_FRAMES, ORACLE_GATE_LABELS } from '../remotion/oracle/format.js';
 
 const SECRET_LINE = /oracle-keys|BEGIN |PRIVATE KEY|ORACLE_SIGNING_KEY|ORACLE_WEBHOOK_SECRET|ORACLE_TRUSTED_KEYS/i;
 
-interface CliArgs {
+export interface FinalizeOracleDropArgs {
   specPath: string;
   holdManifest: string;
   releaseManifest: string;
@@ -17,11 +18,12 @@ interface CliArgs {
   sourceVideo?: string;
   apiStateLine?: string;
   trustedKeys?: string;
+  trustedKeyMap?: TrustedKeyMap;
   outPath: string;
   audioDir: string;
 }
 
-function parseArgs(argv: string[]): CliArgs {
+function parseArgs(argv: string[]): FinalizeOracleDropArgs {
   const values = new Map<string, string>();
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -135,8 +137,7 @@ function publicRelative(sourceVideo: string | undefined): string {
   return relative.split(path.sep).join('/');
 }
 
-function main() {
-  const args = parseArgs(process.argv.slice(2));
+export function finalizeOracleDrop(args: FinalizeOracleDropArgs) {
   const loaded = loadAcceptanceSpec(args.specPath);
   const hold = readManifest(args.holdManifest);
   const release = readManifest(args.releaseManifest);
@@ -147,7 +148,9 @@ function main() {
     throw new Error('Both manifests need application.tested_commit.');
   }
   if (holdCommit === releaseCommit) {
-    console.warn('[oracle-drop] HOLD and RELEASE share tested_commit. The published cut needs two commits.');
+    throw new Error(
+      `HOLD and RELEASE share tested_commit (${holdCommit}). Oracle Demo 2.0 requires two distinct commits (C_bug !== C_fix) under the same frozen spec.`
+    );
   }
   if (hold.oracle?.spec_sha256 !== release.oracle?.spec_sha256) {
     throw new Error('Hold and release manifests were sealed against different spec hashes.');
@@ -156,13 +159,24 @@ function main() {
     throw new Error('Manifest spec_sha256 does not match the acceptance spec file.');
   }
 
-  const verified = verifyOracleManifest(args.releaseManifest, {
+  const verifiedHold = verifyOracleHoldManifest(args.holdManifest, {
+    expectedSpecSha256: loaded.specSha256,
+    expectedCommit: holdCommit,
+    trustedKeysPath: args.trustedKeys,
+    trustedKeys: args.trustedKeyMap,
+  });
+  if (!verifiedHold.valid) {
+    throw new Error(`Hold manifest failed cryptographic or invariant verification:\n${verifiedHold.errors.join('\n')}`);
+  }
+
+  const verifiedRelease = verifyOracleManifest(args.releaseManifest, {
     expectedSpecSha256: loaded.specSha256,
     expectedCommit: releaseCommit,
     trustedKeysPath: args.trustedKeys,
+    trustedKeys: args.trustedKeyMap,
   });
-  if (!verified.valid) {
-    throw new Error(`Release manifest failed payment gates:\n${verified.errors.join('\n')}`);
+  if (!verifiedRelease.valid) {
+    throw new Error(`Release manifest failed payment gates:\n${verifiedRelease.errors.join('\n')}`);
   }
 
   const { frames, audio } = beatFramesFor(args.audioDir);
@@ -174,8 +188,8 @@ function main() {
       hold,
       loaded.spec.title,
       hold.oracle?.hold_reason
-        ? `Signed hold (${hold.oracle.hold_reason}). Repair did not run.`
-        : 'Signed hold. Repair did not run.'
+        ? `Deliberate test fixture (C_bug). Signed hold (${hold.oracle.hold_reason}). Repair disabled.`
+        : 'Deliberate test fixture (C_bug). Signed hold. Repair disabled.'
     ),
     release: faceFromManifest(release, loaded.spec.title, 'Kane 100. Backend state verified. Repair did not run.'),
     holdTerminalLines: filterLog(args.holdLog, 'Hold log not provided.'),
@@ -185,7 +199,7 @@ function main() {
     sourceTrimBefore: 0,
     apiStateLine: args.apiStateLine || '',
     gates: ORACLE_GATE_LABELS.map((label) => ({ label, passed: true })),
-    closingTitle: "Autocast v0.2 — Demos that can't lie. Code that can't fake a payout.",
+    closingTitle: 'Autocast v0.2 — Milestone payouts, gated by signed and verifiable proof.',
     closingSubtitle: 'autocast --oracle',
     repoUrl: 'github.com/nikhil-r0/autocast',
     swapAt: 0.52,
@@ -194,16 +208,22 @@ function main() {
 
   fs.mkdirSync(path.dirname(path.resolve(args.outPath)), { recursive: true });
   fs.writeFileSync(args.outPath, `${JSON.stringify(props, null, 2)}\n`);
-  console.log(`Wrote ${args.outPath}`);
-  console.log(`Hold commit ${holdCommit}`);
-  console.log(`Release commit ${releaseCommit}`);
-  console.log(`Frames ${frames.join('+')} = ${frames.reduce((sum, value) => sum + value, 0)}`);
+  return { props, holdCommit, releaseCommit, frames };
 }
 
-try {
-  main();
-} catch (err) {
-  const message = err instanceof Error ? err.message : String(err);
-  console.error(message);
-  process.exit(1);
+const isEntrypoint =
+  process.argv[1] && path.resolve(process.argv[1]).endsWith('finalize-oracle-drop.ts');
+if (isEntrypoint) {
+  try {
+    const args = parseArgs(process.argv.slice(2));
+    const res = finalizeOracleDrop(args);
+    console.log(`Wrote ${args.outPath}`);
+    console.log(`Hold commit ${res.holdCommit}`);
+    console.log(`Release commit ${res.releaseCommit}`);
+    console.log(`Frames ${res.frames.join('+')} = ${res.frames.reduce((sum, value) => sum + value, 0)}`);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(message);
+    process.exit(1);
+  }
 }

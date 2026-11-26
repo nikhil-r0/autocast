@@ -15,6 +15,7 @@ import {
   publishVerdict,
 } from '../src/oracle/publish.js';
 import { reverifyOracle } from '../scripts/reverify-oracle.js';
+import { finalizeOracleDrop } from '../scripts/finalize-oracle-drop.js';
 import { AcceptanceSpec } from '../src/types.js';
 
 function makePair() {
@@ -62,6 +63,7 @@ test('publishVerdict supports stdout-json, webhook with HMAC signature, and evm 
     status: 'verified',
     runId: 'pub-run-1',
     applicationUrl: SAMPLE_SPEC.target.url,
+    applicationEnvironment: 'runner_pinned',
     testedCommit: COMMIT,
     stateVerified: true,
     kaneVerification: { run_id: 'kane-pub-1', result_code: 100 },
@@ -92,9 +94,10 @@ test('publishVerdict supports stdout-json, webhook with HMAC signature, and evm 
   assert.equal(stdoutRes.published, true);
   assert.equal(JSON.parse(capturedStdout).manifest_sha256, payload.manifest_sha256);
 
-  // 2. webhook adapter with real HTTP server verifying HMAC header
+  // 2. webhook adapter with real HTTP server verifying timestamp-bound HMAC header
   const secret = 'test-webhook-secret';
   let receivedSignature = '';
+  let receivedTimestamp = '';
   let receivedBody = '';
   const server = http.createServer((req, res) => {
     const chunks: Buffer[] = [];
@@ -102,6 +105,7 @@ test('publishVerdict supports stdout-json, webhook with HMAC signature, and evm 
     req.on('end', () => {
       receivedBody = Buffer.concat(chunks).toString('utf8');
       receivedSignature = String(req.headers['x-autocast-signature'] || '');
+      receivedTimestamp = String(req.headers['x-autocast-timestamp'] || '');
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true }));
     });
@@ -117,7 +121,11 @@ test('publishVerdict supports stdout-json, webhook with HMAC signature, and evm 
       webhookSecret: secret,
     });
     assert.equal(webhookRes.published, true);
-    const expectedHmac = `sha256=${crypto.createHmac('sha256', secret).update(receivedBody, 'utf8').digest('hex')}`;
+    assert.ok(receivedTimestamp.length > 0);
+    const expectedHmac = `sha256=${crypto
+      .createHmac('sha256', secret)
+      .update(`${receivedTimestamp}.${receivedBody}`, 'utf8')
+      .digest('hex')}`;
     assert.equal(receivedSignature, expectedHmac);
     assert.equal(JSON.parse(receivedBody).spec_sha256, specSha256);
   } finally {
@@ -148,6 +156,7 @@ test('reverifyOracle offline & --reshoot divergence reports inconclusive rather 
     status: 'verified',
     runId: 'reverify-orig-1',
     applicationUrl: SAMPLE_SPEC.target.url,
+    applicationEnvironment: 'runner_pinned',
     testedCommit: COMMIT,
     stateVerified: true,
     kaneVerification: { run_id: 'kane-orig-1', result_code: 100 },
@@ -232,6 +241,7 @@ test('reverifyOracle --reshoot accepts authentic signed hold manifests without k
     status: 'failed',
     runId: 'hold-commit-1',
     applicationUrl: SAMPLE_SPEC.target.url,
+    applicationEnvironment: 'runner_pinned',
     testedCommit: '0000000000000000000000000000000000000000',
     stateVerified: false,
     closedLoopRepair: { occurred: false },
@@ -270,6 +280,7 @@ test('reverifyOracle --reshoot accepts authentic signed hold manifests without k
     status: 'failed',
     runId: 'hold-spec-1',
     applicationUrl: SAMPLE_SPEC.target.url,
+    applicationEnvironment: 'runner_pinned',
     testedCommit: 'not_started',
     stateVerified: false,
     closedLoopRepair: { occurred: false },
@@ -321,6 +332,130 @@ test('reverifyOracle --reshoot accepts authentic signed hold manifests without k
   assert.equal(tamperedRes.status, 'failed');
   assert.equal(tamperedRes.exitCode, 1);
   assert.equal(reshootInvoked, false);
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('finalizeOracleDrop verifies both HOLD and RELEASE manifests and requires two distinct commits', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'autocast-oracle-finalize-'));
+  const keys = makePair();
+  const cBug = '1111111111111111111111111111111111111111';
+  const cFix = '2222222222222222222222222222222222222222';
+  const specPath = path.join(tmpDir, 'spec.json');
+  const holdPath = path.join(tmpDir, 'hold.json');
+  const releasePath = path.join(tmpDir, 'release.json');
+  const outPath = path.join(tmpDir, 'props.json');
+
+  fs.writeFileSync(specPath, JSON.stringify(SAMPLE_SPEC, null, 2), 'utf-8');
+  const { specSha256 } = computeSpecSha256(SAMPLE_SPEC);
+
+  generateRunManifest({
+    outputPath: releasePath,
+    mode: 'oracle',
+    status: 'verified',
+    runId: 'fin-rel',
+    applicationUrl: SAMPLE_SPEC.target.url,
+    applicationEnvironment: 'runner_pinned',
+    testedCommit: cFix,
+    stateVerified: true,
+    kaneVerification: { run_id: 'k-rel', result_code: 100 },
+    closedLoopRepair: { occurred: false },
+    oracle: {
+      spec_sha256: specSha256,
+      seed_id: SAMPLE_SPEC.target.seed_id,
+      expected_commit: cFix,
+      runner_id: 'runner-1',
+      verdict: 'release',
+    },
+    signingKey: keys.privatePem,
+  });
+
+  // Same commit -> hard failure
+  generateRunManifest({
+    outputPath: holdPath,
+    mode: 'oracle',
+    status: 'failed',
+    runId: 'fin-hold-same',
+    applicationUrl: SAMPLE_SPEC.target.url,
+    applicationEnvironment: 'runner_pinned',
+    testedCommit: cFix,
+    stateVerified: false,
+    kaneVerification: { run_id: 'k-hold', result_code: 740 },
+    closedLoopRepair: { occurred: false },
+    oracle: {
+      spec_sha256: specSha256,
+      seed_id: SAMPLE_SPEC.target.seed_id,
+      expected_commit: cFix,
+      runner_id: 'runner-1',
+      verdict: 'hold',
+      hold_reason: 'kane_failed',
+    },
+    signingKey: keys.privatePem,
+  });
+
+  assert.throws(
+    () =>
+      finalizeOracleDrop({
+        specPath,
+        holdManifest: holdPath,
+        releaseManifest: releasePath,
+        trustedKeyMap: { [keys.keyId]: keys.publicPem },
+        outPath,
+        audioDir: path.join(tmpDir, 'no-audio'),
+      }),
+    /two distinct commits/i
+  );
+
+  // Distinct commit, valid signatures -> succeeds with 9 gates and updated copy
+  generateRunManifest({
+    outputPath: holdPath,
+    mode: 'oracle',
+    status: 'failed',
+    runId: 'fin-hold-distinct',
+    applicationUrl: SAMPLE_SPEC.target.url,
+    applicationEnvironment: 'runner_pinned',
+    testedCommit: cBug,
+    stateVerified: false,
+    kaneVerification: { run_id: 'k-hold', result_code: 740 },
+    closedLoopRepair: { occurred: false },
+    oracle: {
+      spec_sha256: specSha256,
+      seed_id: SAMPLE_SPEC.target.seed_id,
+      expected_commit: cBug,
+      runner_id: 'runner-1',
+      verdict: 'hold',
+      hold_reason: 'kane_failed',
+    },
+    signingKey: keys.privatePem,
+  });
+
+  const finalized = finalizeOracleDrop({
+    specPath,
+    holdManifest: holdPath,
+    releaseManifest: releasePath,
+    trustedKeyMap: { [keys.keyId]: keys.publicPem },
+    outPath,
+    audioDir: path.join(tmpDir, 'no-audio'),
+  });
+  assert.equal(finalized.props.gates.length, 9);
+  assert.match(finalized.props.closingTitle, /Milestone payouts, gated by signed and verifiable proof/i);
+
+  // Tampered HOLD manifest -> rejected
+  const tamperedHold = JSON.parse(fs.readFileSync(holdPath, 'utf-8'));
+  tamperedHold.oracle.runner_id = 'tampered';
+  fs.writeFileSync(holdPath, JSON.stringify(tamperedHold, null, 2), 'utf-8');
+  assert.throws(
+    () =>
+      finalizeOracleDrop({
+        specPath,
+        holdManifest: holdPath,
+        releaseManifest: releasePath,
+        trustedKeyMap: { [keys.keyId]: keys.publicPem },
+        outPath,
+        audioDir: path.join(tmpDir, 'no-audio'),
+      }),
+    /Hold manifest failed/i
+  );
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });

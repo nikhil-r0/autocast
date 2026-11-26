@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { RunManifest } from './types.js';
+import { ApplicationEnvironment, RunManifest } from './types.js';
 import {
   TrustedKeyMap,
   computePublicKeyId,
@@ -90,6 +90,7 @@ export function generateRunManifest(params: {
   status: RunManifest['status'];
   runId?: string;
   applicationUrl: string;
+  applicationEnvironment?: ApplicationEnvironment;
   baselineCommit?: string;
   testedCommit?: string;
   integrationCommit?: string;
@@ -152,6 +153,7 @@ export function generateRunManifest(params: {
     status: params.status,
     application: {
       url: params.applicationUrl,
+      ...(params.applicationEnvironment ? { environment: params.applicationEnvironment } : {}),
       baseline_commit: params.baselineCommit,
       tested_commit: params.testedCommit,
       integration_commit: params.integrationCommit,
@@ -332,6 +334,13 @@ export function verifyOracleManifest(
     );
   }
 
+  const appEnv = manifest.application?.environment;
+  if (appEnv !== 'runner_pinned' && appEnv !== 'deployment_attested') {
+    errors.push(
+      `Oracle application.environment must be 'runner_pinned' or 'deployment_attested' (got: '${appEnv || 'undefined'}')`
+    );
+  }
+
   // Signature verification (always required in oracle mode; fails closed if no trusted keys provided)
   try {
     let trustedKeys: TrustedKeyMap;
@@ -355,6 +364,110 @@ export function verifyOracleManifest(
 
   // Optional cinematic artifacts: never required, but verify hashes if attached
   errors.push(...verifyDeclaredArtifacts(manifest, false));
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    manifest,
+  };
+}
+
+/**
+ * Cryptographically verifies a signed HOLD manifest (e.g. C_bug) against the agreed
+ * spec hash, expected commit, non-repair invariant, and trusted runner keys.
+ */
+export function verifyOracleHoldManifest(
+  manifestPath: string,
+  options: VerifyOracleManifestOptions
+): { valid: boolean; errors: string[]; manifest?: RunManifest } {
+  if (!fs.existsSync(manifestPath)) {
+    return { valid: false, errors: [`Manifest file not found: ${manifestPath}`] };
+  }
+
+  const errors: string[] = [];
+  let manifest: RunManifest;
+  try {
+    manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+  } catch {
+    return { valid: false, errors: ['Manifest is not valid JSON'] };
+  }
+
+  let expectedSpecSha256: string;
+  try {
+    expectedSpecSha256 = normalizeSha256Hex(options.expectedSpecSha256, 'expectedSpecSha256');
+  } catch (err: any) {
+    return { valid: false, errors: [err.message], manifest };
+  }
+
+  if (manifest.mode !== 'oracle') {
+    errors.push(`Hold manifest mode must be 'oracle' (got: '${manifest.mode || 'undefined'}')`);
+  }
+  if (manifest.status !== 'failed') {
+    errors.push(`Hold manifest status must be 'failed' (got: '${manifest.status}')`);
+  }
+  if (!manifest.oracle) {
+    errors.push('Hold manifest missing required oracle metadata');
+  } else {
+    if (manifest.oracle.verdict !== 'hold') {
+      errors.push(`Expected verdict 'hold', got '${manifest.oracle.verdict}'`);
+    }
+    if (!manifest.oracle.hold_reason) {
+      errors.push('Hold manifest missing required hold_reason');
+    }
+    if (manifest.oracle.spec_sha256 !== expectedSpecSha256) {
+      errors.push(
+        `Hold manifest spec_sha256 mismatch! Expected '${expectedSpecSha256}', got '${manifest.oracle.spec_sha256}'`
+      );
+    }
+    if (manifest.oracle.expected_commit?.toLowerCase() !== options.expectedCommit.toLowerCase()) {
+      errors.push(
+        `Hold manifest expected_commit mismatch! Expected '${options.expectedCommit}', got '${manifest.oracle.expected_commit}'`
+      );
+    }
+  }
+
+  if (manifest.closed_loop_repair?.occurred !== false) {
+    errors.push(
+      `Hold manifest must record closed_loop_repair.occurred === false (got: ${String(manifest.closed_loop_repair?.occurred)})`
+    );
+  }
+
+  if (
+    manifest.oracle?.hold_reason !== 'commit_mismatch' &&
+    manifest.oracle?.hold_reason !== 'spec_mismatch' &&
+    manifest.application?.tested_commit?.toLowerCase() !== options.expectedCommit.toLowerCase()
+  ) {
+    errors.push(
+      `Hold manifest tested_commit mismatch! Expected '${options.expectedCommit}', got '${manifest.application?.tested_commit}'`
+    );
+  }
+
+  const appEnv = manifest.application?.environment;
+  if (appEnv !== 'runner_pinned' && appEnv !== 'deployment_attested') {
+    errors.push(
+      `Hold manifest application.environment must be 'runner_pinned' or 'deployment_attested' (got: '${appEnv || 'undefined'}')`
+    );
+  }
+
+  try {
+    let trustedKeys: TrustedKeyMap;
+    if (options.trustedKeys) {
+      trustedKeys = loadTrustedKeys(options.trustedKeys);
+    } else if (options.publicKeyPem) {
+      const pubObj = crypto.createPublicKey(options.publicKeyPem.replace(/\\n/g, '\n'));
+      const keyId = computePublicKeyId(pubObj);
+      trustedKeys = { [keyId]: pubObj.export({ type: 'spki', format: 'pem' }).toString() };
+    } else {
+      trustedKeys = loadTrustedKeys(options.trustedKeysPath);
+    }
+
+    const sigCheck = verifyManifestSignature(manifest, trustedKeys);
+    if (!sigCheck.valid) {
+      errors.push(sigCheck.error || 'Hold manifest signature verification failed');
+    }
+  } catch (err: any) {
+    errors.push(err.message);
+  }
 
   return {
     valid: errors.length === 0,

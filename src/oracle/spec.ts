@@ -86,9 +86,9 @@ export const AcceptanceSpecSchema = z
       })
       .strict()
       .optional(),
-    contract_id: z.string().trim().min(1).optional(),
+    contract_id: z.string().trim().min(1),
     escrow_address: z.string().trim().min(1).optional(),
-    milestone_id: z.string().trim().min(1).optional(),
+    milestone_id: z.string().trim().min(1),
   })
   .strict();
 

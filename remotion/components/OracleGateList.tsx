@@ -34,7 +34,7 @@ export const OracleGateList: React.FC<{ gates: OracleGate[]; durationInFrames: n
       }}
     >
       <div style={{ color: '#94a3b8', fontSize: 13, fontWeight: 800, letterSpacing: 1.2, marginBottom: 6 }}>
-        EIGHT PAYMENT GATES
+        {gates.length} PAYMENT GATES
       </div>
       {gates.map((gate, index) => {
         const start = Math.round(index * step);

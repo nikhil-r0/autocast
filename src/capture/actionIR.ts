@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { isDeepStrictEqual } from 'util';
-import { Page } from 'playwright';
+import { chromium, Page } from 'playwright';
 import { OutcomeSpec } from '../types.js';
 
 export interface ReplayAction {
@@ -293,5 +293,63 @@ export async function verifyOutcomeSpecs(
     passed: failures.length === 0,
     failures,
   };
+}
+
+/**
+ * Deterministically replays a captured Action IR in headless Chromium and evaluates
+ * every declared OutcomeSpec (dom_text, visible, url, and api_state).
+ */
+export async function replayActionIRAndVerifyOutcomes(
+  actionIR: ActionIR,
+  targetUrl: string,
+  specs: OutcomeSpec[],
+  apiBase: string,
+  resetSeedFn?: () => Promise<void>
+): Promise<{ passed: boolean; failures: string[] }> {
+  if (resetSeedFn) {
+    await resetSeedFn();
+  }
+
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const context = await browser.newContext({ viewport: actionIR.viewport });
+    const page = await context.newPage();
+    await page.goto(targetUrl, { waitUntil: 'networkidle', timeout: 15000 });
+
+    for (const action of actionIR.actions) {
+      if (action.type === 'navigate') {
+        const dest = action.value || targetUrl;
+        if (dest && page.url() !== dest) {
+          await page.goto(dest, { waitUntil: 'networkidle', timeout: 15000 });
+        }
+      } else if (action.type === 'click') {
+        if (action.selector) {
+          await page.locator(action.selector).first().click({ timeout: 5000 });
+        } else if (action.targetRect) {
+          await page.mouse.click(
+            action.targetRect.x + action.targetRect.width / 2,
+            action.targetRect.y + action.targetRect.height / 2
+          );
+        }
+      } else if (action.type === 'fill') {
+        if (action.selector) {
+          await page.locator(action.selector).first().fill(action.value || '', { timeout: 5000 });
+        }
+      } else if (action.type === 'hover') {
+        if (action.selector) {
+          await page.locator(action.selector).first().hover({ timeout: 5000 });
+        }
+      } else if (action.type === 'scroll') {
+        await page.mouse.wheel(0, 300);
+      }
+      if (action.waitAfterMs > 0) {
+        await page.waitForTimeout(Math.min(action.waitAfterMs, 1500));
+      }
+    }
+
+    return await verifyOutcomeSpecs(page, specs, apiBase);
+  } finally {
+    await browser.close();
+  }
 }
 

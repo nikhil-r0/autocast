@@ -4,6 +4,7 @@ import * as dotenv from 'dotenv';
 import { verifyOracleManifest } from '../src/manifest.js';
 import { loadAcceptanceSpec, validateCommitSha40 } from '../src/oracle/spec.js';
 import { runOraclePipeline } from '../src/oracle/runner.js';
+import type { OracleVerdict } from '../src/types.js';
 
 dotenv.config();
 
@@ -55,8 +56,8 @@ function parseArgs(argv: string[]): ReverifyCliArgs {
 export interface ReverifyResult {
   status: 'verified' | 'reproduced' | 'inconclusive' | 'failed';
   exitCode: 0 | 1 | 2 | 4;
-  originalVerdict?: 'release' | 'hold';
-  reshootVerdict?: 'release' | 'hold';
+  originalVerdict?: OracleVerdict;
+  reshootVerdict?: OracleVerdict;
   errors: string[];
 }
 
@@ -139,6 +140,7 @@ export async function reverifyOracle(options: {
     specPath: options.specPath,
     commit: expectedCommit,
     expectSpecSha256: loaded.specSha256,
+    requireExpectSpecSha256: true,
     runId: reshootRunId,
     outDir: reshootOutDir,
     manifestOutPath: path.join(reshootOutDir, 'run-manifest.json'),
@@ -171,8 +173,8 @@ export async function reverifyOracle(options: {
   }
 
   return {
-    status: 'reproduced',
-    exitCode: originalVerdict === 'release' ? 0 : 1,
+    status: originalVerdict === 'inconclusive' ? 'inconclusive' : 'reproduced',
+    exitCode: originalVerdict === 'release' ? 0 : originalVerdict === 'inconclusive' ? 4 : 1,
     originalVerdict,
     reshootVerdict,
     errors: [],

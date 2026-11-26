@@ -130,6 +130,7 @@ function main(): void {
   console.log(`✓ Gate 6: Pinned Commit Match -> ${m.application.tested_commit}`);
   console.log(`✓ Gate 7: Spec SHA-256 Match -> ${m.oracle?.spec_sha256}`);
   console.log(`✓ Gate 8: Ed25519 Signature Valid -> key_id=${m.signature?.key_id}`);
+  console.log(`✓ Gate 9: Environment Pinned -> ${m.application.environment}`);
   if (fs.existsSync(parsed.manifestPath)) {
     console.log(`✓ Runner ID: ${m.oracle?.runner_id}`);
   }

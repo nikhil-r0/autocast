@@ -3,18 +3,22 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { KaneRunResult, KaneStep } from '../types.js';
 import { normalizeKaneExecution } from './kaneAdapter.js';
+import { stripOracleSecrets } from '../oracle/env.js';
 
 export interface KaneRunOptions {
   objective: string;
   url?: string;
   name?: string;
   timeoutSec?: number;
+  bugDetection?: 'stop' | 'off';
+  scrubOracleSecrets?: boolean;
 }
 
 export async function executeKaneRun(options: KaneRunOptions): Promise<KaneRunResult> {
   const sessionName = options.name || `autocast-${Date.now()}`;
   const targetUrl = options.url || process.env.TARGET_APP_URL || 'http://localhost:8080/?logged_in=true';
   const timeoutSec = options.timeoutSec || 300;
+  const bugDetection = options.bugDetection ?? 'stop';
 
   const args = [
     'run',
@@ -26,7 +30,7 @@ export async function executeKaneRun(options: KaneRunOptions): Promise<KaneRunRe
     '--mode',
     'action',
     '--bug-detection',
-    'stop',
+    bugDetection,
     '--final-validation',
     'on',
     '--assertion-failure-mode',
@@ -40,10 +44,11 @@ export async function executeKaneRun(options: KaneRunOptions): Promise<KaneRunRe
   console.log(`[Shoot Loop] Invoking Kane CLI: kane-cli ${args.join(' ')}`);
 
   const startTime = Date.now();
+  const childEnv = options.scrubOracleSecrets ? stripOracleSecrets(process.env) : { ...process.env };
 
   return new Promise((resolve) => {
     const child = spawn('kane-cli', args, {
-      env: { ...process.env },
+      env: childEnv,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 

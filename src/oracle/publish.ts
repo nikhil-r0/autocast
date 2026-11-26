@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { RunManifest } from '../types.js';
+import { OracleVerdict, RunManifest } from '../types.js';
 import { computeFileSha256 } from '../manifest.js';
 
 export type PublishAdapterName = 'stdout-json' | 'webhook' | 'evm';
@@ -8,7 +8,7 @@ export interface VerdictPayload {
   spec_sha256: string;
   tested_commit: string;
   manifest_sha256: string;
-  verdict: 'release' | 'hold';
+  verdict: OracleVerdict;
   hold_reason?: string;
   signature: NonNullable<RunManifest['signature']>;
   run_id?: string;
@@ -106,7 +106,10 @@ export class WebhookVerdictPublisher implements VerdictPublisher {
 
     const body = JSON.stringify(payload);
     const timestamp = new Date().toISOString();
-    const hmac = crypto.createHmac('sha256', this.secret).update(body, 'utf8').digest('hex');
+    const hmac = crypto
+      .createHmac('sha256', this.secret)
+      .update(`${timestamp}.${body}`, 'utf8')
+      .digest('hex');
 
     const res = await this.fetchFn(parsed.toString(), {
       method: 'POST',

@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { AppLifecycleAdapter, OutcomeSpec } from '../types.js';
 import { verifyApiStateOutcomes } from '../capture/actionIR.js';
+import { scrubChildEnv } from '../oracle/env.js';
 
 export const SUPPORTED_LEDGERLY_SEED_IDS = new Set(['ledgerly-default-v1', 'default']);
 
@@ -12,6 +13,8 @@ export interface LifecycleStartOptions {
   strictPort?: boolean;
   requireHealthyCommitMatch?: boolean;
   buildDistIfMissing?: boolean;
+  scrubEnv?: boolean;
+  allowNodeModulesSymlink?: boolean;
 }
 
 export class LedgerlyLifecycleAdapter implements AppLifecycleAdapter {
@@ -62,23 +65,36 @@ export class LedgerlyLifecycleAdapter implements AppLifecycleAdapter {
     }
 
     const resolvedCommit = opts?.commit ?? process.env.APP_COMMIT ?? this.resolveCheckoutCommit() ?? '';
-    const env: Record<string, string | undefined> = {
-      ...process.env,
+    const overrides: Record<string, string | undefined> = {
       PORT: String(this.port),
       ...(resolvedCommit ? { APP_COMMIT: resolvedCommit } : {}),
       ...(opts?.env || {}),
     };
+    const env: Record<string, string | undefined> = opts?.scrubEnv
+      ? scrubChildEnv(process.env, overrides)
+      : {
+          ...process.env,
+          ...overrides,
+        };
 
     console.log(`[Lifecycle] Starting Ledgerly from ${this.appDir} on port ${this.port}...`);
     const serverPath = path.join(this.appDir, 'server/index.js');
 
-    // Ensure node_modules exists; if in an isolated checkout/worktree, link from root repo
+    // Ensure node_modules exists; in demo worktrees symlink from root, in oracle install from pinned lockfile
     const appNodeModules = path.join(this.appDir, 'node_modules');
     const rootAppNodeModules = path.resolve(process.cwd(), 'examples/ledgerly/node_modules');
-    if (!fs.existsSync(appNodeModules) && fs.existsSync(rootAppNodeModules)) {
-      try {
-        fs.symlinkSync(rootAppNodeModules, appNodeModules, 'junction');
-      } catch {}
+    const allowSymlink = opts?.allowNodeModulesSymlink !== false;
+    if (!fs.existsSync(appNodeModules)) {
+      if (allowSymlink && fs.existsSync(rootAppNodeModules)) {
+        try {
+          fs.symlinkSync(rootAppNodeModules, appNodeModules, 'junction');
+        } catch {}
+      } else if (!allowSymlink) {
+        const hasLockfile = fs.existsSync(path.join(this.appDir, 'package-lock.json'));
+        const installCmd = hasLockfile ? 'npm ci --no-audit --no-fund' : 'npm install --no-audit --no-fund';
+        console.log(`[Lifecycle] Installing pinned dependencies in ${this.appDir} via "${installCmd}"...`);
+        execSync(installCmd, { cwd: this.appDir, env, stdio: 'inherit' });
+      }
     }
 
     // Ensure built frontend dist assets exist
@@ -87,8 +103,8 @@ export class LedgerlyLifecycleAdapter implements AppLifecycleAdapter {
     if (!fs.existsSync(path.join(distDir, 'index.html'))) {
       if (opts?.buildDistIfMissing) {
         console.log(`[Lifecycle] Building Ledgerly frontend assets in ${this.appDir}...`);
-        execSync('npm run build', { cwd: this.appDir, stdio: 'inherit' });
-      } else if (!fs.existsSync(distDir) && fs.existsSync(rootDist)) {
+        execSync('npm run build', { cwd: this.appDir, env, stdio: 'inherit' });
+      } else if (allowSymlink && !fs.existsSync(distDir) && fs.existsSync(rootDist)) {
         try {
           fs.symlinkSync(rootDist, distDir, 'junction');
         } catch {}

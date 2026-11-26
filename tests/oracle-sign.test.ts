@@ -4,7 +4,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import crypto from 'crypto';
-import { generateRunManifest, verifyOracleManifest } from '../src/manifest.js';
+import { generateRunManifest, verifyOracleHoldManifest, verifyOracleManifest } from '../src/manifest.js';
 import {
   computePublicKeyId,
   loadTrustedKeys,
@@ -38,6 +38,7 @@ test('verifyOracleManifest passes on signed oracle release manifest without visu
     status: 'verified',
     runId: 'oracle-run-1',
     applicationUrl: 'http://localhost:8080/?logged_in=true',
+    applicationEnvironment: 'runner_pinned',
     baselineCommit: COMMIT_SHA,
     testedCommit: COMMIT_SHA,
     stateVerified: true,
@@ -83,6 +84,7 @@ test('Tampering with any manifest field after signing fails verifyOracleManifest
     status: 'verified',
     runId: 'oracle-run-2',
     applicationUrl: 'http://localhost:8080/?logged_in=true',
+    applicationEnvironment: 'runner_pinned',
     testedCommit: COMMIT_SHA,
     stateVerified: true,
     kaneVerification: { run_id: 'kane-sess-2', result_code: 100 },
@@ -151,6 +153,7 @@ test('verifyOracleManifest rejects untrusted key_id and tampered optional video 
     status: 'verified',
     runId: 'oracle-run-3',
     applicationUrl: 'http://localhost:8080/?logged_in=true',
+    applicationEnvironment: 'runner_pinned',
     testedCommit: COMMIT_SHA,
     stateVerified: true,
     kaneVerification: { run_id: 'kane-sess-3', result_code: 100 },
@@ -218,4 +221,71 @@ test('signOracleManifest matches disk JSON round-trip with undefined optional fi
   const trusted = loadTrustedKeys({ [keyId]: publicPem });
   const verifyRes = verifyManifestSignature(reloaded, trusted);
   assert.equal(verifyRes.valid, true, verifyRes.error);
+});
+
+test('verifyOracleManifest rejects external_unverified environment and verifyOracleHoldManifest validates signed holds', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'autocast-oracle-env-gate-'));
+  const externalManifestPath = path.join(tmpDir, 'external-manifest.json');
+  const holdManifestPath = path.join(tmpDir, 'hold-manifest.json');
+  const { privatePem, publicPem, keyId } = createEd25519Pair();
+
+  generateRunManifest({
+    outputPath: externalManifestPath,
+    mode: 'oracle',
+    status: 'verified',
+    runId: 'oracle-ext-1',
+    applicationUrl: 'https://external.example.com',
+    applicationEnvironment: 'external_unverified',
+    testedCommit: COMMIT_SHA,
+    stateVerified: true,
+    kaneVerification: { run_id: 'kane-ext-1', result_code: 100 },
+    closedLoopRepair: { occurred: false },
+    oracle: {
+      spec_sha256: SPEC_SHA,
+      seed_id: 'ledgerly-default-v1',
+      expected_commit: COMMIT_SHA,
+      runner_id: 'ci-runner-1',
+      verdict: 'release',
+    },
+    signingKey: privatePem,
+  });
+
+  const extCheck = verifyOracleManifest(externalManifestPath, {
+    expectedSpecSha256: SPEC_SHA,
+    expectedCommit: COMMIT_SHA,
+    trustedKeys: { [keyId]: publicPem },
+  });
+  assert.equal(extCheck.valid, false);
+  assert.ok(extCheck.errors.some((e) => /environment/i.test(e)));
+
+  generateRunManifest({
+    outputPath: holdManifestPath,
+    mode: 'oracle',
+    status: 'failed',
+    runId: 'oracle-hold-1',
+    applicationUrl: 'http://localhost:8080',
+    applicationEnvironment: 'runner_pinned',
+    testedCommit: COMMIT_SHA,
+    stateVerified: false,
+    kaneVerification: { run_id: 'kane-hold-1', result_code: 740 },
+    closedLoopRepair: { occurred: false },
+    oracle: {
+      spec_sha256: SPEC_SHA,
+      seed_id: 'ledgerly-default-v1',
+      expected_commit: COMMIT_SHA,
+      runner_id: 'ci-runner-1',
+      verdict: 'hold',
+      hold_reason: 'kane_failed',
+    },
+    signingKey: privatePem,
+  });
+
+  const holdCheck = verifyOracleHoldManifest(holdManifestPath, {
+    expectedSpecSha256: SPEC_SHA,
+    expectedCommit: COMMIT_SHA,
+    trustedKeys: { [keyId]: publicPem },
+  });
+  assert.equal(holdCheck.valid, true, holdCheck.errors.join('; '));
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
 });

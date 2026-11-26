@@ -15,4 +15,5 @@ export const ORACLE_GATE_LABELS = [
   'Commit matches',
   'Spec hash matches',
   'Signature valid',
+  'Runner pinned',
 ] as const;
