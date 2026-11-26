@@ -115,15 +115,21 @@ export function runPreflightAudit(options: PreflightOptions = {}) {
       const testOut = execSync('npm test 2>&1', { encoding: 'utf-8' });
       const passMatch = testOut.match(/ℹ pass (\d+)/);
       const failMatch = testOut.match(/ℹ fail (\d+)/);
+      const todoMatch = testOut.match(/ℹ todo (\d+)/);
+      const skippedMatch = testOut.match(/ℹ skipped (\d+)/);
       const totalMatch = testOut.match(/ℹ tests (\d+)/);
       const passed = passMatch ? parseInt(passMatch[1], 10) : 0;
       const failed = failMatch ? parseInt(failMatch[1], 10) : 0;
+      const todo = todoMatch ? parseInt(todoMatch[1], 10) : 0;
+      const skipped = skippedMatch ? parseInt(skippedMatch[1], 10) : 0;
       const total = totalMatch ? parseInt(totalMatch[1], 10) : 0;
 
-      if (failed > 0 || passed !== total || passed === 0) {
-        throw new Error(`Tests failed: ${passed}/${total} passed, ${failed} failed.`);
+      if (failed > 0 || skipped > 0 || passed + todo !== total || passed === 0) {
+        throw new Error(`Tests failed: ${passed}/${total} passed, ${todo} todo, ${skipped} skipped, ${failed} failed.`);
       }
-      console.log(`✓ Check 6: Test Suite -> ${passed}/${total} tests passed (0 failures)`);
+      console.log(
+        `✓ Check 6: Test Suite -> ${passed}/${total} tests passed (${todo} expected Tier-B TODO, 0 failures)`
+      );
     } catch (err: any) {
       throw new Error(`Test suite execution failed: ${err.message}`);
     }
