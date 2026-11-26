@@ -3,11 +3,25 @@ import { interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 
 interface TitleCardProps {
   title: string;
+  eyebrow?: string;
+  subtitle?: string;
+  pills?: string[];
+  /** Fade against this sequence's length instead of a fixed 75-frame title. */
+  holdThroughSequence?: boolean;
+  sequenceDuration?: number;
 }
 
-export const TitleCard: React.FC<TitleCardProps> = ({ title }) => {
+export const TitleCard: React.FC<TitleCardProps> = ({
+  title,
+  eyebrow = 'Autocast AI Cinematic Production',
+  subtitle = 'Formally verified end-to-end with Kane CLI autonomous computer vision.',
+  pills = ['ZERO SIMULATION', '100% REAL SCREEN TRACE', 'CRYPTO SEALED'],
+  holdThroughSequence = false,
+  sequenceDuration,
+}) => {
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { fps, durationInFrames } = useVideoConfig();
+  const sequenceLength = sequenceDuration ?? durationInFrames;
 
   const entrance = spring({
     frame,
@@ -15,15 +29,15 @@ export const TitleCard: React.FC<TitleCardProps> = ({ title }) => {
     config: { damping: 15, stiffness: 80 },
   });
 
-  // Fade in at start, fade out at end of title card (frames 60 to 75)
-  const opacity = interpolate(frame, [0, 15, 60, 75], [0, 1, 1, 0], {
+  const fadeOutStart = holdThroughSequence ? Math.max(15, sequenceLength - 15) : 60;
+  const fadeOutEnd = holdThroughSequence ? sequenceLength : 75;
+  const opacity = interpolate(frame, [0, 15, fadeOutStart, fadeOutEnd], [0, 1, 1, 0], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
   const scale = interpolate(entrance, [0, 1], [0.92, 1.0]);
 
-  // Metallic shimmer gradient offset across 75 frames
-  const shimmerProgress = interpolate(frame, [0, 75], [100, -100], {
+  const shimmerProgress = interpolate(frame, [0, fadeOutEnd], [100, -100], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
@@ -92,7 +106,7 @@ export const TitleCard: React.FC<TitleCardProps> = ({ title }) => {
           }}
         >
           <span style={{ color: '#38bdf8' }}>⚡</span>
-          <span>Autocast AI Cinematic Production</span>
+          <span>{eyebrow}</span>
         </div>
 
         {/* Word-staggered Shimmer Title */}
@@ -149,7 +163,7 @@ export const TitleCard: React.FC<TitleCardProps> = ({ title }) => {
             fontWeight: 500,
           }}
         >
-          Formally verified end-to-end with Kane CLI autonomous computer vision.
+          {subtitle}
         </p>
 
         {/* Verification Guarantee Pill */}
@@ -164,11 +178,14 @@ export const TitleCard: React.FC<TitleCardProps> = ({ title }) => {
             letterSpacing: 0.5,
           }}
         >
-          <span style={{ color: '#34d399', fontWeight: 700 }}>✓ ZERO SIMULATION</span>
-          <span>&bull;</span>
-          <span style={{ color: '#38bdf8', fontWeight: 700 }}>100% REAL SCREEN TRACE</span>
-          <span>&bull;</span>
-          <span style={{ color: '#a78bfa', fontWeight: 700 }}>CRYPTO SEALED</span>
+          {pills.map((pill, index) => (
+            <span key={pill} style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
+              {index > 0 ? <span>&bull;</span> : null}
+              <span style={{ color: index === 0 ? '#34d399' : index === 1 ? '#38bdf8' : '#a78bfa', fontWeight: 700 }}>
+                {index === 0 ? '✓ ' : ''}{pill}
+              </span>
+            </span>
+          ))}
         </div>
       </div>
     </div>

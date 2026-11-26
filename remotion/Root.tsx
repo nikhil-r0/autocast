@@ -3,6 +3,7 @@ import { Composition } from 'remotion';
 import { Demo, calculateMetadata } from './Demo';
 import { AutoCastShowcase, calculateShowcaseMetadata, ShowcaseProps } from './Showcase';
 import { RemotionTerminalOnly, RemotionTerminalSplitHud } from './TerminalShowcase';
+import { OracleDrop, calculateOracleDropMetadata, defaultOracleDropProps } from './OracleDrop';
 import storyboardData from '../storyboard.json';
 import defaultShowcaseProps from '../examples/output/showcase-props.json';
 
@@ -26,6 +27,12 @@ export const RemotionRoot: React.FC = () => {
         fps={30}
         durationInFrames={6750}
         defaultProps={defaultShowcaseProps as ShowcaseProps}
+      />
+      <Composition
+        id="OracleDrop"
+        component={OracleDrop}
+        calculateMetadata={calculateOracleDropMetadata}
+        defaultProps={defaultOracleDropProps}
       />
       <Composition
         id="RemotionTerminalOnly"
