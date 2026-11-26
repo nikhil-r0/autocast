@@ -89,8 +89,8 @@ function faceFromManifest(manifest: RunManifest, taskTitle: string, summaryText:
 function classify(line: string): 'command' | 'error' | 'success' | 'warn' | 'info' | 'dim' {
   if (/^\$ /.test(line) || line.startsWith('[Shoot Loop]') || line.startsWith('Manifest:')) return 'command';
   if (/error|fail|hold|mismatch|NOT CLEARED|❌|🚨/i.test(line)) return 'error';
-  if (/pass|release|verified|100|^✓ /i.test(line)) return 'success';
   if (/warn|⚠/i.test(line)) return 'warn';
+  if (/pass|release|verified|100|^✓ /i.test(line)) return 'success';
   return 'info';
 }
 
