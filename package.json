@@ -18,6 +18,7 @@
     "verify:provenance": "tsx scripts/verify-provenance.ts",
     "verify:oracle": "tsx scripts/verify-oracle.ts",
     "reverify:oracle": "tsx scripts/reverify-oracle.ts",
+    "finalize:oracle-drop": "tsx scripts/finalize-oracle-drop.ts",
     "verify:showcase": "tsx scripts/verify-showcase.ts",
     "preflight": "tsx scripts/preflight.ts",
     "preview": "remotion preview remotion/index.ts",

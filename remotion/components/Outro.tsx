@@ -9,15 +9,24 @@ import {
   useVideoConfig,
 } from 'remotion';
 import { NumberTicker } from './NumberTicker';
+import { OracleEndCard, OracleEndCardProps } from './OracleEndCard';
 
 interface OutroProps {
   title?: string;
   runId?: string;
   passedCount?: number;
   totalClaims?: number;
+  oracle?: OracleEndCardProps;
 }
 
-export const Outro: React.FC<OutroProps> = ({
+export const Outro: React.FC<OutroProps> = (props) => {
+  if (props.oracle) {
+    return <OracleEndCard {...props.oracle} />;
+  }
+  return <DemoOutro {...props} />;
+};
+
+const DemoOutro: React.FC<OutroProps> = ({
   title = 'Invoice Approval Workflow',
   runId = '837393b8-8840-4286-bf76',
   passedCount = 4,

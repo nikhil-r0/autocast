@@ -82,8 +82,6 @@ export const TerminalCard: React.FC<TerminalCardProps> = ({
       >
         {lines.map((line, idx) => {
           const threshold = line.delayFrames ?? idx * typingSpeed;
-          if (frame < threshold) return null;
-
           const lineProgress = interpolate(frame, [threshold, threshold + 6], [0, 1], {
             extrapolateLeft: 'clamp',
             extrapolateRight: 'clamp',

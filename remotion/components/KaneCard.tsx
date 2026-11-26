@@ -11,6 +11,8 @@ interface KaneCardProps {
   summaryText: string;
   details?: Array<{ label: string; value: string }>;
   width?: number;
+  /** Showcase keeps the three-column metrics. Oracle omits credits and fake defaults. */
+  variant?: 'showcase' | 'oracle';
 }
 
 export const KaneCard: React.FC<KaneCardProps> = ({
@@ -23,6 +25,7 @@ export const KaneCard: React.FC<KaneCardProps> = ({
   summaryText,
   details,
   width = 960,
+  variant = 'showcase',
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -94,31 +97,44 @@ export const KaneCard: React.FC<KaneCardProps> = ({
         </div>
       </div>
 
-      {/* Task & Metrics */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
-          gap: 12,
-          backgroundColor: 'rgba(255, 255, 255, 0.03)',
-          padding: '14px 18px',
-          borderRadius: 10,
-          border: '1px solid rgba(255, 255, 255, 0.06)',
-        }}
-      >
-        <div>
+      {variant === 'oracle' ? (
+        <div
+          style={{
+            backgroundColor: 'rgba(255, 255, 255, 0.03)',
+            padding: '14px 18px',
+            borderRadius: 10,
+            border: '1px solid rgba(255, 255, 255, 0.06)',
+          }}
+        >
           <div style={{ color: '#9ca3af', fontSize: 12, textTransform: 'uppercase', fontWeight: 600 }}>Task</div>
-          <div style={{ color: '#e5e7eb', fontSize: 14, fontWeight: 500, marginTop: 4 }}>{taskTitle}</div>
+          <div style={{ color: '#e5e7eb', fontSize: 16, fontWeight: 600, marginTop: 4 }}>{taskTitle}</div>
         </div>
-        <div>
-          <div style={{ color: '#9ca3af', fontSize: 12, textTransform: 'uppercase', fontWeight: 600 }}>Duration / Steps</div>
-          <div style={{ color: '#e5e7eb', fontSize: 14, fontWeight: 500, marginTop: 4 }}>{durationText} · {stepsCount} steps</div>
+      ) : (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: 12,
+            backgroundColor: 'rgba(255, 255, 255, 0.03)',
+            padding: '14px 18px',
+            borderRadius: 10,
+            border: '1px solid rgba(255, 255, 255, 0.06)',
+          }}
+        >
+          <div>
+            <div style={{ color: '#9ca3af', fontSize: 12, textTransform: 'uppercase', fontWeight: 600 }}>Task</div>
+            <div style={{ color: '#e5e7eb', fontSize: 14, fontWeight: 500, marginTop: 4 }}>{taskTitle}</div>
+          </div>
+          <div>
+            <div style={{ color: '#9ca3af', fontSize: 12, textTransform: 'uppercase', fontWeight: 600 }}>Duration / Steps</div>
+            <div style={{ color: '#e5e7eb', fontSize: 14, fontWeight: 500, marginTop: 4 }}>{durationText} · {stepsCount} steps</div>
+          </div>
+          <div>
+            <div style={{ color: '#9ca3af', fontSize: 12, textTransform: 'uppercase', fontWeight: 600 }}>Credits Consumed</div>
+            <div style={{ color: '#e5e7eb', fontSize: 14, fontWeight: 500, marginTop: 4 }}>{creditsUsed} credits</div>
+          </div>
         </div>
-        <div>
-          <div style={{ color: '#9ca3af', fontSize: 12, textTransform: 'uppercase', fontWeight: 600 }}>Credits Consumed</div>
-          <div style={{ color: '#e5e7eb', fontSize: 14, fontWeight: 500, marginTop: 4 }}>{creditsUsed} credits</div>
-        </div>
-      </div>
+      )}
 
       {/* Summary / RCA */}
       <div

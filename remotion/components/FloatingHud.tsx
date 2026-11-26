@@ -2,11 +2,43 @@ import React from 'react';
 import { interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import { Scene } from '../../src/types';
 
+const chipStyle = (color: string): React.CSSProperties => ({
+  padding: '3px 8px',
+  borderRadius: 6,
+  backgroundColor: `${color}22`,
+  border: `1px solid ${color}66`,
+  color,
+  fontSize: 11,
+  fontWeight: 800,
+  letterSpacing: 0.4,
+});
+
+const OracleChipRow: React.FC<{ oracle: OracleHudChips }> = ({ oracle }) => {
+  const verdictColor = oracle.verdict === 'release' ? '#22c55e' : '#ef4444';
+  const stateColor = oracle.stateVerified ? '#22c55e' : '#ef4444';
+  return (
+    <>
+      <span style={chipStyle(verdictColor)}>ORACLE {oracle.verdict.toUpperCase()}</span>
+      <span style={chipStyle('#38bdf8')}>KANE {oracle.resultCode}</span>
+      <span style={chipStyle(stateColor)}>STATE {oracle.stateVerified ? 'TRUE' : 'FALSE'}</span>
+      <span style={chipStyle('#f59e0b')}>REPAIR {oracle.repairOccurred ? 'TRUE' : 'FALSE'}</span>
+    </>
+  );
+};
+
+interface OracleHudChips {
+  verdict: 'release' | 'hold';
+  resultCode: number;
+  stateVerified: boolean;
+  repairOccurred: boolean;
+}
+
 interface FloatingHudProps {
-  scene: Scene;
-  stepNumber: number;
-  totalSteps: number;
-  title: string;
+  scene?: Scene;
+  stepNumber?: number;
+  totalSteps?: number;
+  title?: string;
+  oracle?: OracleHudChips;
 }
 
 export const FloatingHud: React.FC<FloatingHudProps> = ({
@@ -14,6 +46,7 @@ export const FloatingHud: React.FC<FloatingHudProps> = ({
   stepNumber,
   totalSteps,
   title,
+  oracle,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -33,7 +66,7 @@ export const FloatingHud: React.FC<FloatingHudProps> = ({
         position: 'absolute',
         bottom: 36,
         right: 48,
-        width: 440,
+        width: oracle ? 760 : 440,
         backgroundColor: 'rgba(13, 19, 31, 0.88)',
         backdropFilter: 'blur(20px)',
         border: '1px solid rgba(255, 255, 255, 0.12)',
@@ -58,25 +91,29 @@ export const FloatingHud: React.FC<FloatingHudProps> = ({
           marginBottom: 8,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div
-            style={{
-              padding: '2px 8px',
-              borderRadius: 6,
-              backgroundColor: 'rgba(16, 185, 129, 0.18)',
-              border: '1px solid rgba(16, 185, 129, 0.4)',
-              color: '#34d399',
-              fontSize: 10,
-              fontWeight: 700,
-              letterSpacing: 0.5,
-              textTransform: 'uppercase',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-            }}
-          >
-            <span>✓</span> Kane Verified
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {oracle ? (
+            <OracleChipRow oracle={oracle} />
+          ) : (
+            <div
+              style={{
+                padding: '2px 8px',
+                borderRadius: 6,
+                backgroundColor: 'rgba(16, 185, 129, 0.18)',
+                border: '1px solid rgba(16, 185, 129, 0.4)',
+                color: '#34d399',
+                fontSize: 10,
+                fontWeight: 700,
+                letterSpacing: 0.5,
+                textTransform: 'uppercase',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+              }}
+            >
+              <span>✓</span> Kane Verified
+            </div>
+          )}
           <span style={{ fontSize: 11, color: '#64748b' }}>Autocast AI</span>
         </div>
 
@@ -89,7 +126,7 @@ export const FloatingHud: React.FC<FloatingHudProps> = ({
             letterSpacing: 0.5,
           }}
         >
-          STEP {stepNumber}/{totalSteps}
+          {oracle ? oracle.verdict.toUpperCase() : `STEP ${stepNumber}/${totalSteps}`}
         </div>
       </div>
 
@@ -103,11 +140,11 @@ export const FloatingHud: React.FC<FloatingHudProps> = ({
           marginBottom: 4,
         }}
       >
-        {scene.caption}
+        {scene?.caption ?? title}
       </div>
 
       {/* Narration Description */}
-      {scene.narration && (
+      {!oracle && scene?.narration && (
         <div
           style={{
             fontSize: 12,
