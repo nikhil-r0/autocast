@@ -21,7 +21,7 @@ export const TerminalCard: React.FC<TerminalCardProps> = ({
   lines,
   width = 1100,
   height = 620,
-  fontSize = 17,
+  fontSize = 15,
   typingSpeed = 8,
 }) => {
   const frame = useCurrentFrame();
@@ -75,9 +75,9 @@ export const TerminalCard: React.FC<TerminalCardProps> = ({
           overflowY: 'hidden',
           display: 'flex',
           flexDirection: 'column',
-          gap: 7,
+          gap: 5,
           fontSize,
-          lineHeight: 1.5,
+          lineHeight: 1.45,
         }}
       >
         {lines.map((line, idx) => {
@@ -111,7 +111,8 @@ export const TerminalCard: React.FC<TerminalCardProps> = ({
                 transform: `translateX(${(1 - lineProgress) * -8}px)`,
                 color,
                 whiteSpace: 'pre-wrap',
-                wordBreak: 'break-all',
+                wordBreak: 'normal',
+                overflowWrap: 'anywhere',
               }}
             >
               {prefix ? (

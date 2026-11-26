@@ -5,9 +5,11 @@ import { verifyOracleHoldManifest, verifyOracleManifest } from '../src/manifest.
 import { loadAcceptanceSpec } from '../src/oracle/spec.js';
 import type { TrustedKeyMap } from '../src/oracle/sign.js';
 import type { RunManifest } from '../src/types.js';
-import { ORACLE_BEAT_FRAMES, ORACLE_GATE_LABELS } from '../remotion/oracle/format.js';
+import { ORACLE_BEAT_FRAMES, ORACLE_GATE_LABELS, ORACLE_TRANSITION_FRAMES } from '../remotion/oracle/format.js';
 
 const SECRET_LINE = /oracle-keys|BEGIN |PRIVATE KEY|ORACLE_SIGNING_KEY|ORACLE_WEBHOOK_SECRET|ORACLE_TRUSTED_KEYS/i;
+const DIVIDER_LINE = /^[=\-_*]{4,}$/;
+const SIGNAL_LINE = /^(Spec:|Pinned Commit:|Kane Pin:|Manifest:|Expected |✓|⚠|❌|🚨|🎉|\[Shoot Loop\]|\[Provenance\]|RELEASE MANIFEST|ORACLE PAYMENT|Gate \d+:|Trusted code)/i;
 
 export interface FinalizeOracleDropArgs {
   specPath: string;
@@ -16,11 +18,21 @@ export interface FinalizeOracleDropArgs {
   holdLog?: string;
   verifyLog?: string;
   sourceVideo?: string;
-  apiStateLine?: string;
+  sourceTrimBefore?: number;
+  sourcePlaybackRate?: number;
   trustedKeys?: string;
   trustedKeyMap?: TrustedKeyMap;
   outPath: string;
   audioDir: string;
+}
+
+function parseOptionalNumber(raw: string | undefined, fallback: number, name: string, allowZero = false): number {
+  if (raw === undefined) return fallback;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || (allowZero ? parsed < 0 : parsed <= 0)) {
+    throw new Error(`Invalid --${name} value: "${raw}"`);
+  }
+  return parsed;
 }
 
 function parseArgs(argv: string[]): FinalizeOracleDropArgs {
@@ -47,7 +59,8 @@ function parseArgs(argv: string[]): FinalizeOracleDropArgs {
     holdLog: values.get('hold-log'),
     verifyLog: values.get('verify-log'),
     sourceVideo: values.get('source-video'),
-    apiStateLine: values.get('api-state-line'),
+    sourceTrimBefore: Math.round(parseOptionalNumber(values.get('source-trim-before'), 0, 'source-trim-before', true)),
+    sourcePlaybackRate: parseOptionalNumber(values.get('source-playback-rate'), 1, 'source-playback-rate', false),
     trustedKeys: values.get('trusted-keys'),
     outPath: values.get('out') || path.join('out', 'oracle-drop', 'oracle-drop-props.json'),
     audioDir: values.get('audio-dir') || path.join('public', 'audio'),
@@ -74,25 +87,42 @@ function faceFromManifest(manifest: RunManifest, taskTitle: string, summaryText:
 }
 
 function classify(line: string): 'command' | 'error' | 'success' | 'warn' | 'info' | 'dim' {
-  if (/^\$ /.test(line) || line.includes('autocast')) return 'command';
-  if (/error|fail|hold|mismatch/i.test(line)) return 'error';
-  if (/pass|release|verified|100/i.test(line)) return 'success';
-  if (/warn/i.test(line)) return 'warn';
+  if (/^\$ /.test(line) || line.startsWith('[Shoot Loop]') || line.startsWith('Manifest:')) return 'command';
+  if (/error|fail|hold|mismatch|NOT CLEARED|❌|🚨/i.test(line)) return 'error';
+  if (/pass|release|verified|100|^✓ /i.test(line)) return 'success';
+  if (/warn|⚠/i.test(line)) return 'warn';
   return 'info';
 }
 
-function filterLog(filePath: string | undefined, fallback: string) {
-  if (!filePath || !fs.existsSync(filePath)) {
+function curateLogLines(filePath: string | undefined, label: string, fallback: string) {
+  if (!filePath) {
     return [{ text: fallback, type: 'dim' as const }];
   }
-  const lines = fs
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`Required ${label} log file does not exist: ${filePath}`);
+  }
+  const rawLines = fs
     .readFileSync(filePath, 'utf8')
     .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0 && !SECRET_LINE.test(line))
-    .slice(0, 8)
-    .map((text) => ({ text: text.slice(0, 180), type: classify(text) }));
-  return lines.length > 0 ? lines : [{ text: fallback, type: 'dim' as const }];
+    .map((line) => line.replace(/\x1b\[[0-9;]*m/g, '').trim())
+    .filter((line) => line.length > 0 && !DIVIDER_LINE.test(line) && !SECRET_LINE.test(line));
+
+  if (rawLines.length === 0) {
+    throw new Error(`${label} log file contains no displayable lines: ${filePath}`);
+  }
+
+  const prioritized = rawLines.filter((line) => SIGNAL_LINE.test(line));
+  const pool = prioritized.length >= 4 ? prioritized : rawLines;
+  const maxLines = 11;
+  const selected =
+    pool.length <= maxLines
+      ? pool
+      : [...pool.slice(0, 6), ...pool.slice(-(maxLines - 6))];
+
+  return selected.map((text) => ({
+    text: text.length > 150 ? `${text.slice(0, 147)}...` : text,
+    type: classify(text),
+  }));
 }
 
 function audioSeconds(filePath: string): number | null {
@@ -109,16 +139,28 @@ function audioSeconds(filePath: string): number | null {
 }
 
 function beatFramesFor(audioDir: string): { frames: number[]; audio: Record<string, string> } {
-  const stems = ['beat1', 'beat2', 'beat3a', 'beat3b', 'beat4a', 'beat4b'] as const;
-  const files = ['oracle-beat-1', 'oracle-beat-2', 'oracle-beat-3a', 'oracle-beat-3b', 'oracle-beat-4a', 'oracle-beat-4b'];
+  const stems = ['beat0a', 'beat0b', 'beat1', 'beat2', 'beat3a', 'beat3b', 'beat4a', 'beat4b'] as const;
+  const files = [
+    'oracle-beat-0a',
+    'oracle-beat-0b',
+    'oracle-beat-1',
+    'oracle-beat-2',
+    'oracle-beat-3a',
+    'oracle-beat-3b',
+    'oracle-beat-4a',
+    'oracle-beat-4b',
+  ];
   const frames = [...ORACLE_BEAT_FRAMES];
   const audio: Record<string, string> = {};
   stems.forEach((stem, index) => {
-    const match = ['mp3', 'wav', 'm4a'].map((ext) => path.join(audioDir, `${files[index]}.${ext}`)).find((candidate) => fs.existsSync(candidate));
+    const match = ['mp3', 'wav', 'm4a']
+      .map((ext) => path.join(audioDir, `${files[index]}.${ext}`))
+      .find((candidate) => fs.existsSync(candidate));
     if (!match) return;
     const seconds = audioSeconds(match);
     if (seconds) {
-      frames[index] = Math.max(frames[index], Math.ceil(seconds * 30) + 15);
+      // Reserve 6f pre-roll + 15f post-voice breathing room + transition overlap so stems never clip
+      frames[index] = Math.max(frames[index], Math.ceil(seconds * 30) + 21 + ORACLE_TRANSITION_FRAMES);
     }
     const relative = path.relative(path.join(process.cwd(), 'public'), match);
     audio[stem] = relative.split(path.sep).join('/');
@@ -129,12 +171,23 @@ function beatFramesFor(audioDir: string): { frames: number[]; audio: Record<stri
 function publicRelative(sourceVideo: string | undefined): string {
   if (!sourceVideo) return '';
   const absolute = path.resolve(sourceVideo);
+  if (!fs.existsSync(absolute)) {
+    throw new Error(`Source video does not exist: ${sourceVideo}`);
+  }
   const publicDir = path.join(process.cwd(), 'public');
   const relative = path.relative(publicDir, absolute);
   if (relative.startsWith('..') || path.isAbsolute(relative)) {
     throw new Error(`Source video must live under public/ so Remotion can load it. Got ${sourceVideo}`);
   }
   return relative.split(path.sep).join('/');
+}
+
+function deriveVerifiedApiStateLine(loadedSpec: ReturnType<typeof loadAcceptanceSpec>, release: RunManifest): string {
+  if (release.application?.state_verified !== true) return '';
+  if (release.oracle?.spec_sha256 !== loadedSpec.specSha256) return '';
+  const apiRule = loadedSpec.spec.outcome_specs.find((item) => item.verification.type === 'api_state');
+  if (!apiRule || apiRule.verification.type !== 'api_state') return '';
+  return `GET ${apiRule.verification.endpoint} -> ${apiRule.verification.jsonPath}: ${JSON.stringify(apiRule.verification.expected)} (verified)`;
 }
 
 export function finalizeOracleDrop(args: FinalizeOracleDropArgs) {
@@ -181,6 +234,7 @@ export function finalizeOracleDrop(args: FinalizeOracleDropArgs) {
   }
 
   const { frames, audio } = beatFramesFor(args.audioDir);
+  const derivedApiStateLine = deriveVerifiedApiStateLine(loaded, release);
   const props = {
     beatFrames: frames,
     specSha256: loaded.specSha256,
@@ -189,21 +243,21 @@ export function finalizeOracleDrop(args: FinalizeOracleDropArgs) {
       hold,
       loaded.spec.title,
       hold.oracle?.hold_reason
-        ? `Deliberate test fixture (C_bug). Signed hold (${hold.oracle.hold_reason}). Repair disabled.`
-        : 'Deliberate test fixture (C_bug). Signed hold. Repair disabled.'
+        ? `Buggy commit (C_bug). Signed hold (${hold.oracle.hold_reason}). Repair disabled.`
+        : 'Buggy commit (C_bug). Signed hold. Repair disabled.'
     ),
-    release: faceFromManifest(release, loaded.spec.title, 'Kane 100. Backend state verified. Repair did not run.'),
-    holdTerminalLines: filterLog(args.holdLog, 'Hold log not provided.'),
-    verifyTerminalLines: filterLog(args.verifyLog, 'Verify log not provided.'),
+    release: faceFromManifest(release, loaded.spec.title, 'Kane 100. Declared UI & API assertions verified. Repair did not run.'),
+    holdTerminalLines: curateLogLines(args.holdLog, '--hold-log', 'Hold log not provided.'),
+    verifyTerminalLines: curateLogLines(args.verifyLog, '--verify-log', 'Verify log not provided.'),
     sourceVideo: publicRelative(args.sourceVideo),
-    sourcePlaybackRate: 1,
-    sourceTrimBefore: 0,
-    apiStateLine: args.apiStateLine || '',
+    sourcePlaybackRate: args.sourcePlaybackRate ?? 1,
+    sourceTrimBefore: args.sourceTrimBefore ?? 0,
+    apiStateLine: derivedApiStateLine,
     gates: ORACLE_GATE_LABELS.map((label, index) => ({
       label,
       passed: index === ORACLE_GATE_LABELS.length - 1 ? release.application?.isolation === 'container' : true,
     })),
-    closingTitle: 'Autocast v0.2 — Milestone payouts, gated by signed and verifiable proof.',
+    closingTitle: 'Autocast Oracle — Milestone decisions backed by signed and verifiable proof.',
     closingSubtitle: 'autocast --oracle',
     repoUrl: 'github.com/nikhil-r0/autocast',
     swapAt: 0.52,
@@ -224,7 +278,10 @@ if (isEntrypoint) {
     console.log(`Wrote ${args.outPath}`);
     console.log(`Hold commit ${res.holdCommit}`);
     console.log(`Release commit ${res.releaseCommit}`);
-    console.log(`Frames ${res.frames.join('+')} = ${res.frames.reduce((sum, value) => sum + value, 0)}`);
+    const overlap = (res.frames.length - 1) * ORACLE_TRANSITION_FRAMES;
+    console.log(
+      `Frames ${res.frames.join('+')} - ${overlap} (transitions) = ${res.frames.reduce((sum, value) => sum + value, 0) - overlap}`
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(message);

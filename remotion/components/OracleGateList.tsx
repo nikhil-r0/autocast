@@ -14,7 +14,7 @@ export const OracleGateList: React.FC<{ gates: OracleGate[]; durationInFrames: n
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const tail = Math.round(fps * 0.5);
-  const window = Math.max(fps, durationInFrames - tail);
+  const window = Math.max(fps, Math.round((durationInFrames - tail) * 0.72));
   const step = gates.length > 0 ? window / gates.length : window;
 
   return (
@@ -43,7 +43,7 @@ export const OracleGateList: React.FC<{ gates: OracleGate[]; durationInFrames: n
           fps,
           config: { damping: 16, stiffness: 120 },
         });
-        const opacity = interpolate(entrance, [0, 1], [0.15, 1]);
+        const opacity = interpolate(entrance, [0, 1], [0.4, 1]);
         const color = gate.passed ? '#22c55e' : '#ef4444';
         return (
           <div

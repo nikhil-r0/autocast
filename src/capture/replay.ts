@@ -264,6 +264,36 @@ export async function replayAndRecord(
   await page.waitForTimeout(3500); // 3.5s hold on seal
   const s5End = getElapsedSec();
 
+  // Semantic Equivalence Verification (TEST-09) while drawer & approved seal are visible
+  const specsToVerify = actionIR?.outcomeSpecs || [
+    {
+      id: 'seal-visibility',
+      verification: {
+        type: 'visible',
+        selector: '[data-testid="status-badge-INV-1042"]',
+      },
+    },
+    {
+      id: 'api-state-approved',
+      verification: {
+        type: 'api_state',
+        endpoint: '/api/invoices/INV-1042',
+        jsonPath: 'status',
+        expected: 'Approved',
+      },
+    },
+  ];
+
+  console.log(`[Path B Replay] Verifying ${specsToVerify.length} Machine OutcomeSpec(s)...`);
+  const outcomeResult = await verifyOutcomeSpecs(page, specsToVerify, baseUrl);
+  if (!outcomeResult.passed) {
+    await page.close();
+    await context.close();
+    await browser.close();
+    throw new Error(`Replay rejected for semantic non-equivalence: ${outcomeResult.failures.join('; ')}`);
+  }
+  console.log('[Path B Replay] ✓ All Machine OutcomeSpecs verified successfully.');
+
   segments.push({
     stepIndex: 5,
     kind: 'idle',
@@ -313,36 +343,6 @@ export async function replayAndRecord(
     target: { x: 0, y: 0, w: 1920, h: 1080 }, // Full wide shot
     cursorTo: [pillX, pillY],
   });
-
-  // Semantic Equivalence Verification (TEST-09)
-  const specsToVerify = actionIR?.outcomeSpecs || [
-    {
-      id: 'seal-visibility',
-      verification: {
-        type: 'visible',
-        selector: '[data-testid="status-badge-INV-1042"]',
-      },
-    },
-    {
-      id: 'api-state-approved',
-      verification: {
-        type: 'api_state',
-        endpoint: '/api/invoices/INV-1042',
-        jsonPath: 'status',
-        expected: 'Approved',
-      },
-    },
-  ];
-
-  console.log(`[Path B Replay] Verifying ${specsToVerify.length} Machine OutcomeSpec(s)...`);
-  const outcomeResult = await verifyOutcomeSpecs(page, specsToVerify, baseUrl);
-  if (!outcomeResult.passed) {
-    await page.close();
-    await context.close();
-    await browser.close();
-    throw new Error(`Replay rejected for semantic non-equivalence: ${outcomeResult.failures.join('; ')}`);
-  }
-  console.log('[Path B Replay] ✓ All Machine OutcomeSpecs verified successfully.');
 
   const totalElapsed = getElapsedSec();
 

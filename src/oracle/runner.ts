@@ -239,6 +239,12 @@ async function defaultCaptureOptionalVideo(params: {
     sessionDir: params.kaneResult.sessionDir,
   });
 
+  fs.mkdirSync(params.outDir, { recursive: true });
+  const rawSourcePath = path.join(process.cwd(), 'public', replayResult.videoPath);
+  if (fs.existsSync(rawSourcePath)) {
+    fs.copyFileSync(rawSourcePath, path.join(params.outDir, 'oracle-source.mp4'));
+  }
+
   const narrations = await generateNarration(
     params.kaneResult.steps,
     params.spec.title,
@@ -801,7 +807,7 @@ function sanitizeManifestSessionPath(rawPath: string | undefined): string | unde
     if (options.withVideo) {
       try {
         const videoFn = options.deps?.captureVideoEvidenceFn || defaultCaptureOptionalVideo;
-        const artifacts = await videoFn({ spec, kaneResult, outDir });
+        const artifacts = await videoFn({ spec, kaneResult, outDir: runDir });
         videoPath = artifacts.videoPath;
         posterPath = artifacts.posterPath;
       } catch (videoErr: any) {

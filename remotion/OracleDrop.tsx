@@ -5,25 +5,28 @@ import {
   CalculateMetadataFunction,
   OffthreadVideo,
   Sequence,
-  Series,
   interpolate,
   spring,
   staticFile,
   useCurrentFrame,
   useVideoConfig,
 } from 'remotion';
+import { TransitionSeries, linearTiming } from '@remotion/transitions';
+import { fade } from '@remotion/transitions/fade';
 import { AuroraBackground } from './components/AuroraBackground';
 import { LowerThird } from './components/LowerThird';
 import { OracleEndCard } from './components/OracleEndCard';
+import { ExplainEscrowBeat, ExplainWorkflowBeat } from './components/OracleExplainerBeats';
 import { OracleGate, OracleGateList } from './components/OracleGateList';
 import { OracleVerdictFace, OracleVerdictSlab } from './components/OracleVerdictSlab';
 import { TerminalCard, TerminalLine } from './components/TerminalCard';
 import { TitleCard } from './components/TitleCard';
-import { ORACLE_BEAT_FRAMES, ORACLE_GATE_LABELS, shortHash } from './oracle/format';
+import { ORACLE_BEAT_FRAMES, ORACLE_TRANSITION_FRAMES, ORACLE_GATE_LABELS, shortHash } from './oracle/format';
 
 /**
  * Copy, hashes, and terminal lines are props from sealed oracle runs
- * (scripts/finalize-oracle-drop.ts). They are not hand-authored in this file.
+ * (scripts/finalize-oracle-drop.ts). Opening beats explain the escrow dispute
+ * and workflow before live HOLD/RELEASE evaluations begin.
  */
 export interface OracleDropProps {
   beatFrames: number[];
@@ -42,7 +45,7 @@ export interface OracleDropProps {
   closingSubtitle: string;
   repoUrl: string;
   swapAt?: number;
-  audio?: Partial<Record<'beat1' | 'beat2' | 'beat3a' | 'beat3b' | 'beat4a' | 'beat4b', string>>;
+  audio?: Partial<Record<'beat0a' | 'beat0b' | 'beat1' | 'beat2' | 'beat3a' | 'beat3b' | 'beat4a' | 'beat4b', string>>;
   [key: string]: unknown;
 }
 
@@ -71,19 +74,20 @@ export const defaultOracleDropProps: OracleDropProps = {
   sourceTrimBefore: 0,
   apiStateLine: '',
   gates: ORACLE_GATE_LABELS.map((label: string) => ({ label, passed: false })),
-  closingTitle: 'Autocast v0.2 — Milestone payouts, gated by signed and verifiable proof.',
+  closingTitle: 'Autocast Oracle — Milestone decisions backed by signed and verifiable proof.',
   closingSubtitle: 'Pass --props from a sealed hold commit and a sealed release commit.',
   repoUrl: 'github.com/nikhil-r0/autocast',
   swapAt: 0.52,
 };
 
 export const calculateOracleDropMetadata: CalculateMetadataFunction<OracleDropProps> = async ({ props }) => {
-  const frames = props.beatFrames?.length === 6 ? props.beatFrames : [...ORACLE_BEAT_FRAMES];
+  const frames = props.beatFrames?.length === ORACLE_BEAT_FRAMES.length ? props.beatFrames : [...ORACLE_BEAT_FRAMES];
+  const transitionOverlap = (frames.length - 1) * ORACLE_TRANSITION_FRAMES;
   return {
     fps: 30,
     width: 1920,
     height: 1080,
-    durationInFrames: frames.reduce((sum, framesInBeat) => sum + framesInBeat, 0),
+    durationInFrames: frames.reduce((sum, framesInBeat) => sum + framesInBeat, 0) - transitionOverlap,
     props: { ...props, beatFrames: frames },
   };
 };
@@ -92,11 +96,15 @@ const mediaSrc = (src: string) => (src.startsWith('http') ? src : staticFile(src
 
 const BeatAudio: React.FC<{ src?: string }> = ({ src }) => {
   if (!src) return null;
-  return <Audio src={mediaSrc(src)} />;
+  return (
+    <Sequence from={6}>
+      <Audio src={mediaSrc(src)} />
+    </Sequence>
+  );
 };
 
 const lineSpeed = (beatFrames: number, count: number) =>
-  Math.max(8, Math.round((beatFrames * 0.62) / Math.max(1, count)));
+  Math.max(6, Math.round((beatFrames * 0.54) / Math.max(1, count)));
 
 const Stage: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <AbsoluteFill style={{ backgroundColor: '#060911' }}>
@@ -109,24 +117,24 @@ const BeatTitle: React.FC<{ kicker: string; title: string; subtitle: string }> =
   <div style={{ textAlign: 'center', marginBottom: 22 }}>
     <div style={{ color: '#60a5fa', fontSize: 13, fontWeight: 800, letterSpacing: '0.14em' }}>{kicker}</div>
     <h2 style={{ color: '#f8fafc', fontSize: 36, fontWeight: 800, margin: '8px 0 0', letterSpacing: '-0.02em' }}>{title}</h2>
-    <p style={{ color: '#94a3b8', fontSize: 18, margin: '8px auto 0', maxWidth: 820 }}>{subtitle}</p>
+    <p style={{ color: '#94a3b8', fontSize: 18, margin: '8px auto 0', maxWidth: 860 }}>{subtitle}</p>
   </div>
 );
 
 const PolicyBeat: React.FC<{ props: OracleDropProps; durationInFrames: number }> = ({ props }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const fork = spring({ frame: frame - Math.round(fps * 0.8), fps, config: { damping: 16, stiffness: 90 } });
+  const fork = spring({ frame: Math.max(0, frame - Math.round(fps * 0.4)), fps, config: { damping: 16, stiffness: 90 } });
   const spec = props.specSha256 ? shortHash(props.specSha256, 12, 6) : 'not loaded';
   return (
     <Stage>
       <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 40 }}>
         <BeatTitle
-          kicker="DISPUTE RESOLUTION"
-          title="Client says it's broken. Contractor says it works. Who's right?"
-          subtitle="One Day-1 frozen contract. Autocast Demo repairs broken flows; Oracle Mode seals a signed hold without touching code."
+          kicker="EXECUTION POLICY"
+          title="Demo Mode repairs. Oracle Mode judges."
+          subtitle="Oracle Mode keeps closed-loop repair disabled and evaluates the exact commit submitted against the agreed contract."
         />
-        <div style={{ display: 'flex', gap: 40, opacity: interpolate(fork, [0, 1], [0, 1]) }}>
+        <div style={{ display: 'flex', gap: 40, opacity: interpolate(fork, [0, 1], [0.2, 1]) }}>
           <PolicyPanel label="DEMO MODE" body="740 → auto-fix" color="#38bdf8" />
           <PolicyPanel label="ORACLE MODE" body="Fail → HOLD" color="#ef4444" />
         </div>
@@ -134,8 +142,8 @@ const PolicyBeat: React.FC<{ props: OracleDropProps; durationInFrames: number }>
           {props.contractId || 'contract not loaded'} · spec {spec}
         </div>
       </div>
-      <LowerThird caption="Frozen contract · Demo repairs · Oracle seals HOLD" tone="policy" />
-      <Sequence from={Math.round(fps * 0.8)}>
+      <LowerThird caption="Demo Mode repairs · Oracle Mode grades as-submitted" tone="policy" />
+      <Sequence from={Math.round(fps * 0.5)}>
         <Audio src={staticFile('sfx-click.wav')} volume={0.45} />
       </Sequence>
       <BeatAudio src={props.audio?.beat1} />
@@ -164,16 +172,16 @@ const HoldBeat: React.FC<{ props: OracleDropProps; durationInFrames: number }> =
     <Stage>
       <div style={{ position: 'absolute', top: 36, left: 0, right: 0 }}>
         <BeatTitle
-          kicker="FAIL CLOSED"
-          title="Buggy commit seals a hold"
-          subtitle="Deliberate test fixture (C_bug). Acceptance gate fails. No worktree. No repair. Signed hold, exit 1."
+          kicker="EVALUATION 1 · C_bug"
+          title="Buggy commit seals a signed HOLD"
+          subtitle="Interface claims approval, but Kane cannot verify the objective. Repair stays disabled. Signed hold, exit 1."
         />
       </div>
       <div style={{ position: 'absolute', top: 210, left: 80, display: 'flex', gap: 40 }}>
         <TerminalCard title="oracle hold" lines={props.holdTerminalLines} width={860} height={560} typingSpeed={speed} />
         <OracleVerdictSlab {...props.hold} swapAt={props.swapAt ?? 0.52} durationInFrames={durationInFrames} />
       </div>
-      <LowerThird caption="Deliberate test fixture (C_bug) → zero repair → signed HOLD" tone="hold" />
+      <LowerThird caption="Commit C_bug · Objective failed · Signed HOLD (exit 1)" tone="hold" />
       <BeatAudio src={props.audio?.beat2} />
     </Stage>
   );
@@ -183,12 +191,12 @@ const ReleaseBeat: React.FC<{ props: OracleDropProps; durationInFrames: number }
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const flatten = spring({
-    frame: Math.max(0, frame - fps),
+    frame: Math.max(0, frame - Math.round(fps * 0.4)),
     fps,
     config: { damping: 18, stiffness: 80 },
   });
-  const tiltX = interpolate(flatten, [0, 1], [2.8, 0]);
-  const tiltY = interpolate(flatten, [0, 1], [-2.4, 0]);
+  const tiltX = interpolate(flatten, [0, 1], [2.4, 0]);
+  const tiltY = interpolate(flatten, [0, 1], [-2.0, 0]);
   const width = 1500;
   const height = 844;
   return (
@@ -219,8 +227,8 @@ const ReleaseBeat: React.FC<{ props: OracleDropProps; durationInFrames: number }
             fontFamily: 'ui-monospace, monospace',
             fontSize: 18,
             fontWeight: 700,
-            backgroundColor: 'rgba(6, 9, 17, 0.82)',
-            border: '1px solid rgba(34, 197, 94, 0.45)',
+            backgroundColor: 'rgba(6, 9, 17, 0.86)',
+            border: '1px solid rgba(34, 197, 94, 0.5)',
             borderRadius: 10,
             padding: '10px 14px',
           }}
@@ -229,7 +237,7 @@ const ReleaseBeat: React.FC<{ props: OracleDropProps; durationInFrames: number }
         </div>
       ) : null}
       <LowerThird
-        caption={`Commit ${props.release.testedCommit ? shortHash(props.release.testedCommit) : 'C_fix'} · Kane + backend state verified → signed RELEASE`}
+        caption={`Commit ${props.release.testedCommit ? shortHash(props.release.testedCommit) : 'C_fix'} · Kane 100 + declared UI & API assertions verified`}
         tone="release"
       />
       <BeatAudio src={props.audio?.beat3a} />
@@ -260,16 +268,16 @@ const VerifyBeat: React.FC<{ props: OracleDropProps; durationInFrames: number }>
     <Stage>
       <div style={{ position: 'absolute', top: 28, left: 0, right: 0 }}>
         <BeatTitle
-          kicker="OFFLINE"
+          kicker="OFFLINE VERIFICATION"
           title="Ten gates. No browser required."
-          subtitle="A client checks the signed manifest. Gate 10 enforces container isolation before real-funds release."
+          subtitle="Any trusted public key verifies the manifest offline. Gate 10 blocks real-funds release in unisolated beta."
         />
       </div>
       <div style={{ position: 'absolute', top: 200, left: 80, display: 'flex', gap: 40 }}>
         <TerminalCard title="verify:oracle" lines={props.verifyTerminalLines} width={860} height={560} typingSpeed={speed} />
         <OracleGateList gates={props.gates} durationInFrames={durationInFrames} />
       </div>
-      <LowerThird caption="10 gates verified offline · Gate 10 blocks unisolated beta for real funds" tone="neutral" />
+      <LowerThird caption="9/10 gates verified offline · Gate 10 blocks real-funds release in beta" tone="neutral" />
       <BeatAudio src={props.audio?.beat4a} />
     </Stage>
   );
@@ -279,9 +287,9 @@ const CloseBeat: React.FC<{ props: OracleDropProps; durationInFrames: number }> 
   <Stage>
     <TitleCard
       title={props.closingTitle}
-      eyebrow="Autocast v0.2"
+      eyebrow="Autocast Oracle"
       subtitle={props.closingSubtitle}
-      pills={['SIGNED RELEASE', 'OFFLINE VERIFY', props.repoUrl]}
+      pills={['SIGNED ACCEPTANCE EVIDENCE', 'OFFLINE 10-GATE VERIFY', props.repoUrl]}
       holdThroughSequence
       sequenceDuration={durationInFrames}
     />
@@ -290,29 +298,44 @@ const CloseBeat: React.FC<{ props: OracleDropProps; durationInFrames: number }> 
 );
 
 export const OracleDrop: React.FC<OracleDropProps> = (props) => {
-  const frames = props.beatFrames?.length === 6 ? props.beatFrames : [...ORACLE_BEAT_FRAMES];
+  const frames = props.beatFrames?.length === ORACLE_BEAT_FRAMES.length ? props.beatFrames : [...ORACLE_BEAT_FRAMES];
+  const transition = <TransitionSeries.Transition presentation={fade()} timing={linearTiming({ durationInFrames: ORACLE_TRANSITION_FRAMES })} />;
+
   return (
     <AbsoluteFill style={{ backgroundColor: '#060911', fontFamily: 'Inter, system-ui, sans-serif' }}>
-      <Series>
-        <Series.Sequence durationInFrames={frames[0]} name="Policy">
-          <PolicyBeat props={props} durationInFrames={frames[0]} />
-        </Series.Sequence>
-        <Series.Sequence durationInFrames={frames[1]} name="Hold">
-          <HoldBeat props={props} durationInFrames={frames[1]} />
-        </Series.Sequence>
-        <Series.Sequence durationInFrames={frames[2]} name="Release replay">
-          <ReleaseBeat props={props} durationInFrames={frames[2]} />
-        </Series.Sequence>
-        <Series.Sequence durationInFrames={frames[3]} name="Release stamp">
-          <EndBeat props={props} durationInFrames={frames[3]} />
-        </Series.Sequence>
-        <Series.Sequence durationInFrames={frames[4]} name="Offline gates">
-          <VerifyBeat props={props} durationInFrames={frames[4]} />
-        </Series.Sequence>
-        <Series.Sequence durationInFrames={frames[5]} name="Close">
-          <CloseBeat props={props} durationInFrames={frames[5]} />
-        </Series.Sequence>
-      </Series>
+      <TransitionSeries>
+        <TransitionSeries.Sequence durationInFrames={frames[0]} name="Escrow dispute">
+          <ExplainEscrowBeat audioSrc={props.audio?.beat0a} />
+        </TransitionSeries.Sequence>
+        {transition}
+        <TransitionSeries.Sequence durationInFrames={frames[1]} name="Oracle workflow">
+          <ExplainWorkflowBeat audioSrc={props.audio?.beat0b} specSha256={props.specSha256} />
+        </TransitionSeries.Sequence>
+        {transition}
+        <TransitionSeries.Sequence durationInFrames={frames[2]} name="Policy">
+          <PolicyBeat props={props} durationInFrames={frames[2]} />
+        </TransitionSeries.Sequence>
+        {transition}
+        <TransitionSeries.Sequence durationInFrames={frames[3]} name="Hold">
+          <HoldBeat props={props} durationInFrames={frames[3]} />
+        </TransitionSeries.Sequence>
+        {transition}
+        <TransitionSeries.Sequence durationInFrames={frames[4]} name="Release replay">
+          <ReleaseBeat props={props} durationInFrames={frames[4]} />
+        </TransitionSeries.Sequence>
+        {transition}
+        <TransitionSeries.Sequence durationInFrames={frames[5]} name="Release stamp">
+          <EndBeat props={props} durationInFrames={frames[5]} />
+        </TransitionSeries.Sequence>
+        {transition}
+        <TransitionSeries.Sequence durationInFrames={frames[6]} name="Offline gates">
+          <VerifyBeat props={props} durationInFrames={frames[6]} />
+        </TransitionSeries.Sequence>
+        {transition}
+        <TransitionSeries.Sequence durationInFrames={frames[7]} name="Close">
+          <CloseBeat props={props} durationInFrames={frames[7]} />
+        </TransitionSeries.Sequence>
+      </TransitionSeries>
     </AbsoluteFill>
   );
 };

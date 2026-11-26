@@ -452,11 +452,71 @@ test('finalizeOracleDrop verifies both HOLD and RELEASE manifests and requires t
     trustedKeyMap: { [keys.keyId]: keys.publicPem },
     outPath,
     audioDir: path.join(tmpDir, 'no-audio'),
+    sourceTrimBefore: 24,
+    sourcePlaybackRate: 1,
   });
+  assert.equal(finalized.props.beatFrames.length, 8);
+  assert.equal(finalized.props.sourceTrimBefore, 24);
+  assert.equal(finalized.props.sourcePlaybackRate, 1);
+  assert.equal(finalized.props.apiStateLine, 'GET /api/invoices/INV-1042 -> status: "Approved" (verified)');
   assert.equal(finalized.props.gates.length, 10);
   assert.equal(finalized.props.gates[9].passed, false);
   assert.equal(finalized.props.hold.resultCode, null);
-  assert.match(finalized.props.closingTitle, /Milestone payouts, gated by signed and verifiable proof/i);
+  assert.match(finalized.props.closingTitle, /Milestone decisions backed by signed and verifiable proof/i);
+
+  // Explicit missing verify log fails closed rather than printing placeholder
+  assert.throws(
+    () =>
+      finalizeOracleDrop({
+        specPath,
+        holdManifest: holdPath,
+        releaseManifest: releasePath,
+        verifyLog: path.join(tmpDir, 'missing-verify.log'),
+        trustedKeyMap: { [keys.keyId]: keys.publicPem },
+        outPath,
+        audioDir: path.join(tmpDir, 'no-audio'),
+      }),
+    /does not exist/i
+  );
+
+  // Explicit verify log drops ASCII dividers and retains beta Gate 10 headline
+  const sampleVerifyLog = path.join(tmpDir, 'verify.log');
+  fs.writeFileSync(
+    sampleVerifyLog,
+    [
+      '================================================================',
+      '⚖️  AUTOCAST ORACLE PAYMENT GATE VERIFIER',
+      '================================================================',
+      'Manifest:        out/oracle-drop/release-manifest.json',
+      'Expected Spec:   ' + specSha256,
+      'Expected Commit: ' + COMMIT,
+      '✓ Gate 1: Mode -> "oracle"',
+      '✓ Gate 2: Status & Verdict -> "verified" / "release"',
+      '✓ Gate 8: Ed25519 Signature Valid -> key_id=abc',
+      '⚠ Gate 10: Beta Isolation Bypassed',
+      '⚠️ RELEASE MANIFEST VERIFIED — BETA ISOLATION LIMITATION',
+      '❌ Gate 10: NOT CLEARED — NOT AUTHORIZED FOR REAL FUNDS',
+      '================================================================',
+    ].join('\n'),
+    'utf-8'
+  );
+  const finalizedWithLog = finalizeOracleDrop({
+    specPath,
+    holdManifest: holdPath,
+    releaseManifest: releasePath,
+    verifyLog: sampleVerifyLog,
+    trustedKeyMap: { [keys.keyId]: keys.publicPem },
+    outPath,
+    audioDir: path.join(tmpDir, 'no-audio'),
+  });
+  assert.equal(
+    finalizedWithLog.props.verifyTerminalLines.some((l) => /BETA ISOLATION LIMITATION/.test(l.text)),
+    true
+  );
+  assert.equal(
+    finalizedWithLog.props.verifyTerminalLines.some((l) => /^=+$/.test(l.text)),
+    false
+  );
 
   // Tampered HOLD manifest -> rejected
   const tamperedHold = JSON.parse(fs.readFileSync(holdPath, 'utf-8'));

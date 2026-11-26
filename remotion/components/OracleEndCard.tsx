@@ -37,7 +37,7 @@ export const OracleEndCard: React.FC<OracleEndCardProps> = ({
     fps,
     config: { damping: 14, stiffness: 85 },
   });
-  const opacity = interpolate(frame, [0, 12], [0, 1], {
+  const opacity = interpolate(frame, [0, 8], [0.85, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
@@ -103,7 +103,7 @@ export const OracleEndCard: React.FC<OracleEndCardProps> = ({
         {holdReason ? (
           <div style={{ color: '#fca5a5', fontSize: 18, fontWeight: 700 }}>{holdReason}</div>
         ) : (
-          <div style={{ color: '#94a3b8', fontSize: 18 }}>Ed25519-signed for payout</div>
+          <div style={{ color: '#94a3b8', fontSize: 18 }}>Ed25519-signed acceptance proof · inspect offline</div>
         )}
         <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', justifyContent: 'center', maxWidth: 1100 }}>
           {rows.map((row) => (

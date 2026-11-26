@@ -150,7 +150,12 @@ function main(): void {
     console.log(`✓ Runner ID: ${m.oracle?.runner_id}`);
   }
   console.log('\n================================================================');
-  console.log('🎉 ORACLE PAYMENT VERDICT: RELEASE CONFIRMED');
+  if (m.application.isolation === 'container') {
+    console.log('🎉 ORACLE PAYMENT VERDICT: RELEASE CONFIRMED');
+  } else {
+    console.log('⚠️ RELEASE MANIFEST VERIFIED — BETA ISOLATION LIMITATION');
+    console.log('❌ Gate 10: NOT CLEARED — NOT AUTHORIZED FOR REAL FUNDS');
+  }
   console.log('================================================================');
 }
 
