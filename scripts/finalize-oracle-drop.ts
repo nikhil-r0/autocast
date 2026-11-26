@@ -9,13 +9,14 @@ import { ORACLE_BEAT_FRAMES, ORACLE_GATE_LABELS, ORACLE_TRANSITION_FRAMES } from
 
 const SECRET_LINE = /oracle-keys|BEGIN |PRIVATE KEY|ORACLE_SIGNING_KEY|ORACLE_WEBHOOK_SECRET|ORACLE_TRUSTED_KEYS/i;
 const DIVIDER_LINE = /^[=\-_*]{4,}$/;
-const SIGNAL_LINE = /^(Spec:|Pinned Commit:|Kane Pin:|Manifest:|Expected |✓|⚠|❌|🚨|🎉|\[Shoot Loop\]|\[Provenance\]|RELEASE MANIFEST|ORACLE PAYMENT|Gate \d+:|Trusted code)/i;
+const SIGNAL_LINE = /^(Spec:|Pinned Commit:|Kane Pin:|Manifest:|Expected |✓|⚠|❌|🚨|🎉|\[Shoot Loop\]|\[Path B Replay\] .*verified|\[Pixel Safety OCR\] ✓|\[Provenance\]|ORACLE VERDICT:|RELEASE MANIFEST|ORACLE PAYMENT|Gate \d+:|Trusted code)/i;
 
 export interface FinalizeOracleDropArgs {
   specPath: string;
   holdManifest: string;
   releaseManifest: string;
   holdLog?: string;
+  releaseLog?: string;
   verifyLog?: string;
   sourceVideo?: string;
   sourceTrimBefore?: number;
@@ -57,6 +58,7 @@ function parseArgs(argv: string[]): FinalizeOracleDropArgs {
     holdManifest: required('hold-manifest'),
     releaseManifest: required('release-manifest'),
     holdLog: values.get('hold-log'),
+    releaseLog: values.get('release-log'),
     verifyLog: values.get('verify-log'),
     sourceVideo: values.get('source-video'),
     sourceTrimBefore: Math.round(parseOptionalNumber(values.get('source-trim-before'), 0, 'source-trim-before', true)),
@@ -87,14 +89,19 @@ function faceFromManifest(manifest: RunManifest, taskTitle: string, summaryText:
 }
 
 function classify(line: string): 'command' | 'error' | 'success' | 'warn' | 'info' | 'dim' {
-  if (/^\$ /.test(line) || line.startsWith('[Shoot Loop]') || line.startsWith('Manifest:')) return 'command';
+  if (/^\$ /.test(line) || line.startsWith('[Shoot Loop]')) return 'command';
   if (/error|fail|hold|mismatch|NOT CLEARED|❌|🚨/i.test(line)) return 'error';
   if (/warn|⚠/i.test(line)) return 'warn';
   if (/pass|release|verified|100|^✓ /i.test(line)) return 'success';
   return 'info';
 }
 
-function curateLogLines(filePath: string | undefined, label: string, fallback: string) {
+function curateLogLines(
+  filePath: string | undefined,
+  label: string,
+  fallback: string,
+  prependCommand?: string
+) {
   if (!filePath) {
     return [{ text: fallback, type: 'dim' as const }];
   }
@@ -113,16 +120,37 @@ function curateLogLines(filePath: string | undefined, label: string, fallback: s
 
   const prioritized = rawLines.filter((line) => SIGNAL_LINE.test(line));
   const pool = prioritized.length >= 4 ? prioritized : rawLines;
-  const maxLines = 11;
+  const maxLines = prependCommand ? 10 : 11;
   const selected =
     pool.length <= maxLines
       ? pool
       : [...pool.slice(0, 6), ...pool.slice(-(maxLines - 6))];
 
-  return selected.map((text) => ({
+  const formatted = selected.map((text) => ({
     text: text.length > 150 ? `${text.slice(0, 147)}...` : text,
     type: classify(text),
   }));
+
+  if (prependCommand) {
+    return [{ text: prependCommand.replace(/^\$\s*/, ''), type: 'command' as const }, ...formatted];
+  }
+  return formatted;
+}
+
+function extractHoldSummary(holdLogPath: string | undefined, hold: RunManifest): string {
+  if (holdLogPath && fs.existsSync(holdLogPath)) {
+    const match = fs
+      .readFileSync(holdLogPath, 'utf8')
+      .split('\n')
+      .map((line) => line.trim())
+      .find((line) => line.includes('[Oracle HOLD]'));
+    if (match) {
+      return match.replace(/^🚨\s*/, '');
+    }
+  }
+  return hold.oracle?.hold_reason
+    ? `First evaluation (${hold.oracle.hold_reason}). Repair disabled.`
+    : 'First evaluation failed. Repair disabled.';
 }
 
 function audioSeconds(filePath: string): number | null {
@@ -159,7 +187,7 @@ function beatFramesFor(audioDir: string): { frames: number[]; audio: Record<stri
     if (!match) return;
     const seconds = audioSeconds(match);
     if (seconds) {
-      // Reserve 6f pre-roll + 15f post-voice breathing room + transition overlap so stems never clip
+      // Reserve 6f pre-roll + 15f trailing breath + transition overlap so no stem clips or overlaps
       frames[index] = Math.max(frames[index], Math.ceil(seconds * 30) + 21 + ORACLE_TRANSITION_FRAMES);
     }
     const relative = path.relative(path.join(process.cwd(), 'public'), match);
@@ -235,20 +263,19 @@ export function finalizeOracleDrop(args: FinalizeOracleDropArgs) {
 
   const { frames, audio } = beatFramesFor(args.audioDir);
   const derivedApiStateLine = deriveVerifiedApiStateLine(loaded, release);
+  const verifyCommand = args.verifyLog
+    ? `npm run verify:oracle -- ${args.releaseManifest} --spec ${args.specPath} --commit ${releaseCommit.slice(0, 12)}... --allow-unisolated-beta`
+    : undefined;
+
   const props = {
     beatFrames: frames,
     specSha256: loaded.specSha256,
     contractId: loaded.spec.contract_id || loaded.spec.milestone_id || '',
-    hold: faceFromManifest(
-      hold,
-      loaded.spec.title,
-      hold.oracle?.hold_reason
-        ? `Buggy commit (C_bug). Signed hold (${hold.oracle.hold_reason}). Repair disabled.`
-        : 'Buggy commit (C_bug). Signed hold. Repair disabled.'
-    ),
+    hold: faceFromManifest(hold, loaded.spec.title, extractHoldSummary(args.holdLog, hold)),
     release: faceFromManifest(release, loaded.spec.title, 'Kane 100. Declared UI & API assertions verified. Repair did not run.'),
     holdTerminalLines: curateLogLines(args.holdLog, '--hold-log', 'Hold log not provided.'),
-    verifyTerminalLines: curateLogLines(args.verifyLog, '--verify-log', 'Verify log not provided.'),
+    releaseTerminalLines: curateLogLines(args.releaseLog, '--release-log', 'Release log not provided.'),
+    verifyTerminalLines: curateLogLines(args.verifyLog, '--verify-log', 'Verify log not provided.', verifyCommand),
     sourceVideo: publicRelative(args.sourceVideo),
     sourcePlaybackRate: args.sourcePlaybackRate ?? 1,
     sourceTrimBefore: args.sourceTrimBefore ?? 0,
@@ -257,10 +284,10 @@ export function finalizeOracleDrop(args: FinalizeOracleDropArgs) {
       label,
       passed: index === ORACLE_GATE_LABELS.length - 1 ? release.application?.isolation === 'container' : true,
     })),
-    closingTitle: 'Autocast Oracle — Milestone decisions backed by signed and verifiable proof.',
-    closingSubtitle: 'autocast --oracle',
+    closingTitle: 'Autocast Oracle',
+    closingSubtitle: 'Milestone decisions, backed by signed and verifiable proof.',
     repoUrl: 'github.com/nikhil-r0/autocast',
-    swapAt: 0.52,
+    swapAt: 0.56,
     ...(Object.keys(audio).length > 0 ? { audio } : {}),
   };
 

@@ -4,7 +4,7 @@ export function shortHash(value: string, head = 8, tail = 4): string {
   return `${trimmed.slice(0, head)}…${trimmed.slice(-tail)}`;
 }
 
-export const ORACLE_BEAT_FRAMES = [300, 300, 300, 480, 540, 210, 465, 195] as const;
+export const ORACLE_BEAT_FRAMES = [426, 468, 396, 600, 630, 192, 654, 234] as const;
 
 export const ORACLE_TRANSITION_FRAMES = 12;
 

@@ -462,9 +462,10 @@ test('finalizeOracleDrop verifies both HOLD and RELEASE manifests and requires t
   assert.equal(finalized.props.gates.length, 10);
   assert.equal(finalized.props.gates[9].passed, false);
   assert.equal(finalized.props.hold.resultCode, null);
-  assert.match(finalized.props.closingTitle, /Milestone decisions backed by signed and verifiable proof/i);
+  assert.match(finalized.props.closingTitle, /Autocast Oracle/i);
+  assert.match(finalized.props.closingSubtitle, /Milestone decisions, backed by signed and verifiable proof/i);
 
-  // Explicit missing verify log fails closed rather than printing placeholder
+  // Explicit missing verify or release log fails closed rather than printing placeholder
   assert.throws(
     () =>
       finalizeOracleDrop({
@@ -472,6 +473,19 @@ test('finalizeOracleDrop verifies both HOLD and RELEASE manifests and requires t
         holdManifest: holdPath,
         releaseManifest: releasePath,
         verifyLog: path.join(tmpDir, 'missing-verify.log'),
+        trustedKeyMap: { [keys.keyId]: keys.publicPem },
+        outPath,
+        audioDir: path.join(tmpDir, 'no-audio'),
+      }),
+    /does not exist/i
+  );
+  assert.throws(
+    () =>
+      finalizeOracleDrop({
+        specPath,
+        holdManifest: holdPath,
+        releaseManifest: releasePath,
+        releaseLog: path.join(tmpDir, 'missing-release.log'),
         trustedKeyMap: { [keys.keyId]: keys.publicPem },
         outPath,
         audioDir: path.join(tmpDir, 'no-audio'),

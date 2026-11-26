@@ -24,15 +24,15 @@ interface OracleVerdictSlabProps extends OracleVerdictFace {
 }
 
 export const OracleVerdictSlab: React.FC<OracleVerdictSlabProps> = ({
-  swapAt = 0.52,
+  swapAt = 0.56,
   durationInFrames,
-  width = 860,
+  width = 820,
   ...face
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const swapFrame = Math.round(durationInFrames * swapAt);
-  const reveal = interpolate(frame, [swapFrame, swapFrame + 10], [0, 1], {
+  const reveal = interpolate(frame, [swapFrame, swapFrame + 8], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
@@ -40,13 +40,15 @@ export const OracleVerdictSlab: React.FC<OracleVerdictSlabProps> = ({
   const accent = isRelease ? '#22c55e' : '#ef4444';
   const kaneAccent = isRelease && face.resultCode === 100 ? '#22c55e' : '#ef4444';
   const hasNumericCode = typeof face.resultCode === 'number' && Number.isFinite(face.resultCode);
-  const preSwapHeading = hasNumericCode ? 'KANE RESULT' : 'ORACLE GATE';
+  const preSwapHeading = hasNumericCode ? 'ACTUAL KANE RESULT' : 'ORACLE GATE';
   const preSwapValue = hasNumericCode ? String(face.resultCode) : (face.holdReason || 'HOLD').toUpperCase();
   const stamp = spring({
     frame: Math.max(0, frame - swapFrame),
     fps,
-    config: { damping: 10, stiffness: 120, mass: 0.8 },
+    config: { damping: 11, stiffness: 135, mass: 0.75 },
   });
+  const stampDropY = frame >= swapFrame ? interpolate(stamp, [0, 1], [-22, 0]) : 0;
+  const glowAlpha = !isRelease && frame >= swapFrame ? 0.18 : 0.08;
 
   return (
     <div
@@ -56,40 +58,58 @@ export const OracleVerdictSlab: React.FC<OracleVerdictSlabProps> = ({
         position: 'relative',
         backgroundColor: '#0c1322',
         borderRadius: 16,
-        border: `1px solid ${accent}66`,
+        border: `1.5px solid ${accent}88`,
+        boxShadow: `0 0 42px ${isRelease ? 'rgba(34, 197, 94,' : 'rgba(239, 68, 68,'} ${glowAlpha})`,
         overflow: 'hidden',
         fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
       }}
     >
-      <div style={{ position: 'absolute', inset: 0, padding: '28px 32px', opacity: 1 - reveal }}>
-        <div style={{ color: kaneAccent, fontSize: 13, fontWeight: 800, letterSpacing: 1.2 }}>{preSwapHeading}</div>
-        <div style={{ color: kaneAccent, fontSize: hasNumericCode ? 84 : 52, fontWeight: 900, lineHeight: 1.05, marginTop: 8 }}>
+      {/* Phase 1: Pre-swap Kane failure evidence */}
+      <div style={{ position: 'absolute', inset: 0, padding: '30px 34px', opacity: 1 - reveal }}>
+        <div style={{ color: kaneAccent, fontSize: 13, fontWeight: 800, letterSpacing: 1.4 }}>{preSwapHeading}</div>
+        <div style={{ color: kaneAccent, fontSize: hasNumericCode ? 88 : 52, fontWeight: 900, lineHeight: 1.05, marginTop: 10 }}>
           {preSwapValue}
         </div>
         <div style={{ color: '#f8fafc', fontSize: 22, fontWeight: 700, marginTop: 18 }}>{face.taskTitle}</div>
-        <div style={{ color: '#cbd5e1', fontSize: 16, lineHeight: 1.45, marginTop: 12 }}>{face.summaryText}</div>
+        <div style={{ color: '#cbd5e1', fontSize: 17, lineHeight: 1.5, marginTop: 12 }}>{face.summaryText}</div>
       </div>
-      <div style={{ position: 'absolute', inset: 0, padding: '28px 32px', opacity: reveal }}>
-        <div
-          style={{
-            scale: interpolate(stamp, [0, 1], [1.45, 1]),
-            color: accent,
-            fontSize: 68,
-            fontWeight: 900,
-            letterSpacing: 2,
-          }}
-        >
-          {face.verdict.toUpperCase()}
+
+      {/* Phase 2: Sealed Manifest Verdict (downward impact + facts) */}
+      <div style={{ position: 'absolute', inset: 0, padding: '28px 34px', opacity: reveal }}>
+        <div style={{ color: '#94a3b8', fontSize: 12, fontWeight: 800, letterSpacing: '0.14em' }}>
+          ORACLE VERDICT
+        </div>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 18, marginTop: 6, transform: `translateY(${stampDropY}px)` }}>
+          <div
+            style={{
+              scale: interpolate(stamp, [0, 1], [1.28, 1]),
+              color: accent,
+              fontSize: 64,
+              fontWeight: 900,
+              letterSpacing: 2,
+              lineHeight: 1,
+            }}
+          >
+            {face.verdict.toUpperCase()}
+          </div>
+          {hasNumericCode ? (
+            <div style={{ color: '#fca5a5', fontFamily: 'ui-monospace, monospace', fontSize: 28, fontWeight: 800 }}>
+              {face.resultCode}
+            </div>
+          ) : null}
         </div>
         {face.holdReason ? (
-          <div style={{ color: '#fca5a5', fontSize: 16, fontWeight: 700, marginTop: 6 }}>{face.holdReason}</div>
+          <div style={{ color: '#fca5a5', fontSize: 15, fontWeight: 700, marginTop: 6 }}>
+            {face.holdReason} · sourced from run manifest
+          </div>
         ) : null}
-        <div style={{ marginTop: 22, display: 'flex', flexDirection: 'column', gap: 10, fontSize: 18 }}>
-          <Fact label="Repair" value={face.repairOccurred ? 'ran' : 'locked off'} color="#f59e0b" />
-          <Fact label="State" value={face.stateVerified ? 'verified' : 'unverified'} color={face.stateVerified ? '#22c55e' : '#ef4444'} />
-          <Fact label="Spec" value={face.specSha256 ? shortHash(face.specSha256) : '—'} color="#38bdf8" />
-          <Fact label="Commit" value={face.testedCommit ? shortHash(face.testedCommit) : '—'} color="#38bdf8" />
-          <Fact label="Key" value={face.signatureKeyId ? shortHash(face.signatureKeyId) : '—'} color="#38bdf8" />
+        <div style={{ marginTop: 22, display: 'flex', flexDirection: 'column', gap: 11, fontSize: 17 }}>
+          <Fact label="Repair performed" value={face.repairOccurred ? 'TRUE' : 'FALSE'} color="#f59e0b" />
+          <Fact label="Delivery modified" value={face.repairOccurred ? 'YES' : 'NO'} color="#f59e0b" />
+          <Fact label="State verification" value={face.stateVerified ? 'Verified' : 'Unverified'} color={face.stateVerified ? '#22c55e' : '#ef4444'} />
+          <Fact label="Acceptance spec" value={face.specSha256 ? shortHash(face.specSha256) : '—'} color="#38bdf8" />
+          <Fact label="Delivery commit" value={face.testedCommit ? shortHash(face.testedCommit) : '—'} color="#38bdf8" />
+          <Fact label="Signing key ID" value={face.signatureKeyId ? shortHash(face.signatureKeyId) : '—'} color="#38bdf8" />
         </div>
       </div>
       {durationInFrames > swapFrame ? (
