@@ -437,7 +437,8 @@ test('finalizeOracleDrop verifies both HOLD and RELEASE manifests and requires t
     outPath,
     audioDir: path.join(tmpDir, 'no-audio'),
   });
-  assert.equal(finalized.props.gates.length, 9);
+  assert.equal(finalized.props.gates.length, 10);
+  assert.equal(finalized.props.gates[9].passed, false);
   assert.equal(finalized.props.hold.resultCode, null);
   assert.match(finalized.props.closingTitle, /Milestone payouts, gated by signed and verifiable proof/i);
 
@@ -523,4 +524,43 @@ test('verifyWebhookSignature enforces 300s replay window, constant-time HMAC, an
   });
   assert.equal(tamperedCheck.valid, false);
   assert.match(tamperedCheck.error || '', /hmac signature mismatch/i);
+});
+
+test('archived real oracle fixtures verify cryptographically and obey Gate 10 beta lock', async () => {
+  const specPath = path.resolve(process.cwd(), 'examples/oracle/ledgerly-approval.json');
+  const fixDir = path.resolve(process.cwd(), 'examples/oracle/fixtures');
+  const holdManifestPath = path.join(fixDir, 'hold-manifest.json');
+  const releaseManifestPath = path.join(fixDir, 'release-manifest.json');
+  const trustedKeysPath = path.join(fixDir, 'trusted-keys.json');
+  const { specSha256 } = computeSpecSha256(JSON.parse(fs.readFileSync(specPath, 'utf-8')));
+
+  const holdManifest = JSON.parse(fs.readFileSync(holdManifestPath, 'utf-8'));
+  const releaseManifest = JSON.parse(fs.readFileSync(releaseManifestPath, 'utf-8'));
+  const holdCommit = holdManifest.application.tested_commit;
+  const releaseCommit = releaseManifest.application.tested_commit;
+  assert.notEqual(holdCommit, releaseCommit);
+
+  const { verifyOracleHoldManifest, verifyOracleManifest } = await import('../src/manifest.js');
+  const holdCheck = verifyOracleHoldManifest(holdManifestPath, {
+    expectedSpecSha256: specSha256,
+    expectedCommit: holdCommit,
+    trustedKeysPath,
+  });
+  assert.equal(holdCheck.valid, true, holdCheck.errors.join('; '));
+
+  const strictReleaseCheck = verifyOracleManifest(releaseManifestPath, {
+    expectedSpecSha256: specSha256,
+    expectedCommit: releaseCommit,
+    trustedKeysPath,
+  });
+  assert.equal(strictReleaseCheck.valid, false);
+  assert.ok(strictReleaseCheck.errors.some((e) => /isolation must be 'container'/i.test(e)));
+
+  const betaReleaseCheck = verifyOracleManifest(releaseManifestPath, {
+    expectedSpecSha256: specSha256,
+    expectedCommit: releaseCommit,
+    trustedKeysPath,
+    allowUnisolatedBeta: true,
+  });
+  assert.equal(betaReleaseCheck.valid, true, betaReleaseCheck.errors.join('; '));
 });

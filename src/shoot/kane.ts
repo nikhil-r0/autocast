@@ -1,10 +1,25 @@
-import { spawn } from 'child_process';
+import { spawn, execFileSync } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import { KaneRunResult, KaneStep } from '../types.js';
 import { normalizeKaneExecution } from './kaneAdapter.js';
 import { stripOracleSecrets } from '../oracle/env.js';
 import { findActionsLog } from '../capture/actionIR.js';
+
+/**
+ * Oracle Mode is pinned to the tested Kane CLI 0.10.x series whose
+ * --bug-detection off, NDJSON run_end, and .evidence bundle layout are verified.
+ */
+export const SUPPORTED_ORACLE_KANE_VERSION_PATTERN = /^0\.10\./;
+
+export function probeKaneCliVersion(): string {
+  const out = execFileSync('kane-cli', ['--version'], {
+    encoding: 'utf-8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  }).trim();
+  const match = out.match(/\b(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)\b/);
+  return match ? match[1] : out;
+}
 
 export interface KaneRunOptions {
   objective: string;

@@ -24,7 +24,7 @@ import { LedgerlyLifecycleAdapter } from './app/lifecycle.js';
 import { generateRunManifest } from './manifest.js';
 import { RunManifest } from './types.js';
 import { runPreflightAudit } from './preflight.js';
-import { runOraclePipeline } from './oracle/runner.js';
+import { runOraclePipeline, runOracleWithInconclusivePolicy } from './oracle/runner.js';
 import { PublishAdapterName } from './oracle/publish.js';
 
 import dns from 'dns';
@@ -91,6 +91,7 @@ interface ParsedCliFlags {
   expectSpecSha256?: string;
   withVideo: boolean;
   publishAdapter?: PublishAdapterName;
+  maxInconclusiveRetries?: number;
   agentRepairFlag: boolean;
   promptArg?: string;
   skipReview: boolean;
@@ -106,6 +107,7 @@ export function parseCliArgs(argv: string[]): ParsedCliFlags {
   let expectSpecSha256: string | undefined;
   let withVideo = false;
   let publishAdapter: PublishAdapterName | undefined;
+  let maxInconclusiveRetries: number | undefined;
   let agentRepairFlag = false;
   let skipReview = false;
   let layoutChoice: 'split' | 'hud' | 'auto' = 'auto';
@@ -140,6 +142,10 @@ export function parseCliArgs(argv: string[]): ParsedCliFlags {
       publishAdapter = argv[++i] as PublishAdapterName;
     } else if (arg.startsWith('--publish=')) {
       publishAdapter = arg.slice('--publish='.length) as PublishAdapterName;
+    } else if (arg === '--max-inconclusive-retries' && argv[i + 1]) {
+      maxInconclusiveRetries = Number(argv[++i]);
+    } else if (arg.startsWith('--max-inconclusive-retries=')) {
+      maxInconclusiveRetries = Number(arg.slice('--max-inconclusive-retries='.length));
     } else if (arg === '--with-video') {
       withVideo = true;
     } else if (arg === '--agent-repair') {
@@ -164,6 +170,7 @@ export function parseCliArgs(argv: string[]): ParsedCliFlags {
     expectSpecSha256,
     withVideo,
     publishAdapter,
+    maxInconclusiveRetries,
     agentRepairFlag,
     promptArg: positionals[0],
     skipReview,
@@ -182,7 +189,7 @@ async function main() {
       console.error('❌ Missing required arguments. Usage: autocast --oracle <spec.json> --commit <40-char-sha> --expect-spec-sha256 <64-hex> (or autocast oracle <spec.json> --commit <40-char-sha> --expect-spec-sha256 <64-hex>)');
       process.exit(2);
     }
-    const outcome = await runOraclePipeline({
+    const oracleOptions = {
       specPath: parsed.oracleSpecPath,
       commit: parsed.commit,
       expectSpecSha256: parsed.expectSpecSha256,
@@ -190,7 +197,24 @@ async function main() {
       withVideo: parsed.withVideo,
       publishAdapter: parsed.publishAdapter,
       agentRepairRequested: parsed.agentRepairFlag,
-    });
+    };
+    if (
+      parsed.maxInconclusiveRetries !== undefined &&
+      Number.isFinite(parsed.maxInconclusiveRetries) &&
+      parsed.maxInconclusiveRetries > 0
+    ) {
+      const policyRes = await runOracleWithInconclusivePolicy({
+        ...oracleOptions,
+        maxInconclusiveRetries: parsed.maxInconclusiveRetries,
+      });
+      if (policyRes.escalatedToArbitration) {
+        console.error(
+          `⚠️ [Oracle Policy] Verdict remained inconclusive after ${policyRes.attempts} attempts; escalated to arbitration.`
+        );
+      }
+      process.exit(policyRes.outcome.exitCode);
+    }
+    const outcome = await runOraclePipeline(oracleOptions);
     process.exit(outcome.exitCode);
   }
 

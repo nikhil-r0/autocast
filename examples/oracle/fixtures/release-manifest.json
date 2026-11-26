@@ -1,0 +1,41 @@
+{
+  "autocast_version": "0.2.0",
+  "run_id": "oracle-fixture-release",
+  "generated_at": "2026-11-26T08:05:15.259Z",
+  "mode": "oracle",
+  "status": "verified",
+  "application": {
+    "url": "http://localhost:8080/",
+    "environment": "runner_pinned",
+    "isolation": "none",
+    "baseline_commit": "5f8bfc48879d7fb5544eb2392260f2d90d4e0209",
+    "tested_commit": "5f8bfc48879d7fb5544eb2392260f2d90d4e0209",
+    "state_verified": true
+  },
+  "kane_verification": {
+    "run_id": "/home/home/.testmuai/kaneai/sessions/9643b7e8-69cd-4e8d-8033-1ba6a064fd86",
+    "kane_cli_version": "0.10.4",
+    "session_id": "/home/home/.testmuai/kaneai/sessions/9643b7e8-69cd-4e8d-8033-1ba6a064fd86",
+    "evidence_pack": "/home/home/.testmuai/kaneai/sessions/9643b7e8-69cd-4e8d-8033-1ba6a064fd86/evidence/facd2dbf-99b7-4c50-8d6a-fd8c41ff0c84.evidence",
+    "result_code": 100,
+    "share_url": "https://test-manager.lambdatest.com/projects/01M7G731FR81J5BGBWP3Y53FHF/test-cases/01M8BDZFW4KAXRY550Y3XFD2ZC/dashboard/share/US_ZU1YGI2TPXZA9LPX94MWRCO4KP6HT2WP418AQ9ULZB61JWLK7GZNUU8XMKKC7JF8?type=summary&agentView=true&fqdn=summary-page",
+    "test_url": "https://test-manager.lambdatest.com/projects/01M7G731FR81J5BGBWP3Y53FHF/test-cases/01M8BDZFW4KAXRY550Y3XFD2ZC/dashboard/share/US_ZU1YGI2TPXZA9LPX94MWRCO4KP6HT2WP418AQ9ULZB61JWLK7GZNUU8XMKKC7JF8?type=summary&agentView=true&fqdn=summary-page",
+    "credits_consumed": 37.2593175
+  },
+  "closed_loop_repair": {
+    "occurred": false
+  },
+  "oracle": {
+    "spec_sha256": "db11e9ad3ee1067b528ed8ea185782ae60d9b4091497ee99cd597cbab16013df",
+    "seed_id": "ledgerly-default-v1",
+    "expected_commit": "5f8bfc48879d7fb5544eb2392260f2d90d4e0209",
+    "runner_id": "autocast-oracle-beta-01",
+    "verdict": "release"
+  },
+  "artifacts": {},
+  "signature": {
+    "alg": "ed25519",
+    "key_id": "30782eb5b386f11eb54f723e8fe50ddc987ef8b0027fec3017b2d7e58c1d8231",
+    "sig": "62NgKPmvoFnh6DQCKf7lCsov47/juYzbP0DB/LArLtK9TY/C4nGBv8L7izp5/9z4pHafJ2/dcnfkS1TcIWZUDg=="
+  }
+}

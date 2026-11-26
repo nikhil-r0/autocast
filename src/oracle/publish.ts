@@ -154,7 +154,9 @@ export interface WebhookVerifyResult {
  * Verifies an incoming Autocast Oracle webhook delivery:
  * 1. Rejects missing or expired X-Autocast-Timestamp headers outside maxSkewSeconds (default 300s).
  * 2. Validates X-Autocast-Signature (`sha256=<hex>`) over `${timestamp}.${body}` in constant time.
- * 3. Deduplicates deliveries by `payload.manifest_sha256` against caller-supplied seenManifestSha256s.
+ * 3. Deduplicates deliveries by `payload.manifest_sha256` against caller-supplied `seenManifestSha256s`.
+ *    NOTE: `Set<string>` is process-local only; production webhook receivers MUST back deduplication
+ *    with a persistent/shared store (e.g. Redis or database unique index) across restarts and instances.
  */
 export function verifyWebhookSignature(options: WebhookVerifyOptions): WebhookVerifyResult {
   const maxSkewSec = options.maxSkewSeconds ?? 300;

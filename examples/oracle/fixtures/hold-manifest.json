@@ -1,0 +1,42 @@
+{
+  "autocast_version": "0.2.0",
+  "run_id": "oracle-fixture-hold",
+  "generated_at": "2026-11-26T08:01:05.118Z",
+  "mode": "oracle",
+  "status": "failed",
+  "application": {
+    "url": "http://localhost:8080/",
+    "environment": "runner_pinned",
+    "isolation": "none",
+    "baseline_commit": "c22f5395a4b31a6790eac6d8909dd6522c3b3145",
+    "tested_commit": "c22f5395a4b31a6790eac6d8909dd6522c3b3145",
+    "state_verified": false
+  },
+  "kane_verification": {
+    "run_id": "/home/home/.testmuai/kaneai/sessions/4a121084-4280-4807-ac59-be7d344f5f5b",
+    "kane_cli_version": "0.10.4",
+    "session_id": "/home/home/.testmuai/kaneai/sessions/4a121084-4280-4807-ac59-be7d344f5f5b",
+    "evidence_pack": "/home/home/.testmuai/kaneai/sessions/4a121084-4280-4807-ac59-be7d344f5f5b/evidence/b843130a-8686-42f0-96d0-7786a8c53d47.evidence",
+    "result_code": 740,
+    "share_url": "https://test-manager.lambdatest.com/projects/01M7G731FR81J5BGBWP3Y53FHF/test-cases/01M8BDS6J3YBNP79ECNKEQY37F/dashboard/share/US_940IG1HGWRB4EO1MXGQ6SSLL98QXZDJFGI4IAY7OPO2DMHHXEQ45Z9GIT8ZNWYCY?type=summary&agentView=true&fqdn=summary-page",
+    "test_url": "https://test-manager.lambdatest.com/projects/01M7G731FR81J5BGBWP3Y53FHF/test-cases/01M8BDS6J3YBNP79ECNKEQY37F/dashboard/share/US_940IG1HGWRB4EO1MXGQ6SSLL98QXZDJFGI4IAY7OPO2DMHHXEQ45Z9GIT8ZNWYCY?type=summary&agentView=true&fqdn=summary-page",
+    "credits_consumed": 32.966765
+  },
+  "closed_loop_repair": {
+    "occurred": false
+  },
+  "oracle": {
+    "spec_sha256": "db11e9ad3ee1067b528ed8ea185782ae60d9b4091497ee99cd597cbab16013df",
+    "seed_id": "ledgerly-default-v1",
+    "expected_commit": "c22f5395a4b31a6790eac6d8909dd6522c3b3145",
+    "runner_id": "autocast-oracle-beta-01",
+    "verdict": "hold",
+    "hold_reason": "kane_failed"
+  },
+  "artifacts": {},
+  "signature": {
+    "alg": "ed25519",
+    "key_id": "30782eb5b386f11eb54f723e8fe50ddc987ef8b0027fec3017b2d7e58c1d8231",
+    "sig": "OqqyI++0pH46pdWIdcK1fuLHGZ+QnedoI74/m/D0B0eOCwcELuiAm5bCKln0RjlyLO450iRC08Fa4VLvY0LXAA=="
+  }
+}

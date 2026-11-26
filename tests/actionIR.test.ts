@@ -15,26 +15,29 @@ import { OutcomeSpec } from '../types.js';
 test('parseActionsLogToActionIR successfully parses supported action types and skips assertions to outcomeSpecs', () => {
   const ndjson = [
     JSON.stringify({ action_id: '1', action_type: 'navigate', action_params: { url: 'http://localhost:8080' }, step: 1 }),
+    JSON.stringify({ action_id: '1b', action_type: 'wait', action_params: { ms: 100 }, step: 2 }),
     JSON.stringify({
       action_id: '2',
       action_type: 'click',
       selectors: [{ selector: '#btn-view-INV-1001' }],
       visual_data: { bbox: { x: 100, y: 200, width: 50, height: 20 }, viewport_width: 1920, viewport_height: 1080 },
-      step: 2,
+      step: 3,
     }),
     JSON.stringify({
       action_id: '3',
       action_type: 'assert',
       intent: 'the Approved seal is visible',
-      step: 3,
+      step: 4,
     }),
   ].join('\n');
 
   const ir = parseActionsLogToActionIR(ndjson);
-  assert.equal(ir.actions.length, 2);
+  assert.equal(ir.actions.length, 3);
   assert.equal(ir.actions[0].type, 'navigate');
-  assert.equal(ir.actions[1].type, 'click');
-  assert.equal(ir.actions[1].selector, '#btn-view-INV-1001');
+  assert.equal(ir.actions[1].type, 'wait');
+  assert.equal(ir.actions[1].waitAfterMs, 100);
+  assert.equal(ir.actions[2].type, 'click');
+  assert.equal(ir.actions[2].selector, '#btn-view-INV-1001');
   assert.equal(ir.outcomeSpecs.length, 1);
   assert.equal(ir.outcomeSpecs[0].verification.type, 'visible');
 });
@@ -105,24 +108,44 @@ test('OutcomeSpec passes when conditions are satisfied', async () => {
   assert.equal(result.failures.length, 0);
 });
 
-test('normalizeActionSelector converts Kane internal:testid selectors and findActionsLog extracts .evidence ZIP entries', () => {
+test('normalizeActionSelector converts Kane internal Playwright selectors and findActionsLog extracts .evidence ZIP entries', () => {
   assert.equal(
     normalizeActionSelector('internal:testid=[data-testid="btn-review-INV-1042"s]'),
     '[data-testid="btn-review-INV-1042"]'
   );
+  assert.equal(
+    normalizeActionSelector('internal:role=button[name="Confirm Approval"i]'),
+    'role=button[name="Confirm Approval"i]'
+  );
+  assert.equal(
+    normalizeActionSelector('internal:text="Approve Invoice"i'),
+    'text="Approve Invoice"'
+  );
+  assert.equal(
+    normalizeActionSelector('internal:attr=[aria-label="Close drawer"]'),
+    '[aria-label="Close drawer"]'
+  );
+  assert.equal(normalizeActionSelector('xpath=//button[@type="submit"]'), 'xpath=//button[@type="submit"]');
   assert.equal(normalizeActionSelector('#plain-css'), '#plain-css');
 
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'autocast-evidence-zip-'));
   try {
     const innerDir = path.join(tmpDir, 'pack-src', 'tests', 'run-1', 'logs');
     fs.mkdirSync(innerDir, { recursive: true });
-    const ndjson = JSON.stringify({
+    const ndjson0 = JSON.stringify({
+      action_id: 'step-1',
+      action_type: 'click',
+      selectors: [{ selector: 'internal:testid=[data-testid="btn-login"s]' }],
+      step: 1,
+    });
+    const ndjson1 = JSON.stringify({
       action_id: 'step-2',
       action_type: 'click',
       selectors: [{ selector: 'internal:testid=[data-testid="btn-review-INV-1042"s]' }],
       step: 2,
     });
-    fs.writeFileSync(path.join(innerDir, '0-actions.ndjson'), ndjson + '\n', 'utf8');
+    fs.writeFileSync(path.join(innerDir, '0-actions.ndjson'), ndjson0 + '\n', 'utf8');
+    fs.writeFileSync(path.join(innerDir, '1-actions.ndjson'), ndjson1 + '\n', 'utf8');
 
     const sessionDir = path.join(tmpDir, 'kane-session');
     const evidenceDir = path.join(sessionDir, 'evidence');
@@ -131,9 +154,11 @@ test('normalizeActionSelector converts Kane internal:testid selectors and findAc
     execFileSync('zip', ['-rq', archivePath, 'tests'], { cwd: path.join(tmpDir, 'pack-src') });
 
     const found = findActionsLog(sessionDir, archivePath);
-    assert.ok(found && fs.existsSync(found), 'findActionsLog must extract 0-actions.ndjson from .evidence archive');
+    assert.ok(found && fs.existsSync(found), 'findActionsLog must extract & merge numbered *-actions.ndjson from .evidence archive');
     const ir = parseActionsLogToActionIR(fs.readFileSync(found, 'utf8'));
-    assert.equal(ir.actions[0].selector, '[data-testid="btn-review-INV-1042"]');
+    assert.equal(ir.actions.length, 2);
+    assert.equal(ir.actions[0].selector, '[data-testid="btn-login"]');
+    assert.equal(ir.actions[1].selector, '[data-testid="btn-review-INV-1042"]');
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }

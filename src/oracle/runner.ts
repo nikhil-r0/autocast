@@ -6,6 +6,7 @@ import {
   AcceptanceSpec,
   AppLifecycleAdapter,
   ApplicationEnvironment,
+  ApplicationIsolation,
   KaneRunResult,
   OracleHoldReason,
   OracleVerdict,
@@ -17,7 +18,11 @@ import {
   LedgerlyLifecycleAdapter,
   RunnerInfraError,
 } from '../app/lifecycle.js';
-import { executeKaneRun } from '../shoot/kane.js';
+import {
+  executeKaneRun,
+  probeKaneCliVersion,
+  SUPPORTED_ORACLE_KANE_VERSION_PATTERN,
+} from '../shoot/kane.js';
 import { classifyKaneRun } from '../shoot/classify.js';
 import { generateRunManifest } from '../manifest.js';
 import { runOraclePreflight } from '../preflight.js';
@@ -67,6 +72,7 @@ export interface OracleRunnerDeps {
   preflightFn?: typeof runOraclePreflight;
   prepareCheckoutFn?: (expectedCommit: string, runDir: string, cwd: string) => OracleCheckoutHandle;
   createAdapterFn?: (opts: { appDir?: string; port?: number; baseUrl?: string }) => AppLifecycleAdapter;
+  getKaneVersionFn?: () => string;
   executeKaneRunFn?: typeof executeKaneRun;
   verifyUiOutcomesFn?: (params: {
     specs: OutcomeSpec[];
@@ -299,6 +305,21 @@ async function defaultCaptureOptionalVideo(params: {
 
 export async function runOraclePipeline(options: OracleRunOptions): Promise<OracleRunOutcome> {
   const quietStdout = options.publishAdapter === 'stdout-json';
+  const origConsoleLog = console.log;
+  if (quietStdout) {
+    console.log = (...args: unknown[]) => console.error(...args);
+  }
+  try {
+    return await runOraclePipelineImpl(options);
+  } finally {
+    if (quietStdout) {
+      console.log = origConsoleLog;
+    }
+  }
+}
+
+async function runOraclePipelineImpl(options: OracleRunOptions): Promise<OracleRunOutcome> {
+  const quietStdout = options.publishAdapter === 'stdout-json';
   const log = (...args: unknown[]) => {
     if (quietStdout) {
       console.error(...args);
@@ -367,6 +388,29 @@ export async function runOraclePipeline(options: OracleRunOptions): Promise<Orac
 
   fs.mkdirSync(runDir, { recursive: true });
   let applicationEnvironment: ApplicationEnvironment = 'external_unverified';
+  const applicationIsolation: ApplicationIsolation = 'none';
+
+  // Fail closed on untested Kane CLI versions (Oracle is pinned to tested 0.10.x format & flags)
+  let kaneCliVersion: string;
+  try {
+    if (options.deps?.getKaneVersionFn) {
+      kaneCliVersion = options.deps.getKaneVersionFn();
+    } else if (!options.deps?.executeKaneRunFn) {
+      kaneCliVersion = probeKaneCliVersion();
+    } else {
+      kaneCliVersion = '0.10.4';
+    }
+  } catch (err: any) {
+    const msg = `Failed to probe kane-cli --version: ${err?.message || err}`;
+    logErr(`❌ [Oracle] ${msg}`);
+    return { exitCode: 2, specSha256, error: msg };
+  }
+
+  if (!SUPPORTED_ORACLE_KANE_VERSION_PATTERN.test(kaneCliVersion)) {
+    const msg = `Unsupported kane-cli version '${kaneCliVersion}': Oracle Mode is pinned to tested 0.10.x releases.`;
+    logErr(`❌ [Oracle] ${msg}`);
+    return { exitCode: 2, specSha256, error: msg };
+  }
 
   const sealAndOptionallyPublish = async (params: {
     status: RunManifest['status'];
@@ -387,12 +431,14 @@ export async function runOraclePipeline(options: OracleRunOptions): Promise<Orac
       runId,
       applicationUrl: spec.target.url,
       applicationEnvironment,
+      applicationIsolation,
       baselineCommit: expectedCommit,
       testedCommit: params.testedCommit,
       stateVerified: params.stateVerified,
       kaneVerification: params.kaneResult
         ? {
             run_id: params.kaneResult.sessionDir || runId,
+            kane_cli_version: kaneCliVersion,
             session_id: params.kaneResult.sessionDir,
             evidence_pack: params.kaneResult.evidencePack,
             result_code: params.kaneResult.resultCode,
@@ -436,6 +482,9 @@ export async function runOraclePipeline(options: OracleRunOptions): Promise<Orac
   log('⚖️  AUTOCAST ORACLE MODE: ACCEPTANCE PROOF RUNNER');
   log(`   Spec: "${spec.title}" (${specSha256.slice(0, 12)}...)`);
   log(`   Pinned Commit: ${expectedCommit} | Seed: ${spec.target.seed_id}`);
+  log(`   Kane Pin: v${kaneCliVersion} | Isolation: ${applicationIsolation}`);
+  log('   ⚠️  BETA WARNING: isolation=\'none\' (shared OS user, no container/separate signer).');
+  log('       Trusted code only — DO NOT use for untrusted code or real funds.');
   log('================================================================\n');
 
   // Step 2: Check --expect-spec-sha256 BEFORE starting app
@@ -837,4 +886,57 @@ export async function runOraclePipeline(options: OracleRunOptions): Promise<Orac
       } catch {}
     }
   }
+}
+
+export interface OraclePolicyRunResult {
+  outcome: OracleRunOutcome;
+  attempts: number;
+  escalatedToArbitration: boolean;
+  history: Array<{ attempt: number; exitCode: number; verdict?: OracleVerdict; holdReason?: OracleHoldReason }>;
+}
+
+/**
+ * Enforces the inconclusive retry & arbitration escalation policy:
+ * runs single-shot verification and retries only on `verdict === 'inconclusive'`
+ * up to `maxInconclusiveRetries` (default 2 -> max 3 total runs) before escalating
+ * to arbitration.
+ */
+export async function runOracleWithInconclusivePolicy(
+  options: OracleRunOptions & { maxInconclusiveRetries?: number },
+  runFn: (opts: OracleRunOptions) => Promise<OracleRunOutcome> = runOraclePipeline
+): Promise<OraclePolicyRunResult> {
+  const maxRetries = Math.max(0, Math.min(2, options.maxInconclusiveRetries ?? 2));
+  const history: OraclePolicyRunResult['history'] = [];
+  const baseRunId = options.runId || process.env.RUN_ID || `autocast-oracle-${Date.now()}`;
+
+  let lastOutcome: OracleRunOutcome = { exitCode: 2, error: 'Oracle did not execute' };
+  for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+    const attemptRunId = attempt === 1 ? baseRunId : `${baseRunId}-retry-${attempt - 1}`;
+    lastOutcome = await runFn({
+      ...options,
+      runId: attemptRunId,
+    });
+    history.push({
+      attempt,
+      exitCode: lastOutcome.exitCode,
+      verdict: lastOutcome.verdict,
+      holdReason: lastOutcome.holdReason,
+    });
+
+    if (lastOutcome.verdict !== 'inconclusive') {
+      return {
+        outcome: lastOutcome,
+        attempts: attempt,
+        escalatedToArbitration: false,
+        history,
+      };
+    }
+  }
+
+  return {
+    outcome: lastOutcome,
+    attempts: history.length,
+    escalatedToArbitration: true,
+    history,
+  };
 }

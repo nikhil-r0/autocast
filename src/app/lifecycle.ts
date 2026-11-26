@@ -21,7 +21,23 @@ export class RunnerInfraError extends Error {
   }
 }
 
-const INFRA_NETWORK_ERROR_RE = /EAI_AGAIN|ENOTFOUND|ETIMEDOUT|ECONNRESET|ECONNREFUSED|ERR_SOCKET|network|getaddrinfo/i;
+const INFRA_NETWORK_ERROR_RE = /EAI_AGAIN|ENOTFOUND|ETIMEDOUT|ECONNRESET|ECONNREFUSED|ERR_SOCKET|getaddrinfo/i;
+const LOCKFILE_OR_CONTRACTOR_INSTALL_RE = /E404|ETARGET|EINTEGRITY|ENOLOCK|EUSAGE|sha512-|integrity checksum|notarget|404 Not Found|invalid package|ERESOLVE/i;
+
+export async function checkNpmRegistryHealth(
+  registryUrl: string = process.env.npm_config_registry || 'https://registry.npmjs.org/'
+): Promise<boolean> {
+  try {
+    const base = registryUrl.replace(/\/+$/, '');
+    const pingUrl = `${base}/-/ping`;
+    const res = await fetch(pingUrl, { signal: AbortSignal.timeout(5000) });
+    if (res.ok || res.status < 500) return true;
+    const rootRes = await fetch(base, { signal: AbortSignal.timeout(5000) });
+    return rootRes.status < 500;
+  } catch {
+    return false;
+  }
+}
 
 export interface LifecycleStartOptions {
   env?: Record<string, string>;
@@ -31,6 +47,7 @@ export interface LifecycleStartOptions {
   buildDistIfMissing?: boolean;
   scrubEnv?: boolean;
   allowNodeModulesSymlink?: boolean;
+  checkRegistryFn?: () => Promise<boolean>;
 }
 
 export class LedgerlyLifecycleAdapter implements AppLifecycleAdapter {
@@ -110,14 +127,27 @@ export class LedgerlyLifecycleAdapter implements AppLifecycleAdapter {
         const installCmd = hasLockfile
           ? 'npm ci --ignore-scripts --no-audit --no-fund'
           : 'npm install --ignore-scripts --no-audit --no-fund';
+        const registryHealthy = await (opts?.checkRegistryFn
+          ? opts.checkRegistryFn()
+          : checkNpmRegistryHealth(env?.npm_config_registry));
+        if (!registryHealthy) {
+          throw new RunnerInfraError(
+            'Runner npm registry health check failed prior to deliverable dependency install.'
+          );
+        }
         console.log(`[Lifecycle] Installing pinned dependencies in ${this.appDir} via "${installCmd}"...`);
         try {
           execSync(installCmd, { cwd: this.appDir, env, stdio: 'pipe' });
         } catch (err: any) {
           const stderr = err?.stderr ? String(err.stderr) : '';
-          const message = `${err?.message || ''}\n${stderr}`.trim();
+          const stdout = err?.stdout ? String(err.stdout) : '';
+          const message = `${err?.message || ''}\n${stderr}\n${stdout}`.trim();
+          // On a verified healthy runner registry, 404/integrity/lockfile failures belong to contractor lockfile
+          if (LOCKFILE_OR_CONTRACTOR_INSTALL_RE.test(message)) {
+            throw new DeliverableBuildError(`Deliverable lockfile/dependency install failed (${installCmd}): ${message}`);
+          }
           if (INFRA_NETWORK_ERROR_RE.test(message)) {
-            throw new RunnerInfraError(`Runner dependency install failed due to network/registry outage: ${message}`);
+            throw new RunnerInfraError(`Runner dependency install failed due to transient network error: ${message}`);
           }
           throw new DeliverableBuildError(`Deliverable dependency install failed (${installCmd}): ${message}`);
         }

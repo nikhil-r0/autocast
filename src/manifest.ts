@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { ApplicationEnvironment, RunManifest } from './types.js';
+import { ApplicationEnvironment, ApplicationIsolation, RunManifest } from './types.js';
 import {
   TrustedKeyMap,
   computePublicKeyId,
@@ -91,6 +91,7 @@ export function generateRunManifest(params: {
   runId?: string;
   applicationUrl: string;
   applicationEnvironment?: ApplicationEnvironment;
+  applicationIsolation?: ApplicationIsolation;
   baselineCommit?: string;
   testedCommit?: string;
   integrationCommit?: string;
@@ -154,6 +155,11 @@ export function generateRunManifest(params: {
     application: {
       url: params.applicationUrl,
       ...(params.applicationEnvironment ? { environment: params.applicationEnvironment } : {}),
+      ...(mode === 'oracle'
+        ? { isolation: params.applicationIsolation ?? 'none' }
+        : params.applicationIsolation
+        ? { isolation: params.applicationIsolation }
+        : {}),
       baseline_commit: params.baselineCommit,
       tested_commit: params.testedCommit,
       integration_commit: params.integrationCommit,
@@ -255,6 +261,7 @@ export interface VerifyOracleManifestOptions {
   trustedKeysPath?: string;
   trustedKeys?: TrustedKeyMap;
   publicKeyPem?: string;
+  allowUnisolatedBeta?: boolean;
 }
 
 export function verifyOracleManifest(
@@ -314,8 +321,18 @@ export function verifyOracleManifest(
 
   if (!manifest.kane_verification) {
     errors.push('Manifest missing required kane_verification entry');
-  } else if (manifest.kane_verification.result_code !== 100) {
-    errors.push(`Kane verification result_code must be 100 (got: ${manifest.kane_verification.result_code})`);
+  } else {
+    if (manifest.kane_verification.result_code !== 100) {
+      errors.push(`Kane verification result_code must be 100 (got: ${manifest.kane_verification.result_code})`);
+    }
+    if (
+      manifest.kane_verification.kane_cli_version &&
+      !/^0\.10\./.test(manifest.kane_verification.kane_cli_version)
+    ) {
+      errors.push(
+        `Untested Kane CLI version '${manifest.kane_verification.kane_cli_version}'; Oracle Mode is pinned to 0.10.x`
+      );
+    }
   }
 
   if (manifest.application?.state_verified !== true) {
@@ -338,6 +355,18 @@ export function verifyOracleManifest(
   if (appEnv !== 'runner_pinned') {
     errors.push(
       `Oracle application.environment must be 'runner_pinned' (got: '${appEnv || 'undefined'}')`
+    );
+  }
+
+  // Gate 10: Enforce container isolation by default so real escrow verifiers refuse unisolated beta manifests
+  const isolation = manifest.application?.isolation;
+  if (!options.allowUnisolatedBeta && isolation !== 'container') {
+    errors.push(
+      `Oracle application.isolation must be 'container' for payment release (got: '${isolation || 'undefined'}'). Refusing unisolated beta manifest.`
+    );
+  } else if (isolation !== 'container' && isolation !== 'none') {
+    errors.push(
+      `Oracle application.isolation must be 'container' or 'none' (got: '${isolation || 'undefined'}')`
     );
   }
 

@@ -174,6 +174,7 @@ export function finalizeOracleDrop(args: FinalizeOracleDropArgs) {
     expectedCommit: releaseCommit,
     trustedKeysPath: args.trustedKeys,
     trustedKeys: args.trustedKeyMap,
+    allowUnisolatedBeta: true,
   });
   if (!verifiedRelease.valid) {
     throw new Error(`Release manifest failed payment gates:\n${verifiedRelease.errors.join('\n')}`);
@@ -198,7 +199,10 @@ export function finalizeOracleDrop(args: FinalizeOracleDropArgs) {
     sourcePlaybackRate: 1,
     sourceTrimBefore: 0,
     apiStateLine: args.apiStateLine || '',
-    gates: ORACLE_GATE_LABELS.map((label) => ({ label, passed: true })),
+    gates: ORACLE_GATE_LABELS.map((label, index) => ({
+      label,
+      passed: index === ORACLE_GATE_LABELS.length - 1 ? release.application?.isolation === 'container' : true,
+    })),
     closingTitle: 'Autocast v0.2 — Milestone payouts, gated by signed and verifiable proof.',
     closingSubtitle: 'autocast --oracle',
     repoUrl: 'github.com/nikhil-r0/autocast',

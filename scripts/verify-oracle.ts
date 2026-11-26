@@ -12,6 +12,7 @@ interface VerifyOracleCliArgs {
   specSha256?: string;
   commit?: string;
   trustedKeysPath?: string;
+  allowUnisolatedBeta: boolean;
 }
 
 function parseArgs(argv: string[]): VerifyOracleCliArgs {
@@ -20,6 +21,7 @@ function parseArgs(argv: string[]): VerifyOracleCliArgs {
   let specSha256: string | undefined;
   let commit: string | undefined;
   let trustedKeysPath: string | undefined;
+  let allowUnisolatedBeta = false;
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -43,6 +45,8 @@ function parseArgs(argv: string[]): VerifyOracleCliArgs {
       manifestPath = argv[++i];
     } else if (arg.startsWith('--manifest=')) {
       manifestPath = arg.slice('--manifest='.length);
+    } else if (arg === '--allow-unisolated-beta') {
+      allowUnisolatedBeta = true;
     } else if (!arg.startsWith('-') && !manifestPath) {
       manifestPath = arg;
     } else {
@@ -56,6 +60,7 @@ function parseArgs(argv: string[]): VerifyOracleCliArgs {
     specSha256,
     commit,
     trustedKeysPath,
+    allowUnisolatedBeta,
   };
 }
 
@@ -111,6 +116,7 @@ function main(): void {
     expectedSpecSha256,
     expectedCommit,
     trustedKeysPath: parsed.trustedKeysPath,
+    allowUnisolatedBeta: parsed.allowUnisolatedBeta,
   });
 
   if (!result.valid) {
@@ -124,13 +130,22 @@ function main(): void {
   const m = result.manifest!;
   console.log('✓ Gate 1: Mode -> "oracle"');
   console.log(`✓ Gate 2: Status & Verdict -> "${m.status}" / "${m.oracle?.verdict}"`);
-  console.log(`✓ Gate 3: Kane Verification -> result_code ${m.kane_verification?.result_code}`);
+  console.log(
+    `✓ Gate 3: Kane Verification -> result_code ${m.kane_verification?.result_code}${m.kane_verification?.kane_cli_version ? ` (kane-cli ${m.kane_verification.kane_cli_version})` : ''}`
+  );
   console.log(`✓ Gate 4: Backend State Verified -> ${m.application.state_verified}`);
   console.log(`✓ Gate 5: Closed-Loop Repair Disabled -> occurred=${m.closed_loop_repair?.occurred}`);
   console.log(`✓ Gate 6: Pinned Commit Match -> ${m.application.tested_commit}`);
   console.log(`✓ Gate 7: Spec SHA-256 Match -> ${m.oracle?.spec_sha256}`);
   console.log(`✓ Gate 8: Ed25519 Signature Valid -> key_id=${m.signature?.key_id}`);
   console.log(`✓ Gate 9: Environment Pinned -> ${m.application.environment}`);
+  if (m.application.isolation === 'container') {
+    console.log('✓ Gate 10: Isolation -> container (production-isolated)');
+  } else {
+    console.log(
+      `⚠ Gate 10: Beta Isolation Bypassed (--allow-unisolated-beta) -> isolation='${m.application.isolation}' (DO NOT USE FOR REAL FUNDS)`
+    );
+  }
   if (fs.existsSync(parsed.manifestPath)) {
     console.log(`✓ Runner ID: ${m.oracle?.runner_id}`);
   }

@@ -39,11 +39,13 @@ test('verifyOracleManifest passes on signed oracle release manifest without visu
     runId: 'oracle-run-1',
     applicationUrl: 'http://localhost:8080/?logged_in=true',
     applicationEnvironment: 'runner_pinned',
+    applicationIsolation: 'container',
     baselineCommit: COMMIT_SHA,
     testedCommit: COMMIT_SHA,
     stateVerified: true,
     kaneVerification: {
       run_id: 'kane-sess-1',
+      kane_cli_version: '0.10.4',
       session_id: '/tmp/kane-sess-1',
       result_code: 100,
     },
@@ -85,9 +87,10 @@ test('Tampering with any manifest field after signing fails verifyOracleManifest
     runId: 'oracle-run-2',
     applicationUrl: 'http://localhost:8080/?logged_in=true',
     applicationEnvironment: 'runner_pinned',
+    applicationIsolation: 'container',
     testedCommit: COMMIT_SHA,
     stateVerified: true,
-    kaneVerification: { run_id: 'kane-sess-2', result_code: 100 },
+    kaneVerification: { run_id: 'kane-sess-2', kane_cli_version: '0.10.4', result_code: 100 },
     closedLoopRepair: { occurred: false },
     oracle: {
       spec_sha256: SPEC_SHA,
@@ -154,9 +157,10 @@ test('verifyOracleManifest rejects untrusted key_id and tampered optional video 
     runId: 'oracle-run-3',
     applicationUrl: 'http://localhost:8080/?logged_in=true',
     applicationEnvironment: 'runner_pinned',
+    applicationIsolation: 'container',
     testedCommit: COMMIT_SHA,
     stateVerified: true,
-    kaneVerification: { run_id: 'kane-sess-3', result_code: 100 },
+    kaneVerification: { run_id: 'kane-sess-3', kane_cli_version: '0.10.4', result_code: 100 },
     closedLoopRepair: { occurred: false },
     oracle: {
       spec_sha256: SPEC_SHA,
@@ -316,6 +320,78 @@ test('verifyOracleManifest rejects non-runner_pinned environments and verifyOrac
     trustedKeys: { [keyId]: publicPem },
   });
   assert.equal(holdCheck.valid, true, holdCheck.errors.join('; '));
+
+  // Gate 10: unisolated beta release manifest ('none') MUST be rejected by default
+  const betaReleasePath = path.join(tmpDir, 'beta-release-manifest.json');
+  generateRunManifest({
+    outputPath: betaReleasePath,
+    mode: 'oracle',
+    status: 'verified',
+    runId: 'oracle-beta-none',
+    applicationUrl: 'http://localhost:8080',
+    applicationEnvironment: 'runner_pinned',
+    applicationIsolation: 'none',
+    testedCommit: COMMIT_SHA,
+    stateVerified: true,
+    kaneVerification: { run_id: 'kane-beta-1', kane_cli_version: '0.10.4', result_code: 100 },
+    closedLoopRepair: { occurred: false },
+    oracle: {
+      spec_sha256: SPEC_SHA,
+      seed_id: 'ledgerly-default-v1',
+      expected_commit: COMMIT_SHA,
+      runner_id: 'ci-runner-1',
+      verdict: 'release',
+    },
+    signingKey: privatePem,
+  });
+
+  const strictIsolationCheck = verifyOracleManifest(betaReleasePath, {
+    expectedSpecSha256: SPEC_SHA,
+    expectedCommit: COMMIT_SHA,
+    trustedKeys: { [keyId]: publicPem },
+  });
+  assert.equal(strictIsolationCheck.valid, false);
+  assert.ok(strictIsolationCheck.errors.some((e) => /isolation must be 'container'/i.test(e)));
+
+  const optInBetaCheck = verifyOracleManifest(betaReleasePath, {
+    expectedSpecSha256: SPEC_SHA,
+    expectedCommit: COMMIT_SHA,
+    trustedKeys: { [keyId]: publicPem },
+    allowUnisolatedBeta: true,
+  });
+  assert.equal(optInBetaCheck.valid, true, optInBetaCheck.errors.join('; '));
+
+  // Gate 3: untested kane_cli_version rejected even with allowUnisolatedBeta
+  const untestedKanePath = path.join(tmpDir, 'untested-kane-manifest.json');
+  generateRunManifest({
+    outputPath: untestedKanePath,
+    mode: 'oracle',
+    status: 'verified',
+    runId: 'oracle-kane-011',
+    applicationUrl: 'http://localhost:8080',
+    applicationEnvironment: 'runner_pinned',
+    applicationIsolation: 'container',
+    testedCommit: COMMIT_SHA,
+    stateVerified: true,
+    kaneVerification: { run_id: 'kane-011', kane_cli_version: '0.11.0', result_code: 100 },
+    closedLoopRepair: { occurred: false },
+    oracle: {
+      spec_sha256: SPEC_SHA,
+      seed_id: 'ledgerly-default-v1',
+      expected_commit: COMMIT_SHA,
+      runner_id: 'ci-runner-1',
+      verdict: 'release',
+    },
+    signingKey: privatePem,
+  });
+
+  const untestedKaneCheck = verifyOracleManifest(untestedKanePath, {
+    expectedSpecSha256: SPEC_SHA,
+    expectedCommit: COMMIT_SHA,
+    trustedKeys: { [keyId]: publicPem },
+  });
+  assert.equal(untestedKaneCheck.valid, false);
+  assert.ok(untestedKaneCheck.errors.some((e) => /Untested Kane CLI version/i.test(e)));
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });

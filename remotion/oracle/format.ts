@@ -16,4 +16,5 @@ export const ORACLE_GATE_LABELS = [
   'Spec hash matches',
   'Signature valid',
   'Runner pinned',
+  'Container isolated (Tier B)',
 ] as const;

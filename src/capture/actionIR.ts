@@ -7,7 +7,7 @@ import { OutcomeSpec } from '../types.js';
 
 export interface ReplayAction {
   id: string;
-  type: 'navigate' | 'click' | 'fill' | 'scroll' | 'hover';
+  type: 'navigate' | 'click' | 'fill' | 'scroll' | 'hover' | 'wait';
   selector?: string;
   value?: string;
   targetRect?: { x: number; y: number; width: number; height: number };
@@ -23,7 +23,7 @@ export interface ActionIR {
   outcomeSpecs: OutcomeSpec[];
 }
 
-const SUPPORTED_ACTION_TYPES = new Set(['navigate', 'click', 'fill', 'scroll', 'hover']);
+const SUPPORTED_ACTION_TYPES = new Set(['navigate', 'click', 'fill', 'scroll', 'hover', 'wait']);
 const IGNORED_ACTION_TYPES = new Set(['assert', 'analyze']);
 
 export function parseActionsLogToActionIR(actionsNdjsonContent: string, options?: { fallbackUrl?: string }): ActionIR {
@@ -98,6 +98,12 @@ export function parseActionsLogToActionIR(actionsNdjsonContent: string, options?
 
     const rawSelector = event.selectors?.[0]?.selector;
     const normalizedSelector = normalizeActionSelector(rawSelector);
+    const waitMs =
+      actionType === 'wait'
+        ? Math.min(Math.max(Number(event.action_params?.ms ?? event.duration_ms ?? 300), 50), 3000)
+        : actionType === 'navigate'
+        ? 2500
+        : 1200;
 
     actions.push({
       id: event.action_id || `action-${idx}`,
@@ -106,7 +112,7 @@ export function parseActionsLogToActionIR(actionsNdjsonContent: string, options?
       value: event.action_params?.value || event.action_params?.text,
       targetRect,
       viewport,
-      waitAfterMs: actionType === 'navigate' ? 2500 : 1200,
+      waitAfterMs: waitMs,
       sourceStep: event.step || idx + 1,
     });
   }
@@ -142,10 +148,31 @@ export function parseActionsLogToActionIR(actionsNdjsonContent: string, options?
 export function normalizeActionSelector(selector?: string): string | undefined {
   if (!selector) return undefined;
   const trimmed = selector.trim();
-  const internalTestId = /^internal:testid=\[(data-testid="[^"]+")s?\]$/i.exec(trimmed);
+
+  // Kane / Playwright internal testid selector: internal:testid=[data-testid="foo"s] -> [data-testid="foo"]
+  const internalTestId = /^internal:testid=\[(data-testid="[^"]+"|data-testid='[^']+')\s*[si]?\]$/i.exec(trimmed);
   if (internalTestId) {
     return `[${internalTestId[1]}]`;
   }
+
+  // Kane internal role selector: internal:role=button[name="Confirm"i] -> role=button[name="Confirm"i]
+  if (trimmed.startsWith('internal:role=')) {
+    return trimmed.slice('internal:'.length);
+  }
+
+  // Kane internal text selector: internal:text="Approve Invoice"i -> text="Approve Invoice"
+  const internalText = /^internal:text=(.+)$/i.exec(trimmed);
+  if (internalText) {
+    const inner = internalText[1].replace(/([)"'])\s*[si]$/i, '$1');
+    return `text=${inner}`;
+  }
+
+  // Kane internal label/placeholder/attr: internal:attr=[...] -> [...]
+  const internalAttr = /^internal:attr=(\[.+\])$/i.exec(trimmed);
+  if (internalAttr) {
+    return internalAttr[1];
+  }
+
   return trimmed;
 }
 
@@ -169,31 +196,33 @@ function findEvidenceArchive(dir: string): string | null {
 }
 
 export function findActionsLog(dir: string, evidencePackPath?: string): string | null {
-  const findRecursive = (current: string): string | null => {
+  const collectLooseRecursive = (current: string, out: string[]): void => {
     try {
       const entries = fs.readdirSync(current, { withFileTypes: true });
       for (const entry of entries) {
         const full = path.join(current, entry.name);
         if (entry.isFile() && (entry.name === '0-actions.ndjson' || entry.name.endsWith('-actions.ndjson') || entry.name === 'actions.ndjson')) {
-          return full;
-        }
-        if (entry.isDirectory() && entry.name !== 'node_modules' && !entry.name.startsWith('.git')) {
-          const found = findRecursive(full);
-          if (found) return found;
+          if (entry.name !== 'merged-actions.ndjson') {
+            out.push(full);
+          }
+        } else if (entry.isDirectory() && entry.name !== 'node_modules' && !entry.name.startsWith('.git')) {
+          collectLooseRecursive(full, out);
         }
       }
     } catch {
-      return null;
+      // ignore unreadable directory
     }
-    return null;
   };
 
-  const looseFile = findRecursive(dir);
-  if (looseFile) {
-    return looseFile;
-  }
+  const flowIndex = (p: string): number => {
+    const m = /(?:^|[/\\])(\d+)-actions\.ndjson$/i.exec(p);
+    return m ? parseInt(m[1], 10) : Number.MAX_SAFE_INTEGER;
+  };
 
-  // Kane CLI v0.10.x bundles logs/0-actions.ndjson inside evidence/*.evidence ZIP archives
+  const looseFiles: string[] = [];
+  collectLooseRecursive(dir, looseFiles);
+
+  // Kane CLI v0.10.x bundles logs/0-actions.ndjson (and 1-actions.ndjson when bifurcated) inside .evidence ZIP archives
   const archiveCandidate =
     evidencePackPath && fs.existsSync(evidencePackPath)
       ? evidencePackPath
@@ -207,25 +236,43 @@ export function findActionsLog(dir: string, evidencePackPath?: string): string |
           encoding: 'utf8',
           stdio: ['ignore', 'pipe', 'ignore'],
         });
-        const matchEntry = entryList
+        const matchEntries = entryList
           .split('\n')
           .map((l) => l.trim())
-          .find((l) => l.endsWith('/0-actions.ndjson') || l.endsWith('-actions.ndjson') || l === '0-actions.ndjson');
-        if (matchEntry) {
-          const extractedContent = execFileSync('unzip', ['-p', archiveCandidate, matchEntry], {
-            encoding: 'utf8',
-            stdio: ['ignore', 'pipe', 'ignore'],
-            maxBuffer: 10 * 1024 * 1024,
-          });
-          const outPath = path.join(dir, '0-actions.ndjson');
+          .filter((l) => l.endsWith('/0-actions.ndjson') || l.endsWith('-actions.ndjson') || l === '0-actions.ndjson')
+          .sort((a, b) => flowIndex(a) - flowIndex(b) || a.localeCompare(b));
+
+        if (matchEntries.length >= Math.max(1, looseFiles.length)) {
+          const combined = matchEntries
+            .map((entry) =>
+              execFileSync('unzip', ['-p', archiveCandidate, entry], {
+                encoding: 'utf8',
+                stdio: ['ignore', 'pipe', 'ignore'],
+                maxBuffer: 10 * 1024 * 1024,
+              }).trimEnd()
+            )
+            .filter(Boolean)
+            .join('\n') + '\n';
+          const outPath = path.join(dir, 'merged-actions.ndjson');
           fs.mkdirSync(dir, { recursive: true });
-          fs.writeFileSync(outPath, extractedContent, 'utf8');
+          fs.writeFileSync(outPath, combined, 'utf8');
           return outPath;
         }
       }
     } catch {
-      return null;
+      // Fall through to loose files if archive extraction fails
     }
+  }
+
+  if (looseFiles.length === 1) {
+    return looseFiles[0];
+  }
+  if (looseFiles.length > 1) {
+    looseFiles.sort((a, b) => flowIndex(a) - flowIndex(b) || a.localeCompare(b));
+    const merged = looseFiles.map((f) => fs.readFileSync(f, 'utf8').trimEnd()).filter(Boolean).join('\n') + '\n';
+    const mergedPath = path.join(dir, 'merged-actions.ndjson');
+    fs.writeFileSync(mergedPath, merged, 'utf8');
+    return mergedPath;
   }
 
   return null;
@@ -425,13 +472,16 @@ export async function replayActionIRAndVerifyOutcomes(
         }
       } else if (action.type === 'scroll') {
         await page.mouse.wheel(0, 300);
+      } else if (action.type === 'wait') {
+        await page.waitForTimeout(action.waitAfterMs);
+        continue;
       }
       if (action.waitAfterMs > 0) {
         await page.waitForTimeout(Math.min(action.waitAfterMs, 1500));
       }
     }
 
-    await page.waitForLoadState('networkidle').catch(() => {});
+    await page.waitForLoadState('networkidle', { timeout: 3000 }).catch(() => {});
     return await verifyOutcomeSpecs(page, specs, apiBase);
   } finally {
     await browser.close();

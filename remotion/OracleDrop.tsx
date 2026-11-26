@@ -261,15 +261,15 @@ const VerifyBeat: React.FC<{ props: OracleDropProps; durationInFrames: number }>
       <div style={{ position: 'absolute', top: 28, left: 0, right: 0 }}>
         <BeatTitle
           kicker="OFFLINE"
-          title="Nine gates. No browser required."
-          subtitle="A client checks the signed manifest. The video is not a payment gate."
+          title="Ten gates. No browser required."
+          subtitle="A client checks the signed manifest. Gate 10 enforces container isolation before real-funds release."
         />
       </div>
       <div style={{ position: 'absolute', top: 200, left: 80, display: 'flex', gap: 40 }}>
         <TerminalCard title="verify:oracle" lines={props.verifyTerminalLines} width={860} height={560} typingSpeed={speed} />
         <OracleGateList gates={props.gates} durationInFrames={durationInFrames} />
       </div>
-      <LowerThird caption="9 payment gates verified offline · zero video required" tone="neutral" />
+      <LowerThird caption="10 gates verified offline · Gate 10 blocks unisolated beta for real funds" tone="neutral" />
       <BeatAudio src={props.audio?.beat4a} />
     </Stage>
   );

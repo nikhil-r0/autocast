@@ -153,6 +153,8 @@ export type ApplicationEnvironment =
   | 'runner_pinned'
   | 'external_unverified';
 
+export type ApplicationIsolation = 'none' | 'container';
+
 export type OracleHoldReason =
   | 'kane_failed'
   | 'state_mismatch'
@@ -255,6 +257,7 @@ export interface RunManifest {
   application: {
     url: string;
     environment?: ApplicationEnvironment;
+    isolation?: ApplicationIsolation;
     baseline_commit?: string;
     tested_commit?: string;
     integration_commit?: string;
@@ -262,6 +265,7 @@ export interface RunManifest {
   };
   kane_verification?: {
     run_id: string;
+    kane_cli_version?: string;
     session_id?: string;
     evidence_pack?: string;
     result_code?: number;

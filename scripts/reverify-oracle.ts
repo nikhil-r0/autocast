@@ -14,6 +14,7 @@ interface ReverifyCliArgs {
   manifestPath?: string;
   trustedKeysPath?: string;
   reshoot: boolean;
+  allowUnisolatedBeta: boolean;
 }
 
 function parseArgs(argv: string[]): ReverifyCliArgs {
@@ -22,6 +23,7 @@ function parseArgs(argv: string[]): ReverifyCliArgs {
   let manifestPath: string | undefined;
   let trustedKeysPath: string | undefined;
   let reshoot = false;
+  let allowUnisolatedBeta = false;
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -43,6 +45,8 @@ function parseArgs(argv: string[]): ReverifyCliArgs {
       trustedKeysPath = arg.slice('--trusted-keys='.length);
     } else if (arg === '--reshoot') {
       reshoot = true;
+    } else if (arg === '--allow-unisolated-beta') {
+      allowUnisolatedBeta = true;
     } else if (!arg.startsWith('-') && !manifestPath) {
       manifestPath = arg;
     } else {
@@ -50,7 +54,7 @@ function parseArgs(argv: string[]): ReverifyCliArgs {
     }
   }
 
-  return { specPath, commit, manifestPath, trustedKeysPath, reshoot };
+  return { specPath, commit, manifestPath, trustedKeysPath, reshoot, allowUnisolatedBeta };
 }
 
 export interface ReverifyResult {
@@ -67,6 +71,7 @@ export async function reverifyOracle(options: {
   manifestPath: string;
   trustedKeysPath?: string;
   reshoot?: boolean;
+  allowUnisolatedBeta?: boolean;
   outDir?: string;
   runOracleFn?: typeof runOraclePipeline;
 }): Promise<ReverifyResult> {
@@ -77,6 +82,7 @@ export async function reverifyOracle(options: {
     expectedSpecSha256: loaded.specSha256,
     expectedCommit,
     trustedKeysPath: options.trustedKeysPath,
+    allowUnisolatedBeta: options.allowUnisolatedBeta ?? true,
   });
 
   if (!options.reshoot) {
@@ -205,6 +211,7 @@ async function main(): Promise<void> {
       manifestPath: args.manifestPath,
       trustedKeysPath: args.trustedKeysPath,
       reshoot: args.reshoot,
+      allowUnisolatedBeta: args.allowUnisolatedBeta,
     });
 
     console.log(JSON.stringify(result, null, 2));

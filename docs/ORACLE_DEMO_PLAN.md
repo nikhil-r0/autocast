@@ -20,7 +20,7 @@
 | **Beat 2: Fail-Closed `hold` on `C_bug`** | `0:14 – 0:32` (`18s` / `540f` min) | **2-Column Staggered Layout**:<br>• **Left (`width: 860`):** Filtered `TerminalCard` (6–8 key lines from `hold-terminal.log`)<br>• **Right (`width: 860`):** `OracleVerdictSlab` (live Kane/gate failure card swapping at `f280` to `ManifestBadge`: `HOLD · repair: locked off`) | **Voiceover (~40 words):** *"Against a deliberate buggy test commit, the UI claims success while storage stays Pending. The oracle catches it, refuses to touch the deliverable—zero worktrees, zero `agy` calls—and seals a signed `hold` manifest exiting code 1."*<br>**LowerThird Caption:** `Deliberate test fixture (C_bug) → zero repair → signed HOLD`<br>**SFX:** `sfx-stamp.wav` on `HOLD` seal (`f280`). |
 | **Beat 3a: Signed `release` on `C_fix`** | `0:32 – 0:50` (`18s` / `540f` min) | **3D-Tilted `BrowserFrame`** playing `public/oracle-source.mp4` + **Backend State Pill** (`GET /api/invoices/INV-1042 → status: "Approved"`) + **`LowerThird`** | **Voiceover (~34 words):** *"On the fixed commit, `--oracle --commit --with-video` passes Kane 100, verifies every declared UI and `/api/invoices/INV-1042` backend assertion, and captures 1080p browser proof as optional evidence."*<br>**LowerThird Caption:** `Commit C_fix · Kane + backend state verified → signed RELEASE` |
 | **Beat 3b: Oracle Verified End Card** | `0:50 – 0:54.5` (`4.5s` / `135f` min) | **`OracleEndCard`** bound to `release-manifest.json` (`verdict: RELEASE`, `spec_sha256`, `tested_commit`, `state_verified: true`, `repair: false`, `key_id`) | **Voiceover:** *"Ed25519-signed for verification."* *(snappy 4.5s stamp beat)*<br>**SFX:** `sfx-stamp.wav` on `RELEASE` seal. |
-| **Beat 4a: 9-Gate Offline Verification & Publisher** | `0:54.5 – 1:08.5` (`14s` / `420f` min) | **2-Column Layout**:<br>• **Left (`width: 860`):** `TerminalCard` (`verify:oracle` + `--publish stdout-json`)<br>• **Right (`width: 860`):** **9-Gate Payment Checklist** animating gates 1–9 green | **Voiceover (~36 words):** *"Any client verifies all nine payment gates and the runner's Ed25519 signature completely offline—no browser or video required—or streams the payload straight to signed webhooks or future escrow adapters."*<br>**LowerThird Caption:** `9 payment gates verified offline · zero video required` |
+| **Beat 4a: 10-Gate Offline Verification & Publisher** | `0:54.5 – 1:08.5` (`14s` / `420f` min) | **2-Column Layout**:<br>• **Left (`width: 860`):** `TerminalCard` (`verify:oracle --allow-unisolated-beta` + `--publish stdout-json`)<br>• **Right (`width: 860`):** **10-Gate Checklist** animating gates 1–9 green and Gate 10 (`Container isolated`) honestly marked Tier B until container ships | **Voiceover (~36 words):** *"Any client verifies payment gates and the runner's Ed25519 signature completely offline—no browser or video required—while Gate ten refuses unisolated beta runs until container isolation ships."*<br>**LowerThird Caption:** `10 gates verified offline · Gate 10 blocks unisolated beta for real funds` |
 | **Beat 4b: Closing Title Card** | `1:08.5 – 1:14.5` (`6s` / `180f` min) | **`TitleCard` Closing Card** (`3.5s+` clean hold): *"Autocast v0.2 — Milestone payouts, gated by signed and verifiable proof."* + `autocast --oracle` + `github.com/nikhil-r0/autocast` | **Voiceover (~11 words):** *"Autocast v0.2: milestone payouts, gated by signed and verifiable proof."* |
 
 *Frame Budget Check:* Baseline `420 + 540 + 540 + 135 + 420 + 180 = 2,235` frames = **74.5s** @ 30 FPS. Each beat's final `durationInFrames` is computed dynamically via `Math.max(defaultFrames, Math.ceil(audioDurationSec * 30) + 15)` so no voiceover word is clipped at transition boundaries.
@@ -113,14 +113,15 @@ cp public/source.mp4 public/oracle-source.mp4   # Preserve isolated copy so demo
 - `public/oracle-source.mp4`: genuine 1080p Playwright replay generated during Run 2.
 - `out/oracle-drop/release-verdict.json`: pure `VerdictPayload` JSON (`spec_sha256`, `tested_commit`, `manifest_sha256`, `verdict: "release"`, `signature`). *(When `--publish stdout-json` is passed, `runOraclePipeline` routes human progress logs to `stderr`, keeping `stdout` clean JSON.)*
 
-### Step 3 — Run 3: Offline 9-Gate Verification (Exit `0`)
+### Step 3 — Run 3: Offline 10-Gate Verification (Strict vs. Beta Inspect)
 
-Verify the sealed release manifest completely offline (capturing verbatim output for Beat 4a):
+Verify the sealed release manifest completely offline (strict default exits `1` on Gate 10 for beta `isolation: "none"`; `--allow-unisolated-beta` verifies gates 1–9 cleanly for demo capture):
 ```bash
 npm run verify:oracle -- out/oracle-drop/release-manifest.json \
   --spec "${SPEC_PATH}" \
   --commit "${FIX_COMMIT}" \
   --trusted-keys .oracle-keys/trusted-keys.json \
+  --allow-unisolated-beta \
   | tee out/oracle-drop/verify-oracle.log
 ```
 *(Optional confidence check: running `npm run verify:oracle -- out/oracle-drop/hold-manifest.json --spec "${SPEC_PATH}" --commit "${BUG_COMMIT}" ...` exits `1`, proving payment gates reject the `hold` artifact while `verifyOracleHoldManifest` accepts it.)*

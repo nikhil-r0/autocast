@@ -5,7 +5,11 @@ import os from 'os';
 import path from 'path';
 import http from 'http';
 import crypto from 'crypto';
-import { runOraclePipeline, validateOracleTargetUrl } from '../src/oracle/runner.js';
+import {
+  runOraclePipeline,
+  runOracleWithInconclusivePolicy,
+  validateOracleTargetUrl,
+} from '../src/oracle/runner.js';
 import { scrubChildEnv, stripOracleSecrets } from '../src/oracle/env.js';
 import { computePublicKeyId } from '../src/oracle/sign.js';
 import { computeSpecSha256 } from '../src/oracle/spec.js';
@@ -440,11 +444,22 @@ test('Kane 100 + matching api_state seals signed release manifest and exits 0', 
   assert.equal(outcome.exitCode, 0);
   assert.equal(outcome.verdict, 'release');
   assert.equal(outcome.manifest?.application.environment, 'runner_pinned');
+  assert.equal(outcome.manifest?.application.isolation, 'none');
+  assert.equal(outcome.manifest?.kane_verification?.kane_cli_version, '0.10.4');
+
+  const strictDefault = verifyOracleManifest(manifestPath, {
+    expectedSpecSha256: specSha256,
+    expectedCommit: commit,
+    publicKeyPem: keys.publicPem,
+  });
+  assert.equal(strictDefault.valid, false);
+  assert.ok(strictDefault.errors.some((e) => /isolation must be 'container'/i.test(e)));
 
   const verify = verifyOracleManifest(manifestPath, {
     expectedSpecSha256: specSha256,
     expectedCommit: commit,
     publicKeyPem: keys.publicPem,
+    allowUnisolatedBeta: true,
   });
   assert.equal(verify.valid, true, verify.errors.join('; '));
 
@@ -515,6 +530,7 @@ test('CLI env ORACLE_SIGNING_KEY signs manifest in a single write (never writes 
       expectedSpecSha256: specSha256,
       expectedCommit: commit,
       publicKeyPem: keys.publicPem,
+      allowUnisolatedBeta: true,
     });
     assert.equal(verify.valid, true, verify.errors.join('; '));
   } finally {
@@ -575,6 +591,7 @@ test('Uppercase 40-char --commit matches lowercase served commit from /api/healt
     expectedSpecSha256: specSha256,
     expectedCommit: upperCommit,
     publicKeyPem: keys.publicPem,
+    allowUnisolatedBeta: true,
   });
   assert.equal(verify.valid, true, verify.errors.join('; '));
 
@@ -854,6 +871,103 @@ test('Oracle splits runner faults (missing actions.ndjson, RunnerInfraError -> i
   assert.equal(infraFailOutcome.exitCode, 4);
   assert.equal(infraFailOutcome.verdict, 'inconclusive');
   assert.equal(infraFailOutcome.holdReason, 'runner_error');
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('Oracle fails closed (exit 2) on untested Kane CLI version and enforces 3-attempt inconclusive retry policy', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'autocast-oracle-kane-pin-'));
+  const keys = createTestKeys();
+  const commit = 'abab111122223333444455556666777788889999';
+  const spec = makeSpec();
+  const { specPath } = writeSpecFile(tmpDir, spec);
+
+  // Untested kane-cli version fails closed with exitCode 2 before starting app
+  const badVerOutcome = await runOraclePipeline({
+    specPath,
+    commit,
+    outDir: path.join(tmpDir, 'out-badver'),
+    signingKey: keys.privatePem,
+    deps: {
+      getKaneVersionFn: () => '0.11.0',
+    },
+  });
+  assert.equal(badVerOutcome.exitCode, 2);
+  assert.match(badVerOutcome.error || '', /Unsupported kane-cli version '0.11.0'/i);
+
+  // Retry policy caps at max 2 retries (3 total runs) then escalates to arbitration
+  let calls = 0;
+  const escalated = await runOracleWithInconclusivePolicy(
+    { specPath, commit, maxInconclusiveRetries: 2 },
+    async () => {
+      calls++;
+      return { exitCode: 4, verdict: 'inconclusive', holdReason: 'timeout' };
+    }
+  );
+  assert.equal(calls, 3);
+  assert.equal(escalated.attempts, 3);
+  assert.equal(escalated.escalatedToArbitration, true);
+
+  // Hold / Release stops immediately without retrying
+  let holdCalls = 0;
+  const nonRetryHold = await runOracleWithInconclusivePolicy(
+    { specPath, commit, maxInconclusiveRetries: 2 },
+    async () => {
+      holdCalls++;
+      return { exitCode: 1, verdict: 'hold', holdReason: 'build_failed' };
+    }
+  );
+  assert.equal(holdCalls, 1);
+  assert.equal(nonRetryHold.escalatedToArbitration, false);
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('LedgerlyLifecycleAdapter registry ping separates runner outage (RunnerInfraError) from lockfile 404 (DeliverableBuildError)', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'autocast-oracle-regcheck-'));
+  const appDir = path.join(tmpDir, 'ledgerly');
+  fs.mkdirSync(path.join(appDir, 'server'), { recursive: true });
+  fs.writeFileSync(path.join(appDir, 'package.json'), JSON.stringify({ name: 'bad-pkg', version: '1.0.0' }));
+  fs.writeFileSync(
+    path.join(appDir, 'package-lock.json'),
+    JSON.stringify({
+      name: 'bad-pkg',
+      version: '1.0.0',
+      lockfileVersion: 3,
+      packages: {
+        '': { name: 'bad-pkg', version: '1.0.0', dependencies: { 'nonexistent-tarball-xyz': '1.0.0' } },
+        'node_modules/nonexistent-tarball-xyz': {
+          version: '1.0.0',
+          resolved: 'https://registry.npmjs.org/nonexistent-tarball-xyz/-/nonexistent-tarball-xyz-1.0.0.tgz',
+        },
+      },
+    })
+  );
+  fs.writeFileSync(path.join(appDir, 'server', 'index.js'), '');
+
+  const adapter = new LedgerlyLifecycleAdapter({ appDir, port: 18999 });
+
+  // 1. Registry ping fails -> RunnerInfraError (runner outage -> inconclusive)
+  await assert.rejects(
+    () =>
+      adapter.start({
+        scrubEnv: true,
+        allowNodeModulesSymlink: false,
+        checkRegistryFn: async () => false,
+      }),
+    (err: any) => err instanceof RunnerInfraError
+  );
+
+  // 2. Registry ping succeeds, but lockfile tarball returns E404 / fails -> DeliverableBuildError (hold)
+  await assert.rejects(
+    () =>
+      adapter.start({
+        scrubEnv: true,
+        allowNodeModulesSymlink: false,
+        checkRegistryFn: async () => true,
+      }),
+    (err: any) => err instanceof DeliverableBuildError
+  );
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "title": "Ledgerly INV-1042 Invoice Approval",
-  "objective": "Click the Review button for row INV-1042, click Approve Invoice in the drawer, enter approval note, click Confirm Approval, then verify drawer status badge shows Approved",
+  "objective": "On the login page, fill Corporate Email with demo@ledgerly.test, fill Password with demo1234, click Sign In to Dashboard, then click the Review button for row INV-1042, click Approve Invoice in the drawer, enter approval note, click Confirm Approval, then verify drawer status badge shows Approved",
   "outcome_specs": [
     {
       "id": "drawer-status-approved",
@@ -29,12 +29,12 @@
     }
   ],
   "target": {
-    "url": "http://localhost:8080/?logged_in=true",
+    "url": "http://localhost:8080/",
     "seed_id": "ledgerly-default-v1"
   },
   "parties": {
-    "client": "ledgerly-client@example.com",
-    "contractor": "ledgerly-contractor@example.com"
+    "client": "party:client-01",
+    "contractor": "party:contractor-01"
   },
   "contract_id": "ledgerly-escrow-2026-001",
   "milestone_id": "ledgerly-inv-1042-approval"
